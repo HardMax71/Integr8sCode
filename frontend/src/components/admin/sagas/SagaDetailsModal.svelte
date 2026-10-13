@@ -50,7 +50,7 @@
                             <button
                                 type="button"
                                 onclick={() => viewExecution(saga.execution_id)}
-                                class="text-primary hover:text-primary-dark font-mono"
+                                class="text-accent hover:text-accent font-mono"
                             >
                                 {saga.execution_id}
                             </button>
@@ -101,14 +101,14 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <h4 class="text-sm font-medium mb-2 text-green-600">
+                    <h4 class="text-sm font-medium mb-2 text-success">
                         {fieldTitle('completed_steps')} ({saga.completed_steps.length})
                     </h4>
                     {#if saga.completed_steps.length > 0}
                         <ul class="space-y-1">
                             {#each saga.completed_steps as step (step)}
                                 <li class="flex items-center gap-2 text-sm">
-                                    <Check class="w-4 h-4 text-green-500" />{step}
+                                    <Check class="w-4 h-4 text-success" />{step}
                                 </li>
                             {/each}
                         </ul>
@@ -117,14 +117,14 @@
                     {/if}
                 </div>
                 <div>
-                    <h4 class="text-sm font-medium mb-2 text-yellow-600">
+                    <h4 class="text-sm font-medium mb-2 text-warning">
                         {fieldTitle('compensated_steps')} ({saga.compensated_steps.length})
                     </h4>
                     {#if saga.compensated_steps.length > 0}
                         <ul class="space-y-1">
                             {#each saga.compensated_steps as step (step)}
                                 <li class="flex items-center gap-2 text-sm">
-                                    <Undo2 class="w-4 h-4 text-yellow-500" />{step}
+                                    <Undo2 class="w-4 h-4 text-warning" />{step}
                                 </li>
                             {/each}
                         </ul>
@@ -137,7 +137,7 @@
 
         {#if saga.error_message}
             <div class="mt-6">
-                <h3 class="font-semibold mb-3 text-red-600">{fieldTitle('error_message')}</h3>
+                <h3 class="font-semibold mb-3 text-danger">{fieldTitle('error_message')}</h3>
                 <div class="p-4 alert alert-danger">
                     <pre class="text-sm whitespace-pre-wrap">{saga.error_message}</pre>
                 </div>

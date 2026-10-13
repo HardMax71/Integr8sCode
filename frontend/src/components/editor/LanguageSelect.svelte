@@ -25,7 +25,7 @@
     >
         <span class="capitalize truncate">{available ? `${current.lang} ${current.lang_version}` : 'Unavailable'}</span>
         <ChevronDown
-            class="ml-2 w-5 h-5 shrink-0 text-fg-muted dark:text-dark-fg-muted transition-transform group-data-[state=open]:-rotate-180"
+            class="ml-2 w-5 h-5 shrink-0 text-fg-muted transition-transform group-data-[state=open]:-rotate-180"
         />
     </DropdownMenu.Trigger>
     <DropdownMenu.Portal>
@@ -40,7 +40,7 @@
                 <DropdownMenu.Sub>
                     <DropdownMenu.SubTrigger class="floating-item justify-between capitalize font-medium">
                         {l}
-                        <ChevronRight class="w-4 h-4 text-fg-muted dark:text-dark-fg-muted" />
+                        <ChevronRight class="w-4 h-4 text-fg-muted" />
                     </DropdownMenu.SubTrigger>
                     <DropdownMenu.Portal>
                         <DropdownMenu.SubContent
@@ -56,7 +56,7 @@
                                     <DropdownMenu.RadioItem value={v} class="floating-item justify-between">
                                         {#snippet children({ checked })}
                                             <span class:font-semibold={checked}>{v}</span>
-                                            {#if checked}<Check class="w-4 h-4 text-primary" />{/if}
+                                            {#if checked}<Check class="w-4 h-4 text-accent" />{/if}
                                         {/snippet}
                                     </DropdownMenu.RadioItem>
                                 {/each}

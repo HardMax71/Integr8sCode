@@ -3,10 +3,10 @@ import { CircleAlert, CircleCheck, Info, TriangleAlert } from '@lucide/svelte';
 import type { NotificationSeverity } from '#lib/api/index.ts';
 
 export const SEVERITY_COLORS: Record<NotificationSeverity, string> = {
-    low: 'text-fg-muted dark:text-dark-fg-muted',
-    medium: 'text-blue-600 dark:text-blue-400',
-    high: 'text-orange-600 dark:text-orange-400',
-    urgent: 'text-red-600 dark:text-red-400',
+    low: 'text-fg-muted',
+    medium: 'text-info',
+    high: 'text-orange',
+    urgent: 'text-danger',
 };
 
 /** Tags are free strings in the API; these are the ones the backend's notifications carry */

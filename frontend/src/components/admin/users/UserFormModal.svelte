@@ -90,10 +90,10 @@
     <Field {form} {name}>
         <Control id="user-form-{name}">
             {#snippet children({ props })}
-                <Label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                <Label class="block text-sm font-medium text-fg-muted mb-1">
                     {fieldTitle(name)}
                     {#if name !== 'password' || !editing}
-                        <span class="text-red-500">*</span>
+                        <span class="text-danger">*</span>
                     {/if}
                 </Label>
                 <input
@@ -111,11 +111,9 @@
             {/snippet}
         </Control>
         {#if name === 'password' && editing}
-            <Description class="mt-1 text-xs text-fg-muted dark:text-dark-fg-muted">
-                Leave empty to keep the current password
-            </Description>
+            <Description class="mt-1 text-xs text-fg-muted">Leave empty to keep the current password</Description>
         {/if}
-        <FieldErrors class="mt-1 text-sm text-red-600 dark:text-red-400" />
+        <FieldErrors class="mt-1 text-sm text-danger" />
     </Field>
 {/snippet}
 
@@ -128,9 +126,7 @@
             <Field {form} name="role">
                 <Control id="user-form-role">
                     {#snippet children({ props })}
-                        <Label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                            >{fieldTitle('role')}</Label
-                        >
+                        <Label class="block text-sm font-medium text-fg-muted mb-1">{fieldTitle('role')}</Label>
                         <select {...props} bind:value={$formData.role} class="form-select-standard" disabled={saving}>
                             {#each Object.values(UserRole) as option (option)}
                                 <option value={option}>{option}</option>
@@ -144,9 +140,7 @@
                     {#snippet children({ props })}
                         <div class="flex items-center gap-2">
                             <input {...props} type="checkbox" bind:checked={$formData.is_active} disabled={saving} />
-                            <Label class="text-sm font-medium text-fg-default dark:text-dark-fg-default cursor-pointer"
-                                >{fieldTitle('is_active')}</Label
-                            >
+                            <Label class="text-sm font-medium text-fg cursor-pointer">{fieldTitle('is_active')}</Label>
                         </div>
                     {/snippet}
                 </Control>

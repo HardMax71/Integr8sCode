@@ -11,59 +11,110 @@
   strategy: class;
 }
 
-/* Dark mode variant (class-based) */
-@variant dark (&:where(.dark, .dark *));
+/* mode-watcher puts the dark class on <html> */
+@custom-variant dark (&:where(.dark, .dark *));
 
-/* Theme configuration */
+/* One name per color: :root holds the light value and .dark the dark one, so markup never needs dark: */
+:root {
+  --page: #f8fafc;
+  --surface: #fff;
+  --sidebar: #f1f5f9;
+  --fg: #1e293b;
+  --fg-muted: #64748b;
+  --fg-subtle: #94a3b8;
+  --border: #e2e8f0;
+  --border-input: #cbd5e1;
+  --ring: #93c5fd;
+  --accent: #2563eb;
+  --success: #15803d;
+  --warning: #a16207;
+  --danger: #dc2626;
+  --info: #2563eb;
+  --purple: #9333ea;
+  --indigo: #4f46e5;
+  --orange: #ea580c;
+  --code: #fff;
+  --backdrop: rgb(0 0 0 / 50%);
+  --success-soft: #f0fdf4;
+  --warning-soft: #fefce8;
+  --danger-soft: #fef2f2;
+  --info-soft: #eff6ff;
+  --purple-soft: #faf5ff;
+  --indigo-soft: #eef2ff;
+  --orange-soft: #fff7ed;
+}
+
+.dark {
+  --page: #0f172a;
+  --surface: #1e293b;
+  --sidebar: #020617;
+  --fg: #e2e8f0;
+  --fg-muted: #94a3b8;
+  --fg-subtle: #64748b;
+  --border: #334155;
+  --border-input: #475569;
+  --ring: #3b82f6;
+  --accent: #60a5fa;
+  --success: #4ade80;
+  --warning: #facc15;
+  --danger: #f87171;
+  --info: #60a5fa;
+  --purple: #c084fc;
+  --indigo: #818cf8;
+  --orange: #fb923c;
+  --code: #0f172a;
+  --backdrop: rgb(0 0 0 / 70%);
+  --success-soft: rgb(20 83 45 / 30%);
+  --warning-soft: rgb(113 63 18 / 30%);
+  --danger-soft: rgb(127 29 29 / 30%);
+  --info-soft: rgb(30 58 138 / 30%);
+  --purple-soft: rgb(88 28 135 / 30%);
+  --indigo-soft: rgb(49 46 129 / 30%);
+  --orange-soft: rgb(124 45 18 / 30%);
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-sidebar: var(--sidebar);
+
+  /* A tint of the text color, so a fill or a hover shows on any surface in both modes */
+  --color-muted: color-mix(in oklab, var(--fg) 5%, transparent);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-border: var(--border);
+  --color-border-input: var(--border-input);
+  --color-ring: var(--ring);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-purple: var(--purple);
+  --color-indigo: var(--indigo);
+  --color-orange: var(--orange);
+  --color-code: var(--code);
+  --color-backdrop: var(--backdrop);
+  --color-success-soft: var(--success-soft);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger-soft: var(--danger-soft);
+  --color-info-soft: var(--info-soft);
+  --color-purple-soft: var(--purple-soft);
+  --color-indigo-soft: var(--indigo-soft);
+  --color-orange-soft: var(--orange-soft);
+}
+
+/* Fills that keep their color in both modes */
 @theme {
-  /* Primary - Blue */
   --color-primary-light: #60a5fa;
   --color-primary: #3b82f6;
-  --color-primary-dark: #2563eb;
-
-  /* Secondary - Teal */
-  --color-secondary-light: #5eead4;
+  --color-primary-hover: #2563eb;
   --color-secondary: #14b8a6;
-  --color-secondary-dark: #0f766e;
-
-  /* Semantic Colors - Light */
-  --color-bg-default: #f8fafc;
-  --color-bg-alt: #fff;
-  --color-bg-sidebar: #f1f5f9;
-  --color-fg-default: #1e293b;
-  --color-fg-muted: #64748b;
-  --color-fg-subtle: #94a3b8;
-  --color-border-default: #e2e8f0;
-  --color-border-input: #cbd5e1;
-  --color-focus-ring: #93c5fd;
-
-  /* Semantic Colors - Dark */
-  --color-dark-bg-default: #0f172a;
-  --color-dark-bg-alt: #1e293b;
-  --color-dark-bg-sidebar: #020617;
-  --color-dark-fg-default: #e2e8f0;
-  --color-dark-fg-muted: #94a3b8;
-  --color-dark-fg-subtle: #64748b;
-  --color-dark-border-default: #334155;
-  --color-dark-border-input: #475569;
-  --color-dark-focus-ring: #3b82f6;
-  --color-code-bg: #0f172a;
-
-  /* Surface tokens for layered UI */
-  --color-surface-overlay: #fff;
-  --color-dark-surface-overlay: #1f2937;
-
-  /* Interactive states */
-  --color-interactive-hover: #f9fafb;
-  --color-dark-interactive-hover: #374151;
-
-  /* Skeleton/loading states */
-  --color-skeleton: #e5e7eb;
-  --color-dark-skeleton: #374151;
-
-  /* Tooltip */
-  --color-tooltip-bg: #111827;
-  --color-tooltip-fg: #fff;
+  --color-secondary-hover: #0f766e;
+  --color-tooltip: #111827;
+  --color-danger-solid: #dc2626;
+  --color-danger-solid-hover: #b91c1c;
 
   /* Font Families */
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'Noto Sans', sans-serif;
@@ -120,11 +171,9 @@
   padding: 0.375rem 0.75rem;
   font-size: 0.875rem;
   line-height: 1.25rem;
-  border-width: 1px;
-  border-style: solid;
-  border-color: var(--color-neutral-300);
-  background-color: white;
-  color: var(--color-fg-default);
+  border: 1px solid var(--color-border-input);
+  background-color: var(--color-surface);
+  color: var(--color-fg);
   border-radius: 0.375rem;
   transition-property: color, background-color, border-color;
   transition-duration: 150ms;
@@ -136,28 +185,26 @@
   }
 
   &:hover {
-    background-color: var(--color-neutral-50);
-  }
-
-  :where(.dark, .dark *) & {
-    border-color: var(--color-dark-border-input);
-    background-color: var(--color-dark-bg-alt);
-    color: var(--color-dark-fg-default);
-
-    &:hover {
-      background-color: var(--color-neutral-700);
-    }
+    background-color: color-mix(in oklab, var(--color-fg) 4%, var(--color-surface));
   }
 }
 
 @layer base {
+  /* Tailwind 4 borders default to currentColor */
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-border);
+  }
+
   body {
-    @apply font-sans antialiased text-fg-default bg-bg-default dark:text-dark-fg-default dark:bg-dark-bg-default transition-colors duration-200;
+    @apply font-sans antialiased text-fg bg-page transition-colors duration-200;
 
     scroll-behavior: smooth;
   }
 
-  /* Apply base form styles using the forms plugin classes */
   [type='text'],
   [type='email'],
   [type='password'],
@@ -165,85 +212,81 @@
   [type='search'],
   textarea,
   select {
-    @apply form-input border-border-input dark:border-dark-border-input bg-bg-alt dark:bg-dark-bg-alt dark:text-dark-fg-default focus:border-primary dark:focus:border-primary focus:ring-3 focus:ring-focus-ring/50 dark:focus:ring-dark-focus-ring/50 rounded-md shadow-xs text-sm;
+    @apply form-input border-border-input bg-surface focus:border-primary focus:ring-3 focus:ring-ring/50 rounded-md shadow-xs text-sm;
   }
 
-   [type='text']:disabled,
-   [type='email']:disabled,
-   [type='password']:disabled,
-   [type='number']:disabled,
-   [type='search']:disabled,
-   textarea:disabled,
-   select:disabled {
-     @apply bg-neutral-100 dark:bg-neutral-700 opacity-70 cursor-not-allowed;
-   }
+  [type='text']:disabled,
+  [type='email']:disabled,
+  [type='password']:disabled,
+  [type='number']:disabled,
+  [type='search']:disabled,
+  textarea:disabled,
+  select:disabled {
+    @apply bg-muted opacity-70 cursor-not-allowed;
+  }
 
-   select {
-     @apply form-select pr-10; /* Ensure space for dropdown arrow */
-   }
+  select {
+    @apply form-select pr-10;
+  }
 
-   [type='checkbox'], [type='radio'] {
-     @apply form-checkbox rounded text-primary focus:ring-primary focus:ring-offset-0 focus:ring-2;
-   }
+  [type='checkbox'],
+  [type='radio'] {
+    @apply form-checkbox rounded text-primary focus:ring-primary focus:ring-offset-0 focus:ring-2;
+  }
 
-   /* Default link styles */
-   a {
-     @apply text-primary hover:text-primary-dark dark:hover:text-primary-light transition-colors duration-150;
-   }
+  a {
+    @apply text-accent transition-colors duration-150;
+  }
 
-   /* Custom Scrollbars */
-   ::-webkit-scrollbar {
-     width: 8px;
-     height: 8px;
-   }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
 
-   ::-webkit-scrollbar-track {
-     @apply bg-neutral-200 dark:bg-neutral-700 rounded;
-   }
+  ::-webkit-scrollbar-track {
+    @apply bg-muted rounded;
+  }
 
-   ::-webkit-scrollbar-thumb {
-     @apply bg-neutral-400 dark:bg-neutral-500 rounded;
-   }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border-input rounded;
+  }
 
-   ::-webkit-scrollbar-thumb:hover {
-     @apply bg-neutral-500 dark:bg-neutral-400;
-   }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-fg-subtle;
+  }
 
-   /* CodeMirror Base Overrides */
-    .cm-editor {
-      @apply font-mono! text-sm border border-border-default dark:border-dark-border-default rounded-lg;
+  .cm-editor {
+    @apply font-mono! text-sm border rounded-lg;
 
-      height: 100% !important; /* Force height */
-    }
+    height: 100% !important;
+  }
 
-    .cm-scroller {
-      @apply font-mono!;
-    }
+  .cm-scroller {
+    @apply font-mono!;
+  }
 
-    /* oneDark Theme specific overrides for better integration */
-    .cm-theme-onedark .cm-gutters {
-      @apply bg-bg-alt dark:bg-dark-bg-alt border-r border-border-default dark:border-dark-border-default text-fg-muted dark:text-dark-fg-muted;
-    }
+  .cm-theme-onedark {
+    @apply bg-code;
+  }
 
-    .cm-theme-onedark .cm-activeLineGutter {
-       @apply bg-neutral-200 dark:bg-neutral-700;
-    }
+  .cm-theme-onedark .cm-gutters {
+    @apply bg-surface border-r text-fg-muted;
+  }
 
-    .cm-theme-onedark {
-       @apply bg-bg-alt dark:bg-code-bg; /* Use code-bg for dark theme editor */
-    }
+  .cm-theme-onedark .cm-activeLineGutter {
+    @apply bg-muted;
+  }
 
-    .cm-theme-onedark .cm-content {
-       @apply text-fg-default dark:text-dark-fg-default; /* Adjust base text color */
-    }
+  .cm-theme-onedark .cm-content {
+    @apply text-fg;
+  }
 
-    .cm-theme-onedark .cm-cursor {
-       @apply border-primary dark:border-primary-light; /* Make cursor more visible */
-    }
+  .cm-theme-onedark .cm-cursor {
+    @apply border-accent;
+  }
 
-    /* Selection background */
-     .cm-theme-onedark .cm-selectionBackground,
-     .cm-theme-onedark.cm-focused .cm-selectionBackground {
-        @apply bg-primary/20 dark:bg-primary/30;
-     }
+  .cm-theme-onedark .cm-selectionBackground,
+  .cm-theme-onedark.cm-focused .cm-selectionBackground {
+    @apply bg-primary/25;
+  }
 }

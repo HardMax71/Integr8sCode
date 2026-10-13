@@ -28,9 +28,7 @@
 </script>
 
 {#snippet booleanFilter(key: BooleanFilter)}
-    <label for="{key}-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-        >{fieldTitle(key)}</label
-    >
+    <label for="{key}-filter" class="block text-sm font-medium text-fg-muted mb-1">{fieldTitle(key)}</label>
     <select id="{key}-filter" bind:value={filters[key]} class="form-select-standard w-full">
         <option value={null}>All</option>
         <option value={true}>{formatBoolean(true)}</option>
@@ -42,7 +40,7 @@
     <div class="p-3 sm:p-4">
         <div class="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:items-end">
             <div class="w-full lg:flex-1 lg:max-w-md">
-                <label for="search-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
+                <label for="search-filter" class="block text-sm font-medium text-fg-muted mb-1"
                     >{fieldTitle('search')}</label
                 >
                 <input
@@ -57,7 +55,7 @@
                 />
             </div>
             <div class="w-full sm:w-auto sm:min-w-[140px]">
-                <label for="role-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
+                <label for="role-filter" class="block text-sm font-medium text-fg-muted mb-1"
                     >{fieldTitle('role')}</label
                 >
                 <select id="role-filter" bind:value={filters.role} class="form-select-standard w-full">
@@ -89,8 +87,8 @@
         </div>
 
         {#if showAdvancedFilters}
-            <div class="mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-700">
-                <h4 class="text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-3">Rate Limit Filters</h4>
+            <div class="mt-4 pt-4 border-t border-border">
+                <h4 class="text-sm font-medium text-fg-muted mb-3">Rate Limit Filters</h4>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>{@render booleanFilter('bypass_rate_limit')}</div>
                     <div>{@render booleanFilter('has_custom_limits')}</div>

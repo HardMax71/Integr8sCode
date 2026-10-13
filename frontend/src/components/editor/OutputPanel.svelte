@@ -45,30 +45,26 @@
 
 {#snippet usageField(key: string, value: string | number)}
     <div class="flex flex-col">
-        <dt class="text-fg-muted dark:text-dark-fg-muted font-normal">{fieldTitle(key)}</dt>
-        <dd class="text-fg-default dark:text-dark-fg-default font-medium">{value}</dd>
+        <dt class="text-fg-muted font-normal">{fieldTitle(key)}</dt>
+        <dd class="text-fg font-medium">{value}</dd>
     </div>
 {/snippet}
 
 <div class="output-container flex flex-col h-full">
-    <h3
-        class="text-base font-medium text-fg-default dark:text-dark-fg-default mb-3 border-b border-border-default dark:border-dark-border-default pb-3 shrink-0"
-    >
-        Execution Output
-    </h3>
+    <h3 class="text-base font-medium text-fg mb-3 border-b border-border pb-3 shrink-0">Execution Output</h3>
     <div class="output-content flex-grow overflow-auto pr-2 text-sm custom-scrollbar">
         {#if phase !== 'idle'}
             <div class="flex flex-col items-center justify-center h-full text-center p-4 animate-fade-in">
                 <Spinner />
-                <p class="mt-3 text-sm font-medium text-primary-dark dark:text-primary-light">{phaseLabel}</p>
+                <p class="mt-3 text-sm font-medium text-accent">{phaseLabel}</p>
             </div>
         {:else if error && !result}
             <div class="flex flex-col items-center justify-center h-full text-center p-4 animate-fade-in">
-                <div class="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-3">
-                    <TriangleAlert class="w-6 h-6 text-red-600 dark:text-red-400" />
+                <div class="w-12 h-12 rounded-full bg-danger-soft flex items-center justify-center mb-3">
+                    <TriangleAlert class="w-6 h-6 text-danger" />
                 </div>
-                <p class="text-sm font-medium text-red-700 dark:text-red-300">Execution Failed</p>
-                <p class="mt-1 text-xs text-fg-muted dark:text-dark-fg-muted max-w-xs">{error}</p>
+                <p class="text-sm font-medium text-danger">Execution Failed</p>
+                <p class="mt-1 text-xs text-fg-muted max-w-xs">{error}</p>
             </div>
         {:else if result}
             <div class="space-y-5 animate-fly-in">
@@ -81,14 +77,14 @@
                         <div class="relative group">
                             <button
                                 type="button"
-                                class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer"
+                                class="inline-flex items-center p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-muted transition-colors duration-150 cursor-pointer"
                                 aria-label="Click to copy execution ID"
                                 onclick={() => copyToClipboard(result!.execution_id, 'Execution ID')}
                             >
                                 <FileText class="w-4 h-4" />
                             </button>
                             <div
-                                class="absolute top-8 right-0 z-10 px-2 py-1 text-xs bg-neutral-800 dark:bg-neutral-200 text-white dark:text-neutral-800 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap"
+                                class="absolute top-8 right-0 z-10 px-2 py-1 text-xs bg-tooltip text-white rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap"
                             >
                                 {fieldTitle('execution_id')}<br />{result.execution_id}<br /><span
                                     class="text-xs opacity-75">Click to copy</span
@@ -100,9 +96,7 @@
 
                 {#if result.stdout}
                     <div class="output-section">
-                        <h4
-                            class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1 uppercase tracking-wider"
-                        >
+                        <h4 class="text-xs font-medium text-fg-muted mb-1 uppercase tracking-wider">
                             {fieldTitle('stdout')}
                         </h4>
                         <div class="relative">
@@ -112,14 +106,14 @@
                             <div class="absolute bottom-2 right-2 group">
                                 <button
                                     type="button"
-                                    class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
+                                    class="inline-flex items-center p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-muted transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
                                     aria-label="Copy output to clipboard"
                                     onclick={() => copyToClipboard(result!.stdout!, 'Output')}
                                 >
                                     <Copy class="w-4 h-4" />
                                 </button>
                                 <div
-                                    class="absolute bottom-8 right-0 z-10 px-2 py-1 text-xs bg-neutral-800 dark:bg-neutral-200 text-white dark:text-neutral-800 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap"
+                                    class="absolute bottom-8 right-0 z-10 px-2 py-1 text-xs bg-tooltip text-white rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap"
                                 >
                                     Copy output
                                 </div>
@@ -130,29 +124,27 @@
 
                 {#if result.stderr}
                     <div class="error-section">
-                        <h4 class="text-xs font-medium text-red-700 dark:text-red-300 mb-1 uppercase tracking-wider">
+                        <h4 class="text-xs font-medium text-danger mb-1 uppercase tracking-wider">
                             {fieldTitle('stderr')}
                         </h4>
                         <div class="relative">
-                            <div
-                                class="p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800"
-                            >
+                            <div class="p-3 rounded-lg bg-danger-soft border border-danger/30">
                                 <pre
-                                    class="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-transparent p-0 pr-8">{@render ansi(
+                                    class="text-xs text-danger whitespace-pre-wrap break-words font-mono bg-transparent p-0 pr-8">{@render ansi(
                                         result.stderr,
                                     )}</pre>
                             </div>
                             <div class="absolute bottom-2 right-2 group">
                                 <button
                                     type="button"
-                                    class="inline-flex items-center p-1.5 rounded-lg text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
+                                    class="inline-flex items-center p-1.5 rounded-lg text-danger hover:text-danger hover:bg-danger-soft transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
                                     aria-label="Copy error text to clipboard"
                                     onclick={() => copyToClipboard(result!.stderr!, 'Error text')}
                                 >
                                     <Copy class="w-4 h-4" />
                                 </button>
                                 <div
-                                    class="absolute bottom-8 right-0 z-10 px-2 py-1 text-xs bg-neutral-800 dark:bg-neutral-200 text-white dark:text-neutral-800 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap"
+                                    class="absolute bottom-8 right-0 z-10 px-2 py-1 text-xs bg-tooltip text-white rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap"
                                 >
                                     Copy errors
                                 </div>
@@ -163,10 +155,8 @@
 
                 {#if result.resource_usage}
                     {@const usage = result.resource_usage}
-                    <div
-                        class="p-3 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 text-xs space-y-1"
-                    >
-                        <h4 class="text-xs font-medium text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wider">
+                    <div class="p-3 rounded-lg bg-info-soft border border-info/30 text-xs space-y-1">
+                        <h4 class="text-xs font-medium text-info mb-2 uppercase tracking-wider">
                             {fieldTitle('resource_usage')}
                         </h4>
                         <dl class="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-1">
@@ -181,9 +171,7 @@
                 {/if}
             </div>
         {:else}
-            <div
-                class="flex items-center justify-center h-full text-center text-fg-muted dark:text-dark-fg-muted italic p-4"
-            >
+            <div class="flex items-center justify-center h-full text-center text-fg-muted italic p-4">
                 Write some code and click "Run Script" to see the output.
             </div>
         {/if}

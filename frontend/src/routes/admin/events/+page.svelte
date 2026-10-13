@@ -30,8 +30,8 @@
     const POLL_INTERVAL_MS = 30_000;
 
     const exportIcons: Record<ExportFormat, { icon: typeof FileText; color: string }> = {
-        [ExportFormat.CSV]: { icon: FileText, color: 'text-green-600 dark:text-green-400' },
-        [ExportFormat.JSON]: { icon: Code, color: 'text-blue-600 dark:text-blue-400' },
+        [ExportFormat.CSV]: { icon: FileText, color: 'text-success' },
+        [ExportFormat.JSON]: { icon: Code, color: 'text-info' },
     };
 
     // The filter form edits `filters`; the list and the export follow `applied`, set by Apply
@@ -134,13 +134,12 @@
             <button
                 type="button"
                 onclick={() => (showFilters = !showFilters)}
-                class="btn btn-sm flex items-center gap-1 sm:gap-2 transition-all duration-200"
-                class:btn-primary={showFilters}
-                class:btn-secondary-outline={!showFilters}
-                class:ring-2={showFilters}
-                class:ring-primary={showFilters}
-                class:ring-offset-2={showFilters}
-                class:dark:ring-offset-dark-bg-default={showFilters}
+                class={[
+                    'btn btn-sm gap-1 sm:gap-2',
+                    showFilters
+                        ? 'btn-primary ring-2 ring-primary ring-offset-2 ring-offset-page'
+                        : 'btn-secondary-outline',
+                ]}
             >
                 <span class="transition-transform duration-200" class:rotate-180={showFilters}>
                     <Funnel size={16} />
@@ -149,7 +148,7 @@
                 {#if hasActiveFilters(applied)}
                     <span
                         class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-xs font-bold {showFilters
-                            ? 'bg-white text-primary'
+                            ? 'bg-surface text-accent'
                             : 'bg-primary text-white'}"
                     >
                         {getActiveFilterCount(applied)}
@@ -196,10 +195,10 @@
     <!-- Active filters summary (when filters panel closed) -->
     {#if !showFilters && hasActiveFilters(applied)}
         <div class="mb-4 flex flex-wrap items-center gap-2">
-            <span class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted">Active filters:</span>
+            <span class="text-xs font-medium text-fg-muted">Active filters:</span>
             {#each getActiveFilterSummary(applied) as filter (filter)}
                 <span
-                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary-light"
+                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-accent"
                 >
                     {filter}
                 </span>
@@ -207,7 +206,7 @@
             <button
                 type="button"
                 onclick={clearFilters}
-                class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-danger-soft text-danger hover:bg-danger/25 transition-colors"
             >
                 <X size={12} class="mr-1" />
                 Clear all
@@ -223,7 +222,7 @@
     <div class="card">
         <div class="p-6">
             <div class="mb-4">
-                <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-2">Events</h3>
+                <h3 class="text-lg font-semibold text-fg mb-2">Events</h3>
             </div>
 
             <EventsTable

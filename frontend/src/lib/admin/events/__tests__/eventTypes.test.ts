@@ -27,21 +27,19 @@ describe('eventTypes', () => {
 
     describe('getEventTypeColor', () => {
         it.each([
-            [EventType.EXECUTION_COMPLETED, 'text-green'],
-            [EventType.POD_SUCCEEDED, 'text-green'],
-            [EventType.EXECUTION_FAILED, 'text-red'],
-            [EventType.EXECUTION_TIMEOUT, 'text-red'],
-            [EventType.POD_FAILED, 'text-red'],
-            [EventType.EXECUTION_STARTED, 'text-blue'],
-            [EventType.POD_RUNNING, 'text-blue'],
+            [EventType.EXECUTION_COMPLETED, 'text-success'],
+            [EventType.POD_SUCCEEDED, 'text-success'],
+            [EventType.EXECUTION_FAILED, 'text-danger'],
+            [EventType.EXECUTION_TIMEOUT, 'text-danger'],
+            [EventType.POD_FAILED, 'text-danger'],
+            [EventType.EXECUTION_STARTED, 'text-info'],
+            [EventType.POD_RUNNING, 'text-info'],
             [EventType.EXECUTION_REQUESTED, 'text-purple'],
             [EventType.POD_CREATED, 'text-indigo'],
             [EventType.POD_TERMINATED, 'text-orange'],
-            [EventType.USER_SETTINGS_UPDATED, 'text-neutral'],
+            [EventType.USER_SETTINGS_UPDATED, 'text-fg-muted'],
         ])('%s returns %s', (eventType, expectedColor) => {
-            const color = getEventTypeColor(eventType);
-            expect(color).toContain(expectedColor);
-            expect(color).toContain('dark:');
+            expect(getEventTypeColor(eventType)).toBe(expectedColor);
         });
     });
 

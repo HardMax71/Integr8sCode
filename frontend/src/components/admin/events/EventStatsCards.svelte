@@ -11,39 +11,35 @@
 </script>
 
 {#if stats}
-    <p class="text-xs text-fg-muted dark:text-dark-fg-muted mb-2">Last 24 hours</p>
+    <p class="text-xs text-fg-muted mb-2">Last 24 hours</p>
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <div class="card p-4">
-            <div class="text-sm text-fg-muted dark:text-dark-fg-muted mb-1">{fieldTitle('total_events')}</div>
-            <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">
+            <div class="text-sm text-fg-muted mb-1">{fieldTitle('total_events')}</div>
+            <div class="text-2xl font-bold text-fg">
                 {stats.total_events.toLocaleString()}
             </div>
-            <div class="text-xs text-fg-muted dark:text-dark-fg-muted">
+            <div class="text-xs text-fg-muted">
                 of {totalEvents.toLocaleString()} total
             </div>
         </div>
 
         <div class="card p-4">
-            <div class="text-sm text-fg-muted dark:text-dark-fg-muted mb-1">{fieldTitle('error_rate')}</div>
-            <div
-                class="text-2xl font-bold {stats.error_rate > 0
-                    ? 'text-red-600 dark:text-red-400'
-                    : 'text-green-600 dark:text-green-400'}"
-            >
+            <div class="text-sm text-fg-muted mb-1">{fieldTitle('error_rate')}</div>
+            <div class="text-2xl font-bold {stats.error_rate > 0 ? 'text-danger' : 'text-success'}">
                 {stats.error_rate}%
             </div>
         </div>
 
         <div class="card p-4">
-            <div class="text-sm text-fg-muted dark:text-dark-fg-muted mb-1">{fieldTitle('avg_processing_time')}</div>
-            <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">
+            <div class="text-sm text-fg-muted mb-1">{fieldTitle('avg_processing_time')}</div>
+            <div class="text-2xl font-bold text-fg">
                 {stats.avg_processing_time.toFixed(2)}s
             </div>
         </div>
 
         <div class="card p-4">
-            <div class="text-sm text-fg-muted dark:text-dark-fg-muted mb-1">{fieldTitle('top_users')}</div>
-            <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">
+            <div class="text-sm text-fg-muted mb-1">{fieldTitle('top_users')}</div>
+            <div class="text-2xl font-bold text-fg">
                 {stats.top_users.length}
             </div>
         </div>

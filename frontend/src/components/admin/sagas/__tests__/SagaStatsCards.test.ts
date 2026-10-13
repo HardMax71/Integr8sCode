@@ -17,13 +17,13 @@ const MockIcon = vi.hoisted(() => {
 
 vi.mock('#lib/admin/sagas/index.ts', () => ({
     SAGA_STATES: {
-        created: { color: 'badge-neutral', bgColor: 'bg-neutral-50', icon: MockIcon },
-        running: { color: 'badge-info', bgColor: 'bg-blue-50', icon: MockIcon },
-        compensating: { color: 'badge-warning', bgColor: 'bg-yellow-50', icon: MockIcon },
-        completed: { color: 'badge-success', bgColor: 'bg-green-50', icon: MockIcon },
-        failed: { color: 'badge-danger', bgColor: 'bg-red-50', icon: MockIcon },
-        timeout: { color: 'badge-warning', bgColor: 'bg-orange-50', icon: MockIcon },
-        cancelled: { color: 'badge-neutral', bgColor: 'bg-neutral-50', icon: MockIcon },
+        created: { color: 'badge-neutral', bgColor: 'bg-muted', icon: MockIcon },
+        running: { color: 'badge-info', bgColor: 'bg-info-soft', icon: MockIcon },
+        compensating: { color: 'badge-warning', bgColor: 'bg-warning-soft', icon: MockIcon },
+        completed: { color: 'badge-success', bgColor: 'bg-success-soft', icon: MockIcon },
+        failed: { color: 'badge-danger', bgColor: 'bg-danger-soft', icon: MockIcon },
+        timeout: { color: 'badge-warning', bgColor: 'bg-orange-soft', icon: MockIcon },
+        cancelled: { color: 'badge-neutral', bgColor: 'bg-muted', icon: MockIcon },
     },
 }));
 

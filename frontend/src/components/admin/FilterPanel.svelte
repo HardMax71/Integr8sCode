@@ -37,13 +37,10 @@
         type="button"
         onclick={handleToggle}
         aria-expanded={open}
-        class="btn btn-sm flex items-center gap-1 sm:gap-2 transition-all duration-200"
-        class:btn-primary={open}
-        class:btn-secondary-outline={!open}
-        class:ring-2={open}
-        class:ring-primary={open}
-        class:ring-offset-2={open}
-        class:dark:ring-offset-dark-bg-default={open}
+        class={[
+            'btn btn-sm gap-1 sm:gap-2',
+            open ? 'btn-primary ring-2 ring-primary ring-offset-2 ring-offset-page' : 'btn-secondary-outline',
+        ]}
     >
         <span class="transition-transform duration-200" class:rotate-180={open}>
             <Funnel size={16} />
@@ -52,7 +49,7 @@
         {#if hasActiveFilters}
             <span
                 class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-xs font-bold {open
-                    ? 'bg-white text-primary'
+                    ? 'bg-surface text-accent'
                     : 'bg-primary text-white'}"
             >
                 {activeFilterCount}
@@ -65,7 +62,7 @@
     <div class="card mb-6">
         <div class="p-4">
             <div class="flex items-center justify-between mb-3">
-                <h3 class="text-sm font-semibold text-fg-default dark:text-dark-fg-default uppercase tracking-wide">
+                <h3 class="text-sm font-semibold text-fg uppercase tracking-wide">
                     {title}
                 </h3>
                 <div class="flex gap-2">

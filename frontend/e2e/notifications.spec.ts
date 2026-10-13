@@ -80,8 +80,8 @@ test.describe('Notification Actions', () => {
     await gotoAndWaitForNotifications(userPage);
     const notificationCard = userPage.getByRole('article').first();
     await expect(notificationCard).toBeVisible({ timeout: 5000 });
-    const hasBlue = await notificationCard.evaluate(el => el.classList.toString().includes('bg-blue'));
-    if (hasBlue) {
+    const isUnread = await notificationCard.evaluate(el => el.classList.toString().includes('bg-info-soft'));
+    if (isUnread) {
       await notificationCard.getByTitle('Mark as read').click();
       await expect(notificationCard.getByText('read', { exact: true })).toBeVisible({ timeout: 3000 });
     }

@@ -39,7 +39,7 @@ describe('Spinner', () => {
 
     describe('color prop', () => {
         it.each([
-            { color: 'primary', expectedClass: 'text-primary' },
+            { color: 'primary', expectedClass: 'text-accent' },
             { color: 'white', expectedClass: 'text-white' },
             { color: 'current', expectedClass: 'text-current' },
             { color: 'muted', expectedClass: 'text-fg-subtle' },
@@ -50,7 +50,7 @@ describe('Spinner', () => {
 
         it('defaults to primary color', () => {
             render(Spinner);
-            expect(getSpinner().classList.contains('text-primary')).toBe(true);
+            expect(getSpinner().classList.contains('text-accent')).toBe(true);
         });
     });
 
@@ -87,7 +87,7 @@ describe('Spinner', () => {
             // @ts-expect-error - intentionally passing invalid value to test fallback
             render(Spinner, { props: { color: 'invalid-color' } });
             const svg = getSpinner();
-            expect(svg.classList.contains('text-primary')).toBe(true);
+            expect(svg.classList.contains('text-accent')).toBe(true);
         });
 
         it('handles both invalid size and color gracefully', () => {
@@ -96,7 +96,7 @@ describe('Spinner', () => {
             const svg = getSpinner();
             expect(svg.classList.contains('h-6')).toBe(true);
             expect(svg.classList.contains('w-6')).toBe(true);
-            expect(svg.classList.contains('text-primary')).toBe(true);
+            expect(svg.classList.contains('text-accent')).toBe(true);
         });
     });
 });

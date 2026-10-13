@@ -45,7 +45,7 @@
 </script>
 
 <div class="space-y-3">
-    <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider">Saved Scripts</h4>
+    <h4 class="text-xs font-medium text-fg-muted uppercase tracking-wider">Saved Scripts</h4>
     <div>
         <button
             type="button"
@@ -61,25 +61,21 @@
     {#if show}
         <div class="mt-2" transition:slide={{ duration: 200 }}>
             {#if scripts.length > 0}
-                <div
-                    class="saved-scripts-container border border-border-default dark:border-dark-border-default rounded-lg bg-bg-default dark:bg-dark-bg-default shadow-inner"
-                >
-                    <ul class="divide-y divide-border-default dark:divide-dark-border-default">
+                <div class="saved-scripts-container border border-border rounded-lg bg-page shadow-inner">
+                    <ul class="divide-y divide-border">
                         {#each scripts as item (item.script_id)}
                             <li
-                                class="flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-700/50 text-sm group transition-colors duration-100"
+                                class="flex items-center justify-between hover:bg-muted text-sm group transition-colors duration-100"
                             >
                                 <button
                                     type="button"
-                                    class="flex-grow text-left px-3 py-2 text-fg-default dark:text-dark-fg-default hover:text-primary dark:hover:text-primary-light font-medium min-w-0"
+                                    class="flex-grow text-left px-3 py-2 text-fg hover:text-accent font-medium min-w-0"
                                     onclick={() => open(item)}
                                     title={`Load ${item.name} (${item.lang} ${item.lang_version})`}
                                 >
                                     <div class="flex flex-col min-w-0">
                                         <span class="truncate">{item.name}</span>
-                                        <span
-                                            class="text-xs text-fg-muted dark:text-dark-fg-muted font-normal capitalize"
-                                        >
+                                        <span class="text-xs text-fg-muted font-normal capitalize">
                                             {item.lang}
                                             {item.lang_version}
                                         </span>
@@ -87,7 +83,7 @@
                                 </button>
                                 <button
                                     type="button"
-                                    class="p-2 text-neutral-400 dark:text-neutral-500 hover:text-red-500 dark:hover:text-red-400 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity duration-150 mr-1"
+                                    class="p-2 text-fg-subtle hover:text-danger shrink-0 opacity-60 group-hover:opacity-100 transition-opacity duration-150 mr-1"
                                     onclick={() => confirmDelete(item)}
                                     aria-label={`Delete ${item.name}`}
                                     title={`Delete ${item.name}`}
@@ -99,9 +95,7 @@
                     </ul>
                 </div>
             {:else}
-                <p
-                    class="p-4 text-xs text-fg-muted dark:text-dark-fg-muted italic text-center border border-border-default dark:border-dark-border-default rounded-lg"
-                >
+                <p class="p-4 text-xs text-fg-muted italic text-center border border-border rounded-lg">
                     No saved scripts yet.
                 </p>
             {/if}

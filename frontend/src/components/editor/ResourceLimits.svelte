@@ -23,28 +23,22 @@
         <Popover.Portal>
             <Popover.Content align="end" sideOffset={8} class="floating-panel w-64 sm:w-72 p-5 space-y-4">
                 <div class="flex items-center justify-between text-sm">
-                    <span class="text-fg-muted dark:text-dark-fg-muted inline-flex items-center">
+                    <span class="text-fg-muted inline-flex items-center">
                         <Cpu class="w-4 h-4 mr-2" />{fieldTitle('cpu_limit')}
                     </span>
-                    <span class="font-semibold text-fg-default dark:text-dark-fg-default tabular-nums"
-                        >{effective.cpu_limit}</span
-                    >
+                    <span class="font-semibold text-fg tabular-nums">{effective.cpu_limit}</span>
                 </div>
                 <div class="flex items-center justify-between text-sm">
-                    <span class="text-fg-muted dark:text-dark-fg-muted inline-flex items-center">
+                    <span class="text-fg-muted inline-flex items-center">
                         <MemoryStick class="w-4 h-4 mr-2" />{fieldTitle('memory_limit')}
                     </span>
-                    <span class="font-semibold text-fg-default dark:text-dark-fg-default tabular-nums"
-                        >{effective.memory_limit}</span
-                    >
+                    <span class="font-semibold text-fg tabular-nums">{effective.memory_limit}</span>
                 </div>
                 <div class="flex items-center justify-between text-sm">
-                    <span class="text-fg-muted dark:text-dark-fg-muted inline-flex items-center">
+                    <span class="text-fg-muted inline-flex items-center">
                         <Clock class="w-4 h-4 mr-2" />{fieldTitle('execution_timeout')}
                     </span>
-                    <span class="font-semibold text-fg-default dark:text-dark-fg-default tabular-nums"
-                        >{effective.execution_timeout}s</span
-                    >
+                    <span class="font-semibold text-fg tabular-nums">{effective.execution_timeout}s</span>
                 </div>
             </Popover.Content>
         </Popover.Portal>

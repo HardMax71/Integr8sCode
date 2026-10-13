@@ -13,24 +13,24 @@ export const EVENT_TYPES: EventType[] = Object.values(EventType);
 // Event type color mapping
 export function getEventTypeColor(eventType: EventType): string {
     if (eventType.includes('_completed') || eventType.includes('_succeeded')) {
-        return 'text-green-600 dark:text-green-400';
+        return 'text-success';
     }
     if (eventType.includes('_failed') || eventType.includes('_timeout')) {
-        return 'text-red-600 dark:text-red-400';
+        return 'text-danger';
     }
     if (eventType.includes('_started') || eventType.includes('_running')) {
-        return 'text-blue-600 dark:text-blue-400';
+        return 'text-info';
     }
     if (eventType.includes('_requested')) {
-        return 'text-purple-600 dark:text-purple-400';
+        return 'text-purple';
     }
     if (eventType.includes('_created')) {
-        return 'text-indigo-600 dark:text-indigo-400';
+        return 'text-indigo';
     }
     if (eventType.includes('_terminated')) {
-        return 'text-orange-600 dark:text-orange-400';
+        return 'text-orange';
     }
-    return 'text-neutral-600 dark:text-neutral-400';
+    return 'text-fg-muted';
 }
 
 const FILTER_KEYS = Object.keys(zEventFilter.shape) as (keyof EventFilter)[];

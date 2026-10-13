@@ -1,6 +1,6 @@
 /*
  * Page-specific component styles
- * Centralized styles for route components to avoid scattered <style> blocks
+ * Centralized styles for route components to avoid scattered \3c style> blocks
  */
 
 @layer components {
@@ -127,15 +127,15 @@
   }
 
   .editor-wrapper::-webkit-scrollbar-track {
-    @apply bg-neutral-200 dark:bg-neutral-700 rounded-b-lg;
+    @apply bg-muted rounded-b-lg;
   }
 
   .editor-wrapper::-webkit-scrollbar-thumb {
-    @apply bg-neutral-400 dark:bg-neutral-500 rounded;
+    @apply bg-border-input rounded;
   }
 
   .editor-wrapper::-webkit-scrollbar-thumb:hover {
-    @apply bg-neutral-500 dark:bg-neutral-400;
+    @apply bg-fg-subtle;
   }
 
   /* Saved scripts container */
@@ -153,15 +153,15 @@
   }
 
   .saved-scripts-container::-webkit-scrollbar-track {
-    @apply bg-neutral-100 dark:bg-neutral-800 rounded;
+    @apply bg-muted rounded;
   }
 
   .saved-scripts-container::-webkit-scrollbar-thumb {
-    @apply bg-neutral-300 dark:bg-neutral-600 rounded;
+    @apply bg-border-input rounded;
   }
 
   .saved-scripts-container::-webkit-scrollbar-thumb:hover {
-    @apply bg-neutral-400 dark:bg-neutral-500;
+    @apply bg-fg-subtle;
   }
 
   /* =============================================================================
@@ -225,8 +225,7 @@
 
   .feature-card {
     @apply relative flex flex-col items-start text-left p-6 sm:p-8
-           bg-bg-alt dark:bg-dark-bg-alt rounded-xl overflow-hidden
-           border border-border-default/50 dark:border-dark-border-default/50
+           bg-surface rounded-xl overflow-hidden border border-border/50
            shadow-xs transition-transform duration-300
            hover:shadow-lg hover:-translate-y-1 hover:border-primary/40;
   }
@@ -324,7 +323,7 @@
   }
 
   :is(.dark .gradient-bg)::after {
-    background-color: var(--color-secondary-dark);
+    background-color: var(--color-secondary-hover);
     border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
   }
 
@@ -339,7 +338,6 @@
   }
 
   .settings-toggle {
-    @apply flex items-center justify-between cursor-pointer p-3 rounded-lg
-           hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors;
+    @apply flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-muted transition-colors;
   }
 }

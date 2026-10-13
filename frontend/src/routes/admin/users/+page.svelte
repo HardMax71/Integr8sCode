@@ -57,7 +57,7 @@
 
 <div class="container mx-auto px-2 sm:px-4 pb-8">
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-fg-default dark:text-dark-fg-default">User Management</h1>
+        <h1 class="text-2xl sm:text-3xl font-bold text-fg">User Management</h1>
         <div class="flex gap-2 w-full sm:w-auto">
             <button
                 type="button"
@@ -81,7 +81,7 @@
 
     <div class="card">
         <div class="p-3 sm:p-6">
-            <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+            <h3 class="text-lg font-semibold text-fg mb-4">
                 Users ({totalUsers})
             </h3>
 

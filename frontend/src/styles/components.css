@@ -1,7 +1,7 @@
 @layer components {
   /* Buttons */
   .btn {
-    @apply inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-xs focus:outline-hidden focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-dark-bg-default transition-all duration-150 ease-in-out disabled:opacity-60 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-xs focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-page transition-colors duration-150 disabled:opacity-60 disabled:cursor-not-allowed;
   }
 
   .btn-sm {
@@ -21,23 +21,23 @@
   }
 
   .btn-primary {
-    @apply text-white bg-primary hover:bg-primary-dark focus:ring-primary;
+    @apply text-white bg-primary hover:bg-primary-hover focus:ring-primary;
   }
 
   .btn-secondary {
-    @apply text-white bg-secondary hover:bg-secondary-dark focus:ring-secondary;
+    @apply text-white bg-secondary hover:bg-secondary-hover focus:ring-secondary;
   }
 
   .btn-secondary-outline {
-    @apply text-neutral-700 bg-white border border-neutral-300 hover:bg-neutral-50 focus:ring-primary dark:text-dark-fg-default dark:bg-dark-bg-alt dark:border-dark-border-input dark:hover:bg-neutral-700;
+    @apply text-fg bg-surface border-border-input hover:bg-muted focus:ring-primary;
   }
 
   .btn-ghost {
-    @apply text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700 focus:ring-primary border-transparent bg-transparent shadow-none;
+    @apply text-fg-muted hover:bg-muted focus:ring-primary border-transparent bg-transparent shadow-none;
   }
 
   .btn-danger {
-    @apply text-white bg-red-600 hover:bg-red-700 focus:ring-red-500;
+    @apply text-white bg-danger-solid hover:bg-danger-solid-hover focus:ring-danger-solid;
   }
 
   /* Layout */
@@ -46,15 +46,11 @@
   }
 
   .card {
-    @apply bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-md overflow-hidden border border-border-default dark:border-dark-border-default;
-  }
-
-  .divider {
-    @apply border-border-default dark:border-dark-border-default;
+    @apply bg-surface rounded-lg shadow-md overflow-hidden border;
   }
 
   .empty-state {
-    @apply py-8 text-center text-fg-muted dark:text-dark-fg-muted;
+    @apply py-8 text-center text-fg-muted;
   }
 
   /* Forms; plain inputs, selects and checkboxes get their look from the base layer in app.css */
@@ -63,7 +59,7 @@
   }
 
   .form-control label {
-    @apply block text-sm font-medium text-fg-default dark:text-dark-fg-default;
+    @apply block text-sm font-medium;
   }
 
   .form-input-standard {
@@ -71,7 +67,7 @@
   }
 
   .form-input-standard:disabled {
-    @apply bg-neutral-100 dark:bg-neutral-700 opacity-70 cursor-not-allowed hover:bg-neutral-100 dark:hover:bg-neutral-700;
+    @apply bg-muted opacity-70 cursor-not-allowed;
   }
 
   .form-select-standard {
@@ -79,41 +75,37 @@
   }
 
   .form-input-bare {
-    @apply bg-transparent border-0 border-b-2 border-neutral-300 dark:border-neutral-600
-           focus:border-primary dark:focus:border-primary rounded-none px-1 py-0
-           focus:outline-hidden focus:ring-0 transition-colors
-           w-full text-sm font-medium text-fg-default dark:text-dark-fg-default
-           placeholder-fg-muted dark:placeholder-dark-fg-muted;
+    @apply bg-transparent border-0 border-b-2 border-border-input focus:border-primary rounded-none px-1 py-0
+           focus:outline-hidden focus:ring-0 transition-colors w-full text-sm font-medium placeholder-fg-muted;
   }
 
   .input-sm {
-    @apply px-2 py-1 text-sm border border-border-input dark:border-dark-border-input
-           rounded bg-surface-overlay dark:bg-dark-surface-overlay text-fg-default dark:text-dark-fg-default;
+    @apply px-2 py-1 text-sm border border-border-input rounded bg-surface;
   }
 
-  /* Badges and alerts */
+  /* Badges and alerts: a tint of the status color under text in that color */
   .badge {
     @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
   }
 
   .badge-success {
-    @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
+    @apply bg-success-soft text-success;
   }
 
   .badge-warning {
-    @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200;
+    @apply bg-warning-soft text-warning;
   }
 
   .badge-danger {
-    @apply bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200;
+    @apply bg-danger-soft text-danger;
   }
 
   .badge-info {
-    @apply bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200;
+    @apply bg-info-soft text-info;
   }
 
   .badge-neutral {
-    @apply bg-skeleton dark:bg-dark-skeleton text-fg-default dark:text-dark-fg-default;
+    @apply bg-muted;
   }
 
   .alert {
@@ -121,69 +113,67 @@
   }
 
   .alert-info {
-    @apply bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-100;
+    @apply bg-info-soft border-info/30;
   }
 
   .alert-warning {
-    @apply bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-900 dark:text-yellow-100;
+    @apply bg-warning-soft border-warning/30;
   }
 
   .alert-danger {
-    @apply bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-900 dark:text-red-100;
+    @apply bg-danger-soft border-danger/30;
   }
 
   /* The surface and the items of the bits-ui menus, popovers and selects */
   .floating-panel {
-    @apply z-50 rounded-lg border border-border-default bg-surface-overlay p-1 text-fg-default shadow-lg
-           dark:border-dark-border-default dark:bg-dark-surface-overlay dark:text-dark-fg-default
+    @apply z-50 rounded-lg border bg-surface p-1 shadow-lg
            data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95
            data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95;
   }
 
   .floating-item {
     @apply flex w-full cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none
-           data-[highlighted]:bg-interactive-hover dark:data-[highlighted]:bg-dark-interactive-hover
-           data-[disabled]:pointer-events-none data-[disabled]:opacity-50;
+           data-[highlighted]:bg-muted data-[disabled]:pointer-events-none data-[disabled]:opacity-50;
   }
 
   /* The bits-ui tooltips */
   .tooltip-content {
-    @apply z-50 rounded bg-tooltip-bg px-2 py-1 text-xs text-tooltip-fg shadow-lg
+    @apply z-50 rounded bg-tooltip px-2 py-1 text-xs text-white shadow-lg
            data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0
            data-[state=closed]:animate-out data-[state=closed]:fade-out-0;
   }
 
   /* DataTable and Pagination */
   .table {
-    @apply w-full divide-y divide-border-default dark:divide-dark-border-default;
+    @apply w-full divide-y;
   }
 
   .table-header {
-    @apply bg-neutral-50 dark:bg-neutral-900;
+    @apply bg-muted;
   }
 
   .table-header-cell {
-    @apply px-4 py-3 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider;
+    @apply px-4 py-3 text-left text-xs font-medium text-fg-muted uppercase tracking-wider;
   }
 
   .table-header-cell-sm {
-    @apply px-3 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider;
+    @apply px-3 py-2 text-left text-xs font-medium text-fg-muted uppercase tracking-wider;
   }
 
   .table-body {
-    @apply bg-bg-default dark:bg-dark-bg-default divide-y divide-border-default dark:divide-dark-border-default;
+    @apply bg-page divide-y;
   }
 
   .table-row {
-    @apply hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors;
+    @apply hover:bg-muted transition-colors;
   }
 
   .table-cell {
-    @apply px-4 py-3 text-sm text-fg-default dark:text-dark-fg-default;
+    @apply px-4 py-3 text-sm;
   }
 
   .table-cell-sm {
-    @apply px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default;
+    @apply px-3 py-2 text-sm;
   }
 
   .pagination-container {
@@ -191,7 +181,7 @@
   }
 
   .pagination-info {
-    @apply text-sm text-fg-muted dark:text-dark-fg-muted;
+    @apply text-sm text-fg-muted;
   }
 
   .pagination-controls {
@@ -199,79 +189,35 @@
   }
 
   .pagination-button {
-    @apply w-8 h-8 flex items-center justify-center rounded-lg border border-border-default dark:border-dark-border-default
-           bg-bg-default dark:bg-dark-bg-default text-fg-default dark:text-dark-fg-default
-           hover:bg-bg-alt dark:hover:bg-dark-bg-alt disabled:opacity-50 disabled:cursor-not-allowed
-           transition-colors;
+    @apply size-8 flex items-center justify-center rounded-lg border bg-page hover:bg-muted
+           disabled:opacity-50 disabled:cursor-not-allowed transition-colors;
   }
 
   .pagination-text {
-    @apply px-3 text-sm text-fg-default dark:text-dark-fg-default;
+    @apply px-3 text-sm;
   }
 
   .pagination-selector {
-    @apply px-3 py-1.5 pr-8 rounded-lg border border-border-default dark:border-dark-border-default
-           bg-bg-default dark:bg-dark-bg-default text-fg-default dark:text-dark-fg-default
-           text-sm focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary
-           appearance-none bg-no-repeat bg-[length:16px] bg-[right_0.5rem_center]
-           cursor-pointer;
+    @apply px-3 py-1.5 pr-8 rounded-lg border bg-page text-sm focus:outline-hidden focus:ring-2 focus:ring-primary
+           focus:border-primary appearance-none bg-no-repeat bg-[length:16px] bg-[right_0.5rem_center] cursor-pointer;
 
     background-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 viewBox=%220 0 20 20%22><path stroke=%22%236b7280%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%221.5%22 d=%22M6 8l4 4 4-4%22/></svg>');
   }
 
   /* Execution output in the editor */
   .output-container {
-    @apply bg-bg-alt dark:bg-dark-bg-alt border border-border-default
-           dark:border-dark-border-default rounded-lg p-4 w-full
-           overflow-hidden shadow-xs;
+    @apply bg-surface border rounded-lg p-4 w-full overflow-hidden shadow-xs;
   }
 
   .output-pre {
-    @apply bg-bg-default dark:bg-dark-bg-default p-3 rounded border
-           border-border-default dark:border-dark-border-default text-xs
-           font-mono whitespace-pre-wrap break-words max-h-[40vh] overflow-auto;
-
-    padding-right: 3rem; /* Space for copy button */
+    @apply bg-page p-3 pr-12 rounded border text-xs font-mono whitespace-pre-wrap break-words max-h-[40vh] overflow-auto;
   }
 
   .output-content,
   .output-pre,
   .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: var(--color-fg-subtle) var(--color-skeleton);
-  }
-
-  :is(.dark .output-content),
-  :is(.dark .output-pre),
-  :is(.dark .custom-scrollbar) {
-    scrollbar-color: var(--color-dark-fg-subtle) var(--color-dark-skeleton);
-  }
-
-  .output-content::-webkit-scrollbar,
-  .output-pre::-webkit-scrollbar,
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  .output-content::-webkit-scrollbar-track,
-  .output-pre::-webkit-scrollbar-track,
-  .custom-scrollbar::-webkit-scrollbar-track {
-    @apply bg-neutral-100 dark:bg-neutral-800 rounded;
-
-    margin-right: 2px;
-  }
-
-  .output-content::-webkit-scrollbar-thumb,
-  .output-pre::-webkit-scrollbar-thumb,
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-neutral-300 dark:bg-neutral-600 rounded;
-  }
-
-  .output-content::-webkit-scrollbar-thumb:hover,
-  .output-pre::-webkit-scrollbar-thumb:hover,
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    @apply bg-neutral-400 dark:bg-neutral-500;
+    scrollbar-color: var(--color-fg-subtle) var(--color-muted);
   }
 
   .output-section .relative {

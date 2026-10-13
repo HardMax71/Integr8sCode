@@ -58,7 +58,7 @@
     <button
         type="button"
         onclick={() => onViewExecution(saga.execution_id)}
-        class="text-xs text-primary hover:text-primary-dark"
+        class="text-xs text-accent hover:text-accent"
     >
         {fieldTitle('execution_id')}
         {saga.execution_id.slice(0, 8)}...
@@ -83,12 +83,12 @@
 {/snippet}
 
 {#snippet actionsCell(saga: SagaStatusResponse)}
-    <button type="button" onclick={() => onViewDetails(saga.saga_id)} class="text-primary hover:text-primary-dark">
+    <button type="button" onclick={() => onViewDetails(saga.saga_id)} class="text-accent hover:text-accent">
         View Details
     </button>
 {/snippet}
 
-<div class="bg-bg-default dark:bg-dark-bg-default rounded-lg shadow overflow-hidden">
+<div class="bg-page rounded-lg shadow overflow-hidden">
     <DataTable {table} label="Sagas" {loading} emptyText="No sagas found" />
     {#if rowCount > 0}
         <div class="p-4 border-t divider">

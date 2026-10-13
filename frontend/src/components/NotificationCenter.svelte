@@ -93,7 +93,7 @@
         <Bell class="w-5 h-5" />
         {#if unreadCount > 0}
             <span
-                class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"
+                class="absolute -top-1 -right-1 bg-danger-solid text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"
             >
                 {unreadCount > 9 ? '9+' : unreadCount}
             </span>
@@ -102,14 +102,14 @@
 
     <Popover.Portal>
         <Popover.Content align="end" sideOffset={8} class="floating-panel w-96 p-0">
-            <div class="p-4 border-b border-border-default dark:border-dark-border-default">
+            <div class="p-4 border-b border-border">
                 <div class="flex justify-between items-center">
                     <h3 class="font-semibold text-lg">Notifications</h3>
                     {#if unreadCount > 0}
                         <button
                             type="button"
                             onclick={() => markAllRead.mutate({})}
-                            class="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                            class="text-sm text-info hover:underline"
                         >
                             Mark all as read
                         </button>
@@ -119,7 +119,7 @@
                     <button
                         type="button"
                         onclick={requestNotificationPermission}
-                        class="mt-2 w-full text-xs text-fg-muted dark:text-dark-fg-muted hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-center gap-1"
+                        class="mt-2 w-full text-xs text-fg-muted hover:text-info flex items-center justify-center gap-1"
                     >
                         <Bell class="w-3 h-3" />
                         Enable desktop notifications
@@ -133,15 +133,16 @@
                         <Spinner size="small" />
                     </div>
                 {:else if notifications.length === 0}
-                    <div class="p-8 text-center text-fg-muted dark:text-dark-fg-muted">No notifications yet</div>
+                    <div class="p-8 text-center text-fg-muted">No notifications yet</div>
                 {:else}
                     {#each notifications as notification (notification.notification_id)}
                         {@const NotifIcon = notificationIcon(notification.tags)}
                         <button
                             type="button"
-                            class="block w-full text-left p-4 border-b border-border-default/50 dark:border-dark-border-default hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover cursor-pointer transition-colors"
-                            class:bg-blue-50={notification.status !== NotificationStatus.READ}
-                            class:dark:bg-blue-900={notification.status !== NotificationStatus.READ}
+                            class={[
+                                'block w-full text-left p-4 border-b border-border/50 hover:bg-muted cursor-pointer transition-colors',
+                                notification.status !== NotificationStatus.READ && 'bg-info-soft',
+                            ]}
                             onclick={() => handleNotificationClick(notification)}
                             aria-label="View notification: {notification.subject}"
                         >
@@ -153,15 +154,15 @@
                                     <span class="block font-medium text-sm">
                                         {notification.subject}
                                     </span>
-                                    <span class="block text-sm text-fg-muted dark:text-dark-fg-muted mt-1">
+                                    <span class="block text-sm text-fg-muted mt-1">
                                         {notification.body}
                                     </span>
-                                    <span class="block text-xs text-fg-subtle dark:text-dark-fg-subtle mt-2">
+                                    <span class="block text-xs text-fg-subtle mt-2">
                                         {formatRelativeTime(notification.created_at)}
                                     </span>
                                 </span>
                                 {#if notification.status !== NotificationStatus.READ}
-                                    <span class="w-2 h-2 bg-blue-500 rounded-full mt-2"></span>
+                                    <span class="w-2 h-2 bg-accent rounded-full mt-2"></span>
                                 {/if}
                             </span>
                         </button>
@@ -169,14 +170,14 @@
                 {/if}
             </div>
 
-            <div class="p-3 border-t border-border-default dark:border-dark-border-default">
+            <div class="p-3 border-t border-border">
                 <button
                     type="button"
                     onclick={() => {
                         showDropdown = false;
                         goto(resolve('/(auth)/notifications'));
                     }}
-                    class="block w-full text-center text-sm text-blue-600 dark:text-blue-400 hover:underline bg-transparent border-none cursor-pointer"
+                    class="block w-full text-center text-sm text-info hover:underline bg-transparent border-none cursor-pointer"
                 >
                     View all notifications
                 </button>

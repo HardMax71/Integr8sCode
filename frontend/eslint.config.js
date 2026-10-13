@@ -73,11 +73,21 @@ export default [
     rules: { 'no-console': 'error' },
   },
   {
-    // An API field has one name: its key, shown through fieldTitle
+    // An API field has one name: its key, shown through fieldTitle. A color has one name too: a token from app.css
     files: ['src/**/*.ts', 'src/**/*.svelte'],
     rules: {
       'no-restricted-syntax': [
         'error',
+        ...['SvelteLiteral[value=', 'Literal[value=', 'TemplateElement[value.raw='].flatMap((node) => [
+          {
+            selector: `${node}/(^|\\s)dark:/]`,
+            message: 'The color tokens in app.css switch with .dark on their own; drop the dark: variant.',
+          },
+          {
+            selector: `${node}/(^|[\\s:])(text|bg|border|ring|divide|from|to|via|fill|stroke|outline|placeholder|decoration)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\\d/]`,
+            message: 'Use a color token from app.css (fg, muted, accent, danger, ...), not a raw Tailwind palette color.',
+          },
+        ]),
         {
           selector: "CallExpression[callee.property.name=/^(accessor|display)$/] Property[key.name='header']",
           message: 'DataTable titles a column by its id; name the column after its API key instead.',

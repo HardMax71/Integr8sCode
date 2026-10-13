@@ -86,7 +86,7 @@
 </script>
 
 {#snippet errors()}
-    <FieldErrors class="mt-1 text-xs text-red-600 dark:text-red-400" />
+    <FieldErrors class="mt-1 text-xs text-danger" />
 {/snippet}
 
 <Modal open title="Rate Limits for {user.username}" {onClose} size="xl">
@@ -94,11 +94,9 @@
         <div class="flex justify-center py-8"><Spinner /></div>
     {:else}
         <form id="rate-limits-form" method="post" use:enhance novalidate class="space-y-4">
-            <div
-                class="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 bg-neutral-50 dark:bg-neutral-900"
-            >
+            <div class="border border-border rounded-lg p-4 bg-muted">
                 <div class="flex items-center justify-between mb-3">
-                    <h4 class="font-semibold text-fg-default dark:text-dark-fg-default">Quick Settings</h4>
+                    <h4 class="font-semibold text-fg">Quick Settings</h4>
                     <Field {form} name="bypass_rate_limit">
                         <Control>
                             {#snippet children({ props })}
@@ -109,9 +107,7 @@
                                         bind:checked={$formData.bypass_rate_limit}
                                         class="rounded"
                                     />
-                                    <Label class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                        >{fieldTitle('bypass_rate_limit')}</Label
-                                    >
+                                    <Label class="text-sm font-medium text-fg">{fieldTitle('bypass_rate_limit')}</Label>
                                 </div>
                             {/snippet}
                         </Control>
@@ -122,8 +118,7 @@
                         <Control>
                             {#snippet children({ props })}
                                 <div>
-                                    <Label
-                                        class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default"
+                                    <Label class="block text-sm font-medium mb-1 text-fg"
                                         >{fieldTitle('global_multiplier')}</Label
                                     >
                                     <input
@@ -135,7 +130,7 @@
                                         class="input w-full"
                                         disabled={$formData.bypass_rate_limit}
                                     />
-                                    <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                                    <p class="text-xs text-fg-muted mt-1">
                                         Multiplies all limits; {DEFAULT_MULTIPLIER} keeps them as they are
                                     </p>
                                     {@render errors()}
@@ -147,10 +142,7 @@
                         <Control>
                             {#snippet children({ props })}
                                 <div>
-                                    <Label
-                                        class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default"
-                                        >{fieldTitle('notes')}</Label
-                                    >
+                                    <Label class="block text-sm font-medium mb-1 text-fg">{fieldTitle('notes')}</Label>
                                     <textarea
                                         {...props}
                                         bind:value={$formData.notes}
@@ -163,9 +155,9 @@
                 </div>
             </div>
 
-            <div class="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
+            <div class="border border-border rounded-lg p-4">
                 <div class="flex justify-between items-center mb-4">
-                    <h4 class="font-semibold text-fg-default dark:text-dark-fg-default">Endpoint Rate Limits</h4>
+                    <h4 class="font-semibold text-fg">Endpoint Rate Limits</h4>
                     <button
                         type="button"
                         onclick={addRule}
@@ -176,31 +168,23 @@
                     </button>
                 </div>
                 <div class="mb-4">
-                    <h5 class="text-xs sm:text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">
-                        Default Global Rules
-                    </h5>
+                    <h5 class="text-xs sm:text-sm font-medium text-fg-muted mb-2">Default Global Rules</h5>
                     <div class="space-y-2">
                         {#each defaultRules as rule (rule.endpoint_pattern)}
-                            <div
-                                class="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-900 rounded-lg"
-                            >
+                            <div class="flex items-center justify-between p-3 bg-muted rounded-lg">
                                 <div class="flex-1 grid grid-cols-2 lg:grid-cols-5 gap-2 lg:gap-4 items-center">
                                     <div>
-                                        <span class="text-xs text-neutral-500 dark:text-neutral-400"
-                                            >{fieldTitle('endpoint_pattern')}</span
-                                        >
-                                        <p class="text-sm font-mono text-fg-default dark:text-dark-fg-default">
+                                        <span class="text-xs text-fg-muted">{fieldTitle('endpoint_pattern')}</span>
+                                        <p class="text-sm font-mono text-fg">
                                             {rule.endpoint_pattern}
                                         </p>
                                     </div>
                                     <div>
-                                        <span class="text-xs text-neutral-500 dark:text-neutral-400"
-                                            >{fieldTitle('requests')}</span
-                                        >
-                                        <p class="text-sm text-fg-default dark:text-dark-fg-default">
+                                        <span class="text-xs text-fg-muted">{fieldTitle('requests')}</span>
+                                        <p class="text-sm text-fg">
                                             {#if multiplied}
-                                                <span class="line-through text-neutral-400">{rule.requests}</span>
-                                                <span class="font-semibold text-blue-600 dark:text-blue-400"
+                                                <span class="line-through text-fg-subtle">{rule.requests}</span>
+                                                <span class="font-semibold text-info"
                                                     >{effectiveRequests(rule.requests)}</span
                                                 >
                                             {:else}
@@ -209,17 +193,13 @@
                                         </p>
                                     </div>
                                     <div>
-                                        <span class="text-xs text-neutral-500 dark:text-neutral-400"
-                                            >{fieldTitle('window_seconds')}</span
-                                        >
-                                        <p class="text-sm text-fg-default dark:text-dark-fg-default">
+                                        <span class="text-xs text-fg-muted">{fieldTitle('window_seconds')}</span>
+                                        <p class="text-sm text-fg">
                                             {rule.window_seconds}
                                         </p>
                                     </div>
                                     <div>
-                                        <span class="text-xs text-neutral-500 dark:text-neutral-400"
-                                            >{fieldTitle('group')}</span
-                                        >
+                                        <span class="text-xs text-fg-muted">{fieldTitle('group')}</span>
                                         <span
                                             class="inline-block px-2 py-1 text-xs rounded-full {getGroupColor(
                                                 rule.group,
@@ -227,10 +207,8 @@
                                         >
                                     </div>
                                     <div>
-                                        <span class="text-xs text-neutral-500 dark:text-neutral-400"
-                                            >{fieldTitle('algorithm')}</span
-                                        >
-                                        <p class="text-sm text-fg-default dark:text-dark-fg-default">
+                                        <span class="text-xs text-fg-muted">{fieldTitle('algorithm')}</span>
+                                        <p class="text-sm text-fg">
                                             {rule.algorithm}
                                         </p>
                                     </div>
@@ -242,14 +220,12 @@
 
                 {#if $formData.rules.length > 0}
                     <div>
-                        <h5 class="text-xs sm:text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">
+                        <h5 class="text-xs sm:text-sm font-medium text-fg-muted mb-2">
                             {fieldTitle('rules')}
                         </h5>
                         <div class="space-y-2">
                             {#each $formData.rules as rule, index (index)}
-                                <div
-                                    class="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg"
-                                >
+                                <div class="p-3 bg-info-soft border border-info/30 rounded-lg">
                                     <div class="flex flex-col lg:flex-row items-start lg:items-center gap-3">
                                         <ElementField {form} name="rules[{index}].endpoint_pattern">
                                             <Control>
@@ -285,7 +261,7 @@
                                                 </Control>
                                                 {@render errors()}
                                             </ElementField>
-                                            <span class="text-xs text-neutral-500">/</span>
+                                            <span class="text-xs text-fg-muted">/</span>
                                             <ElementField {form} name="rules[{index}].window_seconds">
                                                 <Control>
                                                     {#snippet children({ props })}
@@ -302,9 +278,9 @@
                                                 </Control>
                                                 {@render errors()}
                                             </ElementField>
-                                            <span class="text-xs text-neutral-500">s</span>
+                                            <span class="text-xs text-fg-muted">s</span>
                                             {#if multiplied}
-                                                <span class="text-xs text-blue-600 dark:text-blue-400 ml-2">
+                                                <span class="text-xs text-info ml-2">
                                                     (effective {effectiveRequests(
                                                         rule.requests,
                                                     )}/{rule.window_seconds}s)
@@ -353,7 +329,7 @@
                                                             {...props}
                                                             type="checkbox"
                                                             bind:checked={rule.enabled}
-                                                            class="rounded text-blue-600"
+                                                            class="rounded text-info"
                                                             disabled={$formData.bypass_rate_limit}
                                                         />
                                                         <Label class="text-xs font-medium cursor-pointer"
@@ -366,7 +342,7 @@
                                         <button
                                             type="button"
                                             onclick={() => removeRule(index)}
-                                            class="text-red-600 hover:text-red-800 dark:text-red-400 p-1"
+                                            class="text-danger hover:text-danger p-1"
                                             disabled={$formData.bypass_rate_limit}
                                             title="Remove rule"
                                         >
@@ -380,9 +356,9 @@
                 {/if}
             </div>
             {#if limits.data && Object.keys(limits.data.current_usage).length > 0}
-                <div class="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
+                <div class="border border-border rounded-lg p-4">
                     <div class="flex justify-between items-center mb-3">
-                        <h4 class="font-semibold text-fg-default dark:text-dark-fg-default">
+                        <h4 class="font-semibold text-fg">
                             {fieldTitle('current_usage')}
                         </h4>
                         <button type="button" onclick={() => reset.mutate({ path })} class="btn btn-sm btn-secondary"
@@ -391,18 +367,12 @@
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {#each Object.entries(limits.data.current_usage) as [endpoint, usageData] (endpoint)}
-                            <div
-                                class="flex justify-between items-center p-2 bg-neutral-50 dark:bg-neutral-900 rounded"
-                            >
-                                <span class="text-sm font-mono text-fg-muted dark:text-dark-fg-muted">{endpoint}</span>
+                            <div class="flex justify-between items-center p-2 bg-muted rounded">
+                                <span class="text-sm font-mono text-fg-muted">{endpoint}</span>
                                 <div class="flex items-center gap-2">
-                                    <span class="text-xs text-neutral-500 dark:text-neutral-400"
-                                        >{usageData.algorithm}</span
-                                    >
-                                    <span class="text-xs text-neutral-500 dark:text-neutral-400"
-                                        >{fieldTitle('remaining')}</span
-                                    >
-                                    <span class="text-sm font-semibold text-fg-default dark:text-dark-fg-default">
+                                    <span class="text-xs text-fg-muted">{usageData.algorithm}</span>
+                                    <span class="text-xs text-fg-muted">{fieldTitle('remaining')}</span>
+                                    <span class="text-sm font-semibold text-fg">
                                         {usageData.remaining}
                                     </span>
                                 </div>

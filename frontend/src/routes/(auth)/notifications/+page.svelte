@@ -85,16 +85,16 @@
 </script>
 
 {#snippet message(notification: NotificationResponse)}
-    <h3 class="font-semibold text-fg-default dark:text-dark-fg-default">{notification.subject}</h3>
-    <p class="text-sm text-fg-muted dark:text-dark-fg-muted mt-1">{notification.body}</p>
+    <h3 class="font-semibold text-fg">{notification.subject}</h3>
+    <p class="text-sm text-fg-muted mt-1">{notification.body}</p>
 {/snippet}
 
-<div class="min-h-screen bg-bg-default dark:bg-dark-bg-default">
+<div class="min-h-screen bg-page">
     <div class="container mx-auto px-4 py-8 max-w-5xl">
         <div class="card p-4 mb-6">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div>
-                    <label for="include-tags" class="block text-sm text-fg-muted dark:text-dark-fg-muted mb-1"
+                    <label for="include-tags" class="block text-sm text-fg-muted mb-1"
                         >{fieldTitle('include_tags')}</label
                     >
                     <input
@@ -105,7 +105,7 @@
                     />
                 </div>
                 <div>
-                    <label for="exclude-tags" class="block text-sm text-fg-muted dark:text-dark-fg-muted mb-1"
+                    <label for="exclude-tags" class="block text-sm text-fg-muted mb-1"
                         >{fieldTitle('exclude_tags')}</label
                     >
                     <input
@@ -116,9 +116,7 @@
                     />
                 </div>
                 <div>
-                    <label for="tag-prefix" class="block text-sm text-fg-muted dark:text-dark-fg-muted mb-1"
-                        >{fieldTitle('tag_prefix')}</label
-                    >
+                    <label for="tag-prefix" class="block text-sm text-fg-muted mb-1">{fieldTitle('tag_prefix')}</label>
                     <input
                         id="tag-prefix"
                         class="input input-bordered w-full"
@@ -132,7 +130,7 @@
             </div>
         </div>
         <div class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default">Notifications</h1>
+            <h1 class="text-3xl font-bold text-fg">Notifications</h1>
             {#if notifications.length > 0 && unreadCount > 0}
                 <button type="button" onclick={() => markAllRead.mutate({})} class="btn btn-secondary-outline btn-sm">
                     Mark all as read
@@ -147,15 +145,11 @@
         {:else if notifications.length === 0}
             <div class="card">
                 <div class="p-12 text-center">
-                    <div
-                        class="w-20 h-20 mx-auto mb-4 text-fg-subtle dark:text-dark-fg-subtle flex items-center justify-center"
-                    >
+                    <div class="w-20 h-20 mx-auto mb-4 text-fg-subtle flex items-center justify-center">
                         <Bell class="w-16 h-16" />
                     </div>
-                    <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-2">
-                        No notifications yet
-                    </h3>
-                    <p class="text-fg-muted dark:text-dark-fg-muted">
+                    <h3 class="text-lg font-semibold text-fg mb-2">No notifications yet</h3>
+                    <p class="text-fg-muted">
                         You'll see notifications here when there are updates about your executions or system events.
                     </p>
                 </div>
@@ -167,7 +161,7 @@
                     <article
                         in:fly={{ y: 20, duration: 300 }}
                         class="card transition-all duration-200 {notification.status !== NotificationStatus.READ
-                            ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800/50'
+                            ? 'bg-info-soft border-info/30'
                             : ''}"
                     >
                         <div class="p-4">
@@ -194,7 +188,7 @@
                                         <button
                                             type="button"
                                             onclick={() => deleteNotification(notification.notification_id)}
-                                            class="btn btn-ghost btn-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 ml-4"
+                                            class="btn btn-ghost btn-sm text-danger hover:bg-danger-soft ml-4"
                                             disabled={isDeleting(notification.notification_id)}
                                             aria-label="Delete notification"
                                         >
@@ -207,21 +201,19 @@
                                     </div>
 
                                     <div class="flex items-center gap-4 mt-3">
-                                        <span
-                                            class="inline-flex items-center gap-1 text-xs text-fg-subtle dark:text-dark-fg-subtle"
-                                        >
+                                        <span class="inline-flex items-center gap-1 text-xs text-fg-subtle">
                                             <Clock class="w-4 h-4" />
                                             {formatRelativeTime(notification.created_at)}
                                         </span>
 
                                         <span
-                                            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-fg-muted dark:text-dark-fg-muted"
+                                            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-fg-muted"
                                         >
                                             {notification.channel}
                                         </span>
 
                                         <span
-                                            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-neutral-100 dark:bg-neutral-800 {SEVERITY_COLORS[
+                                            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted {SEVERITY_COLORS[
                                                 notification.severity
                                             ]}"
                                         >
@@ -232,7 +224,7 @@
                                             <span class="flex flex-wrap gap-1">
                                                 {#each notification.tags.slice(0, 6) as tag (tag)}
                                                     <span
-                                                        class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-fg-muted dark:text-dark-fg-muted border border-neutral-200 dark:border-neutral-700"
+                                                        class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-fg-muted border border-border"
                                                         >{tag}</span
                                                     >
                                                 {/each}
@@ -240,9 +232,7 @@
                                         {/if}
 
                                         {#if notification.status === NotificationStatus.READ}
-                                            <span class="text-xs text-green-600 dark:text-green-400"
-                                                >{notification.status}</span
-                                            >
+                                            <span class="text-xs text-success">{notification.status}</span>
                                         {/if}
                                     </div>
                                 </div>

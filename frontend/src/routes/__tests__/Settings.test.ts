@@ -4,6 +4,7 @@ import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import { fakeUserSettings, fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { queryClient } from '#lib/query-client.ts';
 import { toast } from 'svelte-sonner';
+import { setMode, userPrefersMode } from 'mode-watcher';
 import Settings from '#routes/(auth)/settings/+page.svelte';
 
 function createMockSettings(): UserSettings {
@@ -39,7 +40,6 @@ import {
 import type { Session } from '#stores/auth.svelte.ts';
 
 const mocks = vi.hoisted(() => ({
-    mockSetTheme: vi.fn(),
     mockConfirm: vi.fn(),
     mockAuthStore: {
         session: { status: 'signed-out' } as Session,
@@ -47,7 +47,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('#stores/auth.svelte.ts', () => ({ authStore: mocks.mockAuthStore }));
-vi.mock('#stores/theme.svelte.ts', () => ({ setTheme: (...args: unknown[]) => mocks.mockSetTheme(...args) }));
 
 const historyTable = () => within(screen.getByRole('table', { name: 'Settings history' }));
 
@@ -103,6 +102,7 @@ describe('Settings', () => {
 
     describe('Theme dropdown', () => {
         it('picks "dark" from the theme list, previews it and shows it as the choice', async () => {
+            setMode('light');
             mockApi(getUserSettingsApiV1UserSettingsGet).ok({ ...createMockSettings(), theme: 'light' });
             await renderSettings();
             await waitFor(() => {
@@ -114,7 +114,7 @@ describe('Settings', () => {
             await user.click(themeSelect);
             await user.click(await screen.findByRole('option', { name: 'dark' }));
 
-            expect(mocks.mockSetTheme).toHaveBeenCalledWith('dark');
+            expect(userPrefersMode.current).toBe('dark');
             await waitFor(() => expect(themeSelect).toHaveTextContent('dark'));
         });
     });

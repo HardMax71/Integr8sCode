@@ -1,10 +1,9 @@
 <script lang="ts">
     import '../app.css';
-    import { setTheme } from '#stores/theme.svelte.ts';
-    import { onMount, type Snippet } from 'svelte';
+    import { onMount, untrack, type Snippet } from 'svelte';
     import { Toaster } from 'svelte-sonner';
     import { Tooltip } from 'bits-ui';
-    import { ModeWatcher } from 'mode-watcher';
+    import { ModeWatcher, setMode } from 'mode-watcher';
     import { QueryClientProvider, createQuery } from '@tanstack/svelte-query';
     import { getUserSettingsApiV1UserSettingsGetOptions } from '#lib/api/index.ts';
     import Header from '#components/Header.svelte';
@@ -30,7 +29,12 @@
     );
 
     $effect(() => {
-        if (settings.data) setTheme(settings.data.theme);
+        if (!settings.data) return;
+        const { theme } = settings.data;
+        // setMode reads mode-watcher's own state, so tracking it would undo every later toggle
+        untrack(() => {
+            setMode(theme);
+        });
     });
 
     onMount(async () => {

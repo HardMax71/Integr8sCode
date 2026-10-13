@@ -11,6 +11,7 @@ import {
 } from '#lib/api/index.ts';
 
 import * as navigation from '$app/navigation';
+import { setMode, userPrefersMode } from 'mode-watcher';
 
 const mocks = vi.hoisted(() => ({
     mockAuthStore: {
@@ -18,23 +19,11 @@ const mocks = vi.hoisted(() => ({
         clearAuth: vi.fn(),
         verifyAuth: vi.fn(),
     },
-    mockThemeStore: {
-        value: 'system' as Theme,
-    },
-    mockToggleTheme: vi.fn(),
 }));
 
 vi.mock('#stores/auth.svelte.ts', () => ({
     get authStore() {
         return mocks.mockAuthStore;
-    },
-}));
-vi.mock('#stores/theme.svelte.ts', () => ({
-    get themeStore() {
-        return mocks.mockThemeStore;
-    },
-    get toggleTheme() {
-        return mocks.mockToggleTheme;
     },
 }));
 vi.mock('#components/NotificationCenter.svelte', () => {
@@ -92,7 +81,7 @@ describe('Header', () => {
 
     beforeEach(() => {
         mocks.mockAuthStore.session = { status: 'signed-out' };
-        mocks.mockThemeStore.value = Theme.SYSTEM;
+        setMode(Theme.SYSTEM);
         mocks.mockAuthStore.clearAuth.mockReset();
         mockApi(logoutApiV1AuthLogoutPost).ok({ message: 'Logged out' });
         mockApi(updateThemeApiV1UserSettingsThemePut).ok(
@@ -106,7 +95,6 @@ describe('Header', () => {
                 updated_at: '2024-01-15T10:30:00Z',
             }),
         );
-        mocks.mockToggleTheme.mockReset();
         vi.spyOn(navigation, 'goto');
         Object.defineProperty(window, 'matchMedia', {
             writable: true,
@@ -135,18 +123,21 @@ describe('Header', () => {
     });
 
     describe('theme toggle', () => {
-        it('toggles the theme without saving it when signed out', async () => {
+        it.each([
+            [Theme.LIGHT, Theme.DARK],
+            [Theme.DARK, Theme.SYSTEM],
+            [Theme.SYSTEM, Theme.LIGHT],
+        ])('goes from %s to %s without saving it when signed out', async (from, to) => {
+            setMode(from);
             renderWithQueryClient(Header);
             await user.click(screen.getByTitle('Toggle theme'));
-            expect(mocks.mockToggleTheme).toHaveBeenCalled();
+            expect(userPrefersMode.current).toBe(to);
             expect(vi.mocked(updateThemeApiV1UserSettingsThemePut)).not.toHaveBeenCalled();
         });
 
         it('saves the toggled theme to the user settings when signed in', async () => {
             mocks.mockAuthStore.session = { status: 'signed-in', user: fakeUserResponse(), csrfToken: 'csrf' };
-            mocks.mockToggleTheme.mockImplementation(() => {
-                mocks.mockThemeStore.value = Theme.DARK;
-            });
+            setMode(Theme.LIGHT);
             renderWithQueryClient(Header);
             await user.click(screen.getByTitle('Toggle theme'));
             await waitFor(() =>
@@ -161,7 +152,7 @@ describe('Header', () => {
             { theme: Theme.DARK, iconClass: 'lucide-moon' },
             { theme: Theme.SYSTEM, iconClass: 'lucide-monitor-cog' },
         ])('shows correct icon for $theme theme', async ({ theme, iconClass }) => {
-            mocks.mockThemeStore.value = theme;
+            setMode(theme);
             const { container } = renderWithQueryClient(Header);
             await waitFor(() => {
                 const svg = container.querySelector('[title="Toggle theme"] svg');

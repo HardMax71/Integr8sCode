@@ -19,7 +19,7 @@
     } from '#lib/api/index.ts';
     import { apiForm } from '#lib/forms.ts';
     import { authStore } from '#stores/auth.svelte.ts';
-    import { setTheme } from '#stores/theme.svelte.ts';
+    import { setMode } from 'mode-watcher';
     import { toast } from 'svelte-sonner';
     import Spinner from '#components/Spinner.svelte';
     import Modal from '#components/Modal.svelte';
@@ -199,7 +199,7 @@
                                             const picked = themes.find((t) => t === value);
                                             if (!picked) return;
                                             $formData.theme = picked;
-                                            setTheme(picked);
+                                            setMode(picked);
                                         }}
                                     >
                                         <Select.Trigger

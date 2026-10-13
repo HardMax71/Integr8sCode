@@ -7,9 +7,9 @@ import {
     type UserResponse,
 } from '#lib/api/index.ts';
 import { queryClient } from '#lib/query-client.ts';
-import { logger } from '#lib/logger.ts';
+import { getLogger } from '@logtape/logtape';
 
-const log = logger.withTag('Auth');
+const log = getLogger(['integr8scode', 'auth']);
 
 // --8<-- [start:AuthState]
 /** Only a signed-in session has a user and the CSRF token for writes */
@@ -81,7 +81,6 @@ class AuthStore {
             this.#initialized = true;
             return result;
         } catch (err) {
-            log.error('Auth initialization failed:', err);
             this.#initialized = false;
             throw err;
         } finally {
@@ -135,7 +134,7 @@ class AuthStore {
                 this.clearAuth();
                 return false;
             }
-            log.warn('Auth verification failed, keeping cached state');
+            log.warning('Profile check failed, so the session stays {status}', { status: this.session.status });
             return offlineAnswer;
         }
 

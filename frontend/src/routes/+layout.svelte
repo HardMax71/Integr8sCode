@@ -11,12 +11,12 @@
     import Footer from '#components/Footer.svelte';
     import Spinner from '#components/Spinner.svelte';
     import { authStore } from '#stores/auth.svelte.ts';
-    import { logger } from '#lib/logger.ts';
+    import { getLogger } from '@logtape/logtape';
     import { queryClient } from '#lib/query-client.ts';
 
     let { children }: { children: Snippet } = $props();
 
-    const log = logger.withTag('App');
+    const log = getLogger(['integr8scode', 'app']);
 
     let authInitialized = $state(false);
 
@@ -36,9 +36,9 @@
     onMount(async () => {
         try {
             await authStore.initialize();
-            log.info('Authentication initialized');
+            log.debug('Session check finished, the user is {status}', { status: authStore.session.status });
         } catch (err) {
-            log.error('Auth initialization failed:', err);
+            log.error('Session check failed: {error}', { error: err });
         } finally {
             authInitialized = true;
         }

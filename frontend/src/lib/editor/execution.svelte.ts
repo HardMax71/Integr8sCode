@@ -1,5 +1,6 @@
 import { createMutation } from '@tanstack/svelte-query';
 import { Context } from 'runed';
+import { getLogger } from '@logtape/logtape';
 import {
     createExecutionApiV1ExecutePostMutation,
     executionEventsApiV1EventsExecutionsExecutionIdGet,
@@ -9,6 +10,8 @@ import {
     type ExecutionResult,
     type SseControlEvent,
 } from '#lib/api/index.ts';
+
+const log = getLogger(['integr8scode', 'editor']);
 
 type ActiveStatus = Extract<ExecutionStatus, 'queued' | 'scheduled' | 'running'>;
 
@@ -82,6 +85,13 @@ class ExecutionState {
         const { stream } = await executionEventsApiV1EventsExecutionsExecutionIdGet({
             path: { execution_id: data.execution_id },
             signal: controller.signal,
+            onSseError: (error) => {
+                if (!controller.signal.aborted)
+                    log.warning('Event stream for execution {executionId} lost its connection: {error}', {
+                        executionId: data.execution_id,
+                        error,
+                    });
+            },
             sseMaxRetryAttempts: 3,
         });
 
@@ -111,6 +121,9 @@ class ExecutionState {
         }
 
         if (!terminalReceived && !controller.signal.aborted) {
+            log.warning('Event stream for execution {executionId} ended before its result', {
+                executionId: data.execution_id,
+            });
             this.#streamError = 'Connection to server lost.';
         }
         this.#controller = null;

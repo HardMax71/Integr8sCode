@@ -709,6 +709,22 @@ A 401 also empties the query cache, as `authStore.clearAuth()` does. Mutations w
 
 **Do not add try/catch around API calls**; the cache handlers do the display. To react to one specific failure, pass `onError` to `mutate` (the editor turns a 404 on update into a create). Two kinds of catch are fine: the auth store's `verifyAuth`, which tells a 401 from a network error, and `.catch(() => null)` on an awaited `queryClient.query()` or `mutateAsync()` that only needs to know whether it worked (the admin detail modals, the editor's execution start), since the cache handler has already shown the error.
 
+## Frontend: Logging
+
+The frontend logs through LogTape, and nothing else: ESLint's `no-console` rejects `console.*` in `src/`. `init` in `src/hooks.client.ts` configures it once, sending the `integr8scode` category to the browser console from `debug` up in dev and from `warning` up in a production build. Each module takes its own logger and writes a sentence whose `{placeholders}` name every value it passes, so a line reads on its own:
+
+```typescript
+import { getLogger } from '@logtape/logtape';
+
+const log = getLogger(['integr8scode', 'notifications']);
+log.warning('Notification stream lost its connection: {error}', { error });
+```
+
+- The category is `['integr8scode', area]`; the areas today are `app`, `auth`, `api`, `editor`, `notifications` and `replay`
+- Values go in the properties, never into the message string, the same rule as the backend's structlog
+- `error` is for something broken (a 5xx, no response, a stream handler that threw), `warning` for a degraded state the app recovers from (a dropped SSE connection), `debug` for what the user already sees in a toast or a form (a 4xx)
+- Unit tests leave LogTape unconfigured, so it drops every record and no test silences the console. A test that checks a log line calls `captureLogs()` from `#test/test-utils.ts` and asserts on the records
+
 ## Frontend: Auth Store
 
 - Auth state lives in `#stores/auth.svelte.ts` as one `session`: `{ status: 'signed-out' }` or `{ status: 'signed-in', user, csrfToken }`, with `user` the generated `UserResponse`. Check `authStore.session.status === 'signed-in'`; inside that `{#if}`, take `{@const user = authStore.session.user}` when the markup reads it in snippets, since TypeScript doesn't carry the narrowing into them. A signed-in session persists to `sessionStorage` under one key, `authState`, as a JSON blob with a `timestamp`, checked against `zUserResponse` when it's read back

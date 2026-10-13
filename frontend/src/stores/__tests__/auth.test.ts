@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { suppressConsoleWarn } from '#test/test-utils.ts';
 import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { UserRole, type ErrorResponse, type LoginResponse, type UserResponse } from '#lib/api/index.ts';
 
@@ -124,14 +123,12 @@ describe('auth store', () => {
         });
 
         it('stays signed out when the profile check hits a network error, since a session needs the user', async () => {
-            const restoreConsole = suppressConsoleWarn();
             const { authStore, fail } = await load();
             mockGetProfileApi.mockRejectedValue(fail('network'));
 
             await authStore.startSession(LOGIN_RESPONSE);
 
             expect(authStore.session).toEqual({ status: 'signed-out' });
-            restoreConsole();
         });
     });
 
@@ -197,7 +194,6 @@ describe('auth store', () => {
         it.each(['network', 'server'] as const)(
             'keeps the cached state on a %s error (offline-first)',
             async (failure) => {
-                const restoreConsole = suppressConsoleWarn();
                 profileOk();
                 const { authStore, fail } = await load();
                 expect(await authStore.verifyAuth(true)).toBe(true);
@@ -207,19 +203,16 @@ describe('auth store', () => {
                 expect(await authStore.verifyAuth(true)).toBe(true);
                 expect(authStore.session).toMatchObject({ status: 'signed-in', user: PROFILE_RESPONSE });
                 expect(sessionStorage.removeItem).not.toHaveBeenCalled();
-                restoreConsole();
             },
         );
 
         it('returns false without clearing state on a network error with nothing cached', async () => {
-            const restoreConsole = suppressConsoleWarn();
             const { authStore, fail } = await load();
             mockGetProfileApi.mockRejectedValue(fail('network'));
 
             expect(await authStore.verifyAuth(true)).toBe(false);
             expect(authStore.session).toEqual({ status: 'signed-out' });
             expect(sessionStorage.removeItem).not.toHaveBeenCalled();
-            restoreConsole();
         });
     });
 
@@ -274,7 +267,6 @@ describe('auth store', () => {
             ['keeps recent auth', 2, true],
             ['clears stale auth', 10, false],
         ])('%s on a network error (%i minutes old)', async (_label, minutes, kept) => {
-            const restoreConsole = suppressConsoleWarn();
             sessionStorageData['authState'] = persistedState({ timestamp: Date.now() - minutes * 60 * 1000 });
             const { authStore, fail } = await load();
             mockGetProfileApi.mockRejectedValue(fail('network'));
@@ -282,7 +274,6 @@ describe('auth store', () => {
             expect(await authStore.initialize()).toBe(kept);
             expect(authStore.session.status).toBe(kept ? 'signed-in' : 'signed-out');
             expect(sessionStorageData['authState'] !== undefined).toBe(kept);
-            restoreConsole();
         });
     });
 

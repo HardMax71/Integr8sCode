@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
-import { user, suppressConsoleError, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import {
     logoutApiV1AuthLogoutPost,
@@ -279,14 +279,12 @@ describe('Header', () => {
 
     describe('dropdown toggle behavior', () => {
         it('closes dropdown when clicking a menu item', async () => {
-            const restoreConsole = suppressConsoleError();
             mocks.mockAuthStore.session = { status: 'signed-in', user: fakeUserResponse(), csrfToken: 'csrf' };
             await openUserDropdown();
             await user.click(await screen.findByRole('menuitem', { name: /Settings/i }));
             await waitFor(() => {
                 expect(screen.queryByRole('menuitem', { name: /Settings/i })).not.toBeInTheDocument();
             });
-            restoreConsole();
         });
 
         it('closes the dropdown on Escape', async () => {

@@ -14,7 +14,9 @@ npm run test:e2e         # playwright, needs the stack on https://localhost:5001
 
 Unit tests sit in `__tests__/` directories next to the code they cover, under `src/`: `components/`, `routes/` and `routes/admin/`, `stores/`, `lib/` and its `admin/`, `editor/` and `notifications/` subfolders, and `utils/`. Vitest picks up `src/**/*.{test,spec}.{js,ts}`.
 
-Stores are Svelte 5 rune classes in `*.svelte.ts` files (auth.svelte.ts and theme.svelte.ts), so tests import the store instance and read its fields directly. To get a fresh instance, call `vi.resetModules()` and import the module again. The auth store's tests do that, so they also import the query client after the reset: the fresh store reads its failures from the fresh client's cache.
+The auth store is a Svelte 5 rune class in auth.svelte.ts, so tests import the store instance and read its fields directly. To get a fresh instance, call `vi.resetModules()` and import the module again. The auth store's tests do that, so they also import the query client after the reset: the fresh store reads its failures from the fresh client's cache.
+
+Theme tests use mode-watcher as it is, with no mock: `setMode()` before rendering, then `userPrefersMode.current` or `mode.current`.
 
 Shared helpers live in `src/__tests__/test-utils.ts`, imported as `#test/test-utils.ts`. The most used are `mockApi(fn).ok(data)` and `.err(error)` for the generated API functions, where `data` is typed from the function's generated return type, `mockStreamEvents(fn, ...events)` for the SSE functions, and `user`, a preconfigured `@testing-library/user-event` instance that test-utils exports. Like the real client, `.err()` rejects when the call passes `throwOnError`, which the generated query and mutation options always do.
 

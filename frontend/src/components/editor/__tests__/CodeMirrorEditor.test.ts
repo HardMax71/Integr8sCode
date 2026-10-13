@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, waitFor } from '@testing-library/svelte';
-import { zEditorSettingsInput, type EditorSettingsOutput } from '#lib/api/index.ts';
+import { setMode } from 'mode-watcher';
+import { Theme, zEditorSettingsInput, type EditorSettingsOutput } from '#lib/api/index.ts';
 
 const mocks = vi.hoisted(() => {
     const dispatchFn = vi.fn();
@@ -27,7 +28,6 @@ const mocks = vi.hoisted(() => {
     const loadLanguageFn = vi.fn(async (lang: string) => `lang-ext-${lang}`);
 
     return {
-        dark: false,
         mockView,
         dispatchFn,
         destroyFn,
@@ -86,13 +86,6 @@ vi.mock('@codemirror/autocomplete', () => ({
 }));
 vi.mock('@codemirror/theme-one-dark', () => ({ oneDark: 'oneDark-theme' }));
 vi.mock('@uiw/codemirror-theme-github', () => ({ githubLight: 'githubLight-theme' }));
-vi.mock('#stores/theme.svelte.ts', () => ({
-    themeStore: {
-        get dark() {
-            return mocks.dark;
-        },
-    },
-}));
 vi.mock('#lib/editor/languages.ts', () => ({ loadLanguage: mocks.loadLanguageFn }));
 
 import CodeMirrorEditor from '#components/editor/CodeMirrorEditor.svelte';
@@ -107,7 +100,7 @@ function renderEditor(overrides: Partial<{ content: string; lang: string; settin
 
 describe('CodeMirrorEditor', () => {
     beforeEach(() => {
-        mocks.dark = false;
+        setMode(Theme.LIGHT);
         vi.clearAllMocks();
     });
 
@@ -161,10 +154,10 @@ describe('CodeMirrorEditor', () => {
 
     describe('theme selection', () => {
         it.each([
-            { dark: false, expectedTheme: 'githubLight-theme' },
-            { dark: true, expectedTheme: 'oneDark-theme' },
-        ])('selects $expectedTheme when dark=$dark', async ({ dark, expectedTheme }) => {
-            mocks.dark = dark;
+            { theme: Theme.LIGHT, expectedTheme: 'githubLight-theme' },
+            { theme: Theme.DARK, expectedTheme: 'oneDark-theme' },
+        ])('selects $expectedTheme for the $theme theme', async ({ theme, expectedTheme }) => {
+            setMode(theme);
             renderEditor();
             await waitFor(() => {
                 expect(mocks.editorStateCreate).toHaveBeenCalled();

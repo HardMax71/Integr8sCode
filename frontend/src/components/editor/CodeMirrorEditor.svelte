@@ -7,7 +7,7 @@
     import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
     import { oneDark } from '@codemirror/theme-one-dark';
     import { githubLight } from '@uiw/codemirror-theme-github';
-    import { themeStore } from '#stores/theme.svelte.ts';
+    import { mode } from 'mode-watcher';
     import { loadLanguage } from '#lib/editor/languages.ts';
     import type { EditorSettingsOutput } from '#lib/api/index.ts';
 
@@ -31,7 +31,7 @@
     const languageCompartment = new Compartment();
 
     function getThemeExtension() {
-        return themeStore.dark ? oneDark : githubLight;
+        return mode.current === 'dark' ? oneDark : githubLight;
     }
 
     function getStaticExtensions() {
@@ -97,7 +97,7 @@
 
     // React to app theme changes
     $effect(() => {
-        void themeStore.dark;
+        void mode.current;
         if (view) {
             view.dispatch({ effects: themeCompartment.reconfigure(getThemeExtension()) });
         }

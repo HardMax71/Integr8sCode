@@ -10,7 +10,7 @@
         UserRole,
     } from '#lib/api/index.ts';
     import { authStore } from '#stores/auth.svelte.ts';
-    import { themeStore, toggleTheme } from '#stores/theme.svelte.ts';
+    import { setMode, userPrefersMode } from 'mode-watcher';
     import { fade } from 'svelte/transition';
     import { MediaQuery } from 'svelte/reactivity';
     import NotificationCenter from '#components/NotificationCenter.svelte';
@@ -60,8 +60,10 @@
     }));
 
     function handleToggleTheme() {
-        toggleTheme();
-        if (authStore.session.status === 'signed-in') saveTheme.mutate({ body: { theme: themeStore.value } });
+        const themes = Object.values(Theme);
+        const next = themes[(themes.indexOf(userPrefersMode.current) + 1) % themes.length]!;
+        setMode(next);
+        if (authStore.session.status === 'signed-in') saveTheme.mutate({ body: { theme: next } });
     }
 
     function handleLogout() {
@@ -101,9 +103,9 @@
                     aria-label="Toggle theme"
                     class="btn btn-ghost btn-icon text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default"
                 >
-                    {#if themeStore.value === Theme.LIGHT}
+                    {#if userPrefersMode.current === Theme.LIGHT}
                         <Sun class="w-5 h-5" />
-                    {:else if themeStore.value === Theme.DARK}
+                    {:else if userPrefersMode.current === Theme.DARK}
                         <Moon class="w-5 h-5" />
                     {:else}
                         <MonitorCog class="w-5 h-5" />

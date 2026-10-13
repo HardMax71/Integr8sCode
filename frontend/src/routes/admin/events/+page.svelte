@@ -126,9 +126,8 @@
 </script>
 
 <div class="container mx-auto px-4 pb-8">
-    <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-        <h1 class="text-2xl sm:text-3xl font-bold">Event Browser</h1>
+        <h1>Event Browser</h1>
 
         <div class="flex flex-wrap gap-2">
             <button
@@ -157,7 +156,7 @@
             </button>
 
             <DropdownMenu.Root>
-                <DropdownMenu.Trigger class="btn btn-sm btn-secondary-outline flex items-center gap-1 sm:gap-2">
+                <DropdownMenu.Trigger class="btn btn-sm btn-secondary-outline gap-1 sm:gap-2">
                     <Download size={16} />
                     <span class="hidden sm:inline">Export</span>
                     <ChevronRight size={12} class="ml-1 rotate-90" />
@@ -177,7 +176,7 @@
             <button
                 type="button"
                 onclick={refresh}
-                class="btn btn-sm btn-primary flex items-center gap-1 sm:gap-2"
+                class="btn btn-sm btn-primary gap-1 sm:gap-2"
                 disabled={list.isFetching}
             >
                 {#if list.isFetching}<Spinner size="small" />{:else}<RefreshCw size={16} />{/if}
@@ -218,11 +217,10 @@
         <EventFilters bind:filters onApply={applyFilters} onClear={clearFilters} />
     {/if}
 
-    <!-- Events table -->
     <div class="card">
         <div class="p-6">
             <div class="mb-4">
-                <h3 class="text-lg font-semibold text-fg mb-2">Events</h3>
+                <h3 class="text-lg font-semibold mb-2">Events</h3>
             </div>
 
             <EventsTable
@@ -248,7 +246,6 @@
     </div>
 </div>
 
-<!-- Modals -->
 {#if dialog.kind === 'details'}
     <EventDetailsModal
         eventId={dialog.eventId}

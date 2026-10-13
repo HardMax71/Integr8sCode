@@ -30,9 +30,7 @@
         <div class="space-y-4">
             <div>
                 <h4 class="font-semibold mb-2">Basic Information</h4>
-                <dl
-                    class="grid grid-cols-[auto_1fr] text-fg *:px-4 *:py-2 *:border-b *:border-border [&>dt]:font-semibold"
-                >
+                <dl class="grid grid-cols-[auto_1fr] *:px-4 *:py-2 *:border-b *:border-border [&>dt]:font-semibold">
                     <dt>{fieldTitle('event_id')}</dt>
                     <dd class="font-mono text-sm">{eventData.event_id}</dd>
                     <dt>{fieldTitle('event_type')}</dt>
@@ -58,7 +56,7 @@
 
             <div>
                 <h4 class="font-semibold mb-2">{fieldTitle('event')}</h4>
-                <pre class="bg-muted p-3 rounded overflow-auto text-sm font-mono text-fg max-h-96">{JSON.stringify(
+                <pre class="bg-muted p-3 rounded overflow-auto text-sm font-mono max-h-96">{JSON.stringify(
                         eventData,
                         null,
                         2,

@@ -36,7 +36,7 @@
 <ModeWatcher modeStorageKey="app-theme" disableHeadScriptInjection disableTransitions={false} />
 <QueryClientProvider client={queryClient}>
     <Tooltip.Provider delayDuration={300}>
-        <div class="flex flex-col min-h-screen bg-page pt-16">
+        <div class="flex flex-col min-h-dvh pt-16">
             <Header />
             <Toaster richColors position="top-right" />
             <main class="flex-grow">

@@ -18,22 +18,19 @@ describe('Spinner', () => {
 
     describe('size prop', () => {
         it.each([
-            { size: 'small', heightClass: 'h-4', widthClass: 'w-4' },
-            { size: 'medium', heightClass: 'h-6', widthClass: 'w-6' },
-            { size: 'large', heightClass: 'h-8', widthClass: 'w-8' },
-            { size: 'xlarge', heightClass: 'h-12', widthClass: 'w-12' },
-        ] as const)('applies $heightClass/$widthClass for size="$size"', ({ size, heightClass, widthClass }) => {
+            { size: 'small', sizeClass: 'size-4' },
+            { size: 'medium', sizeClass: 'size-6' },
+            { size: 'large', sizeClass: 'size-8' },
+            { size: 'xlarge', sizeClass: 'size-12' },
+        ] as const)('applies $sizeClass for size="$size"', ({ size, sizeClass }) => {
             render(Spinner, { props: { size } });
-            const svg = getSpinner();
-            expect(svg.classList.contains(heightClass)).toBe(true);
-            expect(svg.classList.contains(widthClass)).toBe(true);
+            expect(getSpinner().classList.contains(sizeClass)).toBe(true);
         });
 
         it('defaults to medium size', () => {
             render(Spinner);
             const svg = getSpinner();
-            expect(svg.classList.contains('h-6')).toBe(true);
-            expect(svg.classList.contains('w-6')).toBe(true);
+            expect(svg.classList.contains('size-6')).toBe(true);
         });
     });
 
@@ -60,7 +57,7 @@ describe('Spinner', () => {
             const svg = getSpinner();
             expect(svg.classList.contains('my-spinner')).toBe(true);
             expect(svg.classList.contains('animate-spin')).toBe(true);
-            expect(svg.classList.contains('h-8')).toBe(true);
+            expect(svg.classList.contains('size-8')).toBe(true);
         });
     });
 
@@ -79,8 +76,7 @@ describe('Spinner', () => {
             // @ts-expect-error - intentionally passing invalid value to test fallback
             render(Spinner, { props: { size: 'invalid-size' } });
             const svg = getSpinner();
-            expect(svg.classList.contains('h-6')).toBe(true);
-            expect(svg.classList.contains('w-6')).toBe(true);
+            expect(svg.classList.contains('size-6')).toBe(true);
         });
 
         it('falls back to primary color for invalid color value', () => {
@@ -94,8 +90,7 @@ describe('Spinner', () => {
             // @ts-expect-error - intentionally passing invalid values to test fallback
             render(Spinner, { props: { size: 'unknown', color: 'unknown' } });
             const svg = getSpinner();
-            expect(svg.classList.contains('h-6')).toBe(true);
-            expect(svg.classList.contains('w-6')).toBe(true);
+            expect(svg.classList.contains('size-6')).toBe(true);
             expect(svg.classList.contains('text-accent')).toBe(true);
         });
     });

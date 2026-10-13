@@ -62,7 +62,7 @@
     <div class="card mb-6">
         <div class="p-4">
             <div class="flex items-center justify-between mb-3">
-                <h3 class="text-sm font-semibold text-fg uppercase tracking-wide">
+                <h3 class="text-sm font-semibold uppercase tracking-wide">
                     {title}
                 </h3>
                 <div class="flex gap-2">

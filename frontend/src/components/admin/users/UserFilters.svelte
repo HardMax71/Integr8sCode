@@ -28,7 +28,7 @@
 </script>
 
 {#snippet booleanFilter(key: BooleanFilter)}
-    <label for="{key}-filter" class="block text-sm font-medium text-fg-muted mb-1">{fieldTitle(key)}</label>
+    <label for="{key}-filter">{fieldTitle(key)}</label>
     <select id="{key}-filter" bind:value={filters[key]} class="form-select-standard w-full">
         <option value={null}>All</option>
         <option value={true}>{formatBoolean(true)}</option>
@@ -39,25 +39,21 @@
 <div class="card mb-4">
     <div class="p-3 sm:p-4">
         <div class="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:items-end">
-            <div class="w-full lg:flex-1 lg:max-w-md">
-                <label for="search-filter" class="block text-sm font-medium text-fg-muted mb-1"
-                    >{fieldTitle('search')}</label
-                >
+            <div class="field w-full lg:flex-1 lg:max-w-md">
+                <label for="search-filter">{fieldTitle('search')}</label>
                 <input
                     id="search-filter"
                     type="text"
                     bind:value={filters.search}
-                    class="input w-full"
+                    class="w-full"
                     autocomplete="off"
                     autocorrect="off"
                     autocapitalize="off"
                     spellcheck="false"
                 />
             </div>
-            <div class="w-full sm:w-auto sm:min-w-[140px]">
-                <label for="role-filter" class="block text-sm font-medium text-fg-muted mb-1"
-                    >{fieldTitle('role')}</label
-                >
+            <div class="field w-full sm:w-auto sm:min-w-35">
+                <label for="role-filter">{fieldTitle('role')}</label>
                 <select id="role-filter" bind:value={filters.role} class="form-select-standard w-full">
                     <option value={null}>All</option>
                     {#each Object.values(UserRole) as role (role)}
@@ -65,15 +61,15 @@
                     {/each}
                 </select>
             </div>
-            <div class="w-full sm:w-auto sm:min-w-[140px]">
+            <div class="field w-full sm:w-auto sm:min-w-35">
                 {@render booleanFilter('is_active')}
             </div>
             <button
                 type="button"
                 onclick={() => (showAdvancedFilters = !showAdvancedFilters)}
-                class="btn btn-secondary-outline flex items-center gap-2 w-full sm:w-auto justify-center"
+                class="btn btn-secondary-outline gap-2 w-full sm:w-auto"
             >
-                <ChevronDown class="w-4 h-4 transition-transform {showAdvancedFilters ? 'rotate-180' : ''}" />
+                <ChevronDown class="size-4 transition-transform {showAdvancedFilters ? 'rotate-180' : ''}" />
                 Advanced
             </button>
             <button
@@ -87,7 +83,7 @@
         </div>
 
         {#if showAdvancedFilters}
-            <div class="mt-4 pt-4 border-t border-border">
+            <div class="mt-4 pt-4 border-t">
                 <h4 class="text-sm font-medium text-fg-muted mb-3">Rate Limit Filters</h4>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>{@render booleanFilter('bypass_rate_limit')}</div>

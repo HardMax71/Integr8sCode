@@ -108,7 +108,7 @@
                         <ul class="space-y-1">
                             {#each saga.completed_steps as step (step)}
                                 <li class="flex items-center gap-2 text-sm">
-                                    <Check class="w-4 h-4 text-success" />{step}
+                                    <Check class="size-4 text-success" />{step}
                                 </li>
                             {/each}
                         </ul>
@@ -124,7 +124,7 @@
                         <ul class="space-y-1">
                             {#each saga.compensated_steps as step (step)}
                                 <li class="flex items-center gap-2 text-sm">
-                                    <Undo2 class="w-4 h-4 text-warning" />{step}
+                                    <Undo2 class="size-4 text-warning" />{step}
                                 </li>
                             {/each}
                         </ul>

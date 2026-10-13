@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/svelte';
-import { user } from '#test/test-utils.ts';
+import { screen, waitFor, within } from '@testing-library/svelte';
+import { renderWithQueryClient, user } from '#test/test-utils.ts';
 import { fakeExecutionResult } from '#lib/api/@faker-js/faker.gen.ts';
 import { toast } from 'svelte-sonner';
 import { ExecutionStatus, type ExecutionResult } from '#lib/api/index.ts';
@@ -11,8 +11,11 @@ import OutputPanel from '#components/editor/OutputPanel.svelte';
 type IdleProps = { phase: ExecutionPhase; result: ExecutionResult | null; error: string | null };
 
 function renderIdle(overrides: Partial<IdleProps> = {}) {
-    return render(OutputPanel, {
-        props: { phase: 'idle' as ExecutionPhase, result: null, error: null, ...overrides },
+    return renderWithQueryClient(OutputPanel, {
+        phase: 'idle' as ExecutionPhase,
+        result: null,
+        error: null,
+        ...overrides,
     });
 }
 

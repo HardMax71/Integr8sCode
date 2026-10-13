@@ -37,7 +37,7 @@
 
 <div class="px-6 pb-6">
     <div class="mb-6">
-        <h1 class="text-3xl font-bold text-fg mb-2">Saga Management</h1>
+        <h1 class="text-3xl mb-2">Saga Management</h1>
         <p class="text-fg-muted">Monitor and debug distributed transactions</p>
     </div>
 

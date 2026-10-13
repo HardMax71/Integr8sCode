@@ -13,25 +13,17 @@
     }
 </script>
 
-<div class="mb-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-3">
+<div class="mb-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
     {#each Object.values(SagaState) as state (state)}
         {@const info = SAGA_STATES[state]}
         {@const count = getCount(state)}
         {@const IconComponent = info.icon}
-        <div class="card hover:shadow-lg transition-all duration-200 {info.bgColor}">
-            <div class="p-2 sm:p-3">
-                <div class="flex items-center justify-between gap-1">
-                    <div class="min-w-0 flex-1">
-                        <p class="text-[10px] sm:text-xs text-fg-muted uppercase tracking-wide mb-0.5 truncate">
-                            {state}
-                        </p>
-                        <p class="text-base sm:text-lg lg:text-xl font-bold text-fg">
-                            {count}
-                        </p>
-                    </div>
-                    <IconComponent class="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-fg-muted" />
-                </div>
+        <dl class="card flex items-center justify-between gap-2 p-3 {info.bgColor}">
+            <div class="min-w-0">
+                <dt class="section-label truncate">{state}</dt>
+                <dd class="text-lg font-bold">{count}</dd>
             </div>
-        </div>
+            <IconComponent class="size-5 shrink-0 text-fg-muted" />
+        </dl>
     {/each}
 </div>

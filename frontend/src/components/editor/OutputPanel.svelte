@@ -7,6 +7,7 @@
     import Spinner from '#components/Spinner.svelte';
     import { TriangleAlert, FileText, Copy } from '@lucide/svelte';
     import { toast } from 'svelte-sonner';
+    import { Tooltip } from 'bits-ui';
 
     let {
         phase,
@@ -43,15 +44,30 @@
             >{part.content}</span
         >{/each}{/snippet}
 
+{#snippet copyButton(text: string, label: string, ariaLabel: string, tip: string, tone: string)}
+    <Tooltip.Root>
+        <Tooltip.Trigger
+            class="inline-flex items-center p-1.5 rounded-lg opacity-70 hover:opacity-100 transition-colors {tone}"
+            aria-label={ariaLabel}
+            onclick={() => copyToClipboard(text, label)}
+        >
+            <Copy class="size-4" />
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+            <Tooltip.Content side="top" sideOffset={6} class="tooltip-content">{tip}</Tooltip.Content>
+        </Tooltip.Portal>
+    </Tooltip.Root>
+{/snippet}
+
 {#snippet usageField(key: string, value: string | number)}
-    <div class="flex flex-col">
-        <dt class="text-fg-muted font-normal">{fieldTitle(key)}</dt>
-        <dd class="text-fg font-medium">{value}</dd>
+    <div>
+        <dt>{fieldTitle(key)}</dt>
+        <dd class="font-medium">{value}</dd>
     </div>
 {/snippet}
 
 <div class="output-container flex flex-col h-full">
-    <h3 class="text-base font-medium text-fg mb-3 border-b border-border pb-3 shrink-0">Execution Output</h3>
+    <h3 class="text-base font-medium mb-3 border-b pb-3 shrink-0">Execution Output</h3>
     <div class="output-content flex-grow overflow-auto pr-2 text-sm custom-scrollbar">
         {#if phase !== 'idle'}
             <div class="flex flex-col items-center justify-center h-full text-center p-4 animate-fade-in">
@@ -60,8 +76,8 @@
             </div>
         {:else if error && !result}
             <div class="flex flex-col items-center justify-center h-full text-center p-4 animate-fade-in">
-                <div class="w-12 h-12 rounded-full bg-danger-soft flex items-center justify-center mb-3">
-                    <TriangleAlert class="w-6 h-6 text-danger" />
+                <div class="size-12 rounded-full bg-danger-soft flex items-center justify-center mb-3">
+                    <TriangleAlert class="size-6 text-danger" />
                 </div>
                 <p class="text-sm font-medium text-danger">Execution Failed</p>
                 <p class="mt-1 text-xs text-fg-muted max-w-xs">{error}</p>
@@ -74,57 +90,51 @@
                     </span>
 
                     {#if result.execution_id}
-                        <div class="relative group">
-                            <button
-                                type="button"
-                                class="inline-flex items-center p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-muted transition-colors duration-150 cursor-pointer"
+                        {@const executionId = result.execution_id}
+                        <Tooltip.Root>
+                            <Tooltip.Trigger
+                                class="inline-flex items-center p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-muted transition-colors"
                                 aria-label="Click to copy execution ID"
-                                onclick={() => copyToClipboard(result!.execution_id, 'Execution ID')}
+                                onclick={() => copyToClipboard(executionId, 'Execution ID')}
                             >
-                                <FileText class="w-4 h-4" />
-                            </button>
-                            <div
-                                class="absolute top-8 right-0 z-10 px-2 py-1 text-xs bg-tooltip text-white rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap"
-                            >
-                                {fieldTitle('execution_id')}<br />{result.execution_id}<br /><span
-                                    class="text-xs opacity-75">Click to copy</span
-                                >
-                            </div>
-                        </div>
+                                <FileText class="size-4" />
+                            </Tooltip.Trigger>
+                            <Tooltip.Portal>
+                                <Tooltip.Content side="bottom" align="end" sideOffset={6} class="tooltip-content">
+                                    {fieldTitle('execution_id')}<br />{executionId}<br /><span class="opacity-75"
+                                        >Click to copy</span
+                                    >
+                                </Tooltip.Content>
+                            </Tooltip.Portal>
+                        </Tooltip.Root>
                     {/if}
                 </div>
 
                 {#if result.stdout}
-                    <div class="output-section">
-                        <h4 class="text-xs font-medium text-fg-muted mb-1 uppercase tracking-wider">
+                    <div>
+                        <h4 class="section-label mb-1">
                             {fieldTitle('stdout')}
                         </h4>
                         <div class="relative">
                             <pre class="output-pre custom-scrollbar" data-testid="output-pre">{@render ansi(
                                     result.stdout,
                                 )}</pre>
-                            <div class="absolute bottom-2 right-2 group">
-                                <button
-                                    type="button"
-                                    class="inline-flex items-center p-1.5 rounded-lg text-fg-muted hover:text-fg hover:bg-muted transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
-                                    aria-label="Copy output to clipboard"
-                                    onclick={() => copyToClipboard(result!.stdout!, 'Output')}
-                                >
-                                    <Copy class="w-4 h-4" />
-                                </button>
-                                <div
-                                    class="absolute bottom-8 right-0 z-10 px-2 py-1 text-xs bg-tooltip text-white rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap"
-                                >
-                                    Copy output
-                                </div>
+                            <div class="absolute bottom-2 right-2">
+                                {@render copyButton(
+                                    result.stdout,
+                                    'Output',
+                                    'Copy output to clipboard',
+                                    'Copy output',
+                                    'text-fg-muted hover:text-fg hover:bg-muted',
+                                )}
                             </div>
                         </div>
                     </div>
                 {/if}
 
                 {#if result.stderr}
-                    <div class="error-section">
-                        <h4 class="text-xs font-medium text-danger mb-1 uppercase tracking-wider">
+                    <div>
+                        <h4 class="section-label text-danger mb-1">
                             {fieldTitle('stderr')}
                         </h4>
                         <div class="relative">
@@ -134,20 +144,14 @@
                                         result.stderr,
                                     )}</pre>
                             </div>
-                            <div class="absolute bottom-2 right-2 group">
-                                <button
-                                    type="button"
-                                    class="inline-flex items-center p-1.5 rounded-lg text-danger hover:text-danger hover:bg-danger-soft transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
-                                    aria-label="Copy error text to clipboard"
-                                    onclick={() => copyToClipboard(result!.stderr!, 'Error text')}
-                                >
-                                    <Copy class="w-4 h-4" />
-                                </button>
-                                <div
-                                    class="absolute bottom-8 right-0 z-10 px-2 py-1 text-xs bg-tooltip text-white rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap"
-                                >
-                                    Copy errors
-                                </div>
+                            <div class="absolute bottom-2 right-2">
+                                {@render copyButton(
+                                    result.stderr,
+                                    'Error text',
+                                    'Copy error text to clipboard',
+                                    'Copy errors',
+                                    'text-danger hover:bg-danger-soft',
+                                )}
                             </div>
                         </div>
                     </div>
@@ -156,10 +160,10 @@
                 {#if result.resource_usage}
                     {@const usage = result.resource_usage}
                     <div class="p-3 rounded-lg bg-info-soft border border-info/30 text-xs space-y-1">
-                        <h4 class="text-xs font-medium text-info mb-2 uppercase tracking-wider">
+                        <h4 class="section-label text-info mb-2">
                             {fieldTitle('resource_usage')}
                         </h4>
-                        <dl class="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-1">
+                        <dl class="facts sm:grid-cols-3 gap-x-3 gap-y-1">
                             {@render usageField(
                                 'execution_time_wall_seconds',
                                 usage.execution_time_wall_seconds.toFixed(3),

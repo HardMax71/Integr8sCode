@@ -10,10 +10,10 @@
     } = $props();
 
     const sizeClasses: Record<string, string> = {
-        small: 'h-4 w-4',
-        medium: 'h-6 w-6',
-        large: 'h-8 w-8',
-        xlarge: 'h-12 w-12',
+        small: 'size-4',
+        medium: 'size-6',
+        large: 'size-8',
+        xlarge: 'size-12',
     };
 
     const colorClasses: Record<string, string> = {

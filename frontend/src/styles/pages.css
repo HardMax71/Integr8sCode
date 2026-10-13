@@ -224,10 +224,9 @@
   }
 
   .feature-card {
-    @apply relative flex flex-col items-start text-left p-6 sm:p-8
-           bg-surface rounded-xl overflow-hidden border border-border/50
-           shadow-xs transition-transform duration-300
-           hover:shadow-lg hover:-translate-y-1 hover:border-primary/40;
+    @apply relative flex h-full flex-col items-start p-5 sm:p-6 bg-surface rounded-xl overflow-hidden
+           border border-border/50 shadow-xs transition duration-300
+           hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/40;
   }
 
   .feature-card::before {

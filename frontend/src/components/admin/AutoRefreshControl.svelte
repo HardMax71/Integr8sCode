@@ -41,9 +41,9 @@
                 bind:checked={enabled}
                 onchange={() => onEnabledChange?.(enabled)}
                 aria-label="Auto-refresh"
-                class="w-4 h-4 rounded border-border text-accent focus:ring-primary"
+                class="size-4 rounded text-accent focus:ring-primary"
             />
-            <span aria-hidden="true" class="text-sm font-medium text-fg">Auto-refresh</span>
+            <span aria-hidden="true" class="text-sm font-medium">Auto-refresh</span>
         </div>
 
         {#if enabled}
@@ -72,7 +72,7 @@
             {#if loading}
                 <Spinner size="small" color="white" className="-ml-1 mr-2" />Refreshing...
             {:else}
-                <RefreshCw class="w-4 h-4 mr-1.5" />Refresh Now
+                <RefreshCw class="size-4 mr-1.5" />Refresh Now
             {/if}
         </button>
     </div>

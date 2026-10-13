@@ -88,32 +88,34 @@
     placeholder?: string,
 )}
     <Field {form} {name}>
-        <Control id="user-form-{name}">
-            {#snippet children({ props })}
-                <Label class="block text-sm font-medium text-fg-muted mb-1">
-                    {fieldTitle(name)}
-                    {#if name !== 'password' || !editing}
-                        <span class="text-danger">*</span>
-                    {/if}
-                </Label>
-                <input
-                    {...props}
-                    {...$constraints[name]}
-                    {type}
-                    {placeholder}
-                    {autocomplete}
-                    bind:value={$formData[name]}
-                    class="form-input-standard"
-                    disabled={saving}
-                    autocapitalize="off"
-                    spellcheck="false"
-                />
-            {/snippet}
-        </Control>
-        {#if name === 'password' && editing}
-            <Description class="mt-1 text-xs text-fg-muted">Leave empty to keep the current password</Description>
-        {/if}
-        <FieldErrors class="mt-1 text-sm text-danger" />
+        <div class="field">
+            <Control id="user-form-{name}">
+                {#snippet children({ props })}
+                    <Label>
+                        {fieldTitle(name)}
+                        {#if name !== 'password' || !editing}
+                            <span class="text-danger">*</span>
+                        {/if}
+                    </Label>
+                    <input
+                        {...props}
+                        {...$constraints[name]}
+                        {type}
+                        {placeholder}
+                        {autocomplete}
+                        bind:value={$formData[name]}
+                        class="form-input-standard"
+                        disabled={saving}
+                        autocapitalize="off"
+                        spellcheck="false"
+                    />
+                {/snippet}
+            </Control>
+            {#if name === 'password' && editing}
+                <Description>Leave empty to keep the current password</Description>
+            {/if}
+            <FieldErrors />
+        </div>
     </Field>
 {/snippet}
 
@@ -124,23 +126,30 @@
             {@render textField('email', 'email', 'email', 'john@example.com')}
             {@render textField('password', 'password', 'new-password')}
             <Field {form} name="role">
-                <Control id="user-form-role">
-                    {#snippet children({ props })}
-                        <Label class="block text-sm font-medium text-fg-muted mb-1">{fieldTitle('role')}</Label>
-                        <select {...props} bind:value={$formData.role} class="form-select-standard" disabled={saving}>
-                            {#each Object.values(UserRole) as option (option)}
-                                <option value={option}>{option}</option>
-                            {/each}
-                        </select>
-                    {/snippet}
-                </Control>
+                <div class="field">
+                    <Control id="user-form-role">
+                        {#snippet children({ props })}
+                            <Label>{fieldTitle('role')}</Label>
+                            <select
+                                {...props}
+                                bind:value={$formData.role}
+                                class="form-select-standard"
+                                disabled={saving}
+                            >
+                                {#each Object.values(UserRole) as option (option)}
+                                    <option value={option}>{option}</option>
+                                {/each}
+                            </select>
+                        {/snippet}
+                    </Control>
+                </div>
             </Field>
             <Field {form} name="is_active">
                 <Control>
                     {#snippet children({ props })}
                         <div class="flex items-center gap-2">
                             <input {...props} type="checkbox" bind:checked={$formData.is_active} disabled={saving} />
-                            <Label class="text-sm font-medium text-fg cursor-pointer">{fieldTitle('is_active')}</Label>
+                            <Label class="cursor-pointer">{fieldTitle('is_active')}</Label>
                         </div>
                     {/snippet}
                 </Control>
@@ -148,7 +157,7 @@
         </div>
         <div class="flex justify-end gap-2 mt-6">
             <button type="button" onclick={onClose} class="btn btn-secondary-outline" disabled={saving}>Cancel</button>
-            <button type="submit" class="btn btn-primary flex items-center gap-2" disabled={saving}>
+            <button type="submit" class="btn btn-primary gap-2" disabled={saving}>
                 {#if saving}
                     <Spinner size="small" />Saving...
                 {:else}

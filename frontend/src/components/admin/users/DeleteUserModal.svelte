@@ -29,18 +29,13 @@
 </script>
 
 <Modal open title="Delete User" {onClose} size="sm">
-    <p class="mb-4 text-fg">
+    <p class="mb-4">
         Are you sure you want to delete user <strong>{user.username}</strong>?
     </p>
     <div class="mb-4">
         <label class="flex items-center gap-2">
-            <input
-                type="checkbox"
-                bind:checked={cascade}
-                aria-describedby="cascade-description"
-                class="rounded border-border"
-            />
-            <span class="text-sm text-fg">{fieldTitle('cascade')}</span>
+            <input type="checkbox" bind:checked={cascade} aria-describedby="cascade-description" class="rounded" />
+            <span class="text-sm">{fieldTitle('cascade')}</span>
         </label>
         <p id="cascade-description" class="mt-1 text-xs text-fg-muted">
             Also deletes the user's executions, scripts and other data
@@ -56,7 +51,7 @@
         <button
             type="button"
             onclick={() => remove.mutate({ path: { user_id: user.user_id }, query: { cascade } })}
-            class="btn btn-danger flex items-center gap-2"
+            class="btn btn-danger gap-2"
             disabled={remove.isPending}
         >
             {#if remove.isPending}

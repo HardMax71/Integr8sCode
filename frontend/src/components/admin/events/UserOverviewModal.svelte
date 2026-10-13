@@ -30,8 +30,8 @@
     {:else if overview}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-                <h3 class="font-semibold mb-3 text-fg">{fieldTitle('user')}</h3>
-                <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm [&>dt]:text-fg-muted">
+                <h3 class="font-semibold mb-3">{fieldTitle('user')}</h3>
+                <dl class="details">
                     <dt>{fieldTitle('user_id')}</dt>
                     <dd class="font-mono">{overview.user.user_id}</dd>
                     <dt>{fieldTitle('username')}</dt>
@@ -46,10 +46,10 @@
                     <dd>{formatBoolean(overview.user.is_superuser)}</dd>
                 </dl>
                 <div class="mt-4">
-                    <h4 class="font-medium mb-2 text-fg">
+                    <h4 class="font-medium mb-2">
                         {fieldTitle('rate_limit_summary')}
                     </h4>
-                    <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm [&>dt]:text-fg-muted">
+                    <dl class="details gap-y-1">
                         <dt>{fieldTitle('bypass_rate_limit')}</dt>
                         <dd>{formatBoolean(overview.rate_limit_summary.bypass_rate_limit)}</dd>
                         <dt>{fieldTitle('global_multiplier')}</dt>
@@ -61,7 +61,7 @@
             </div>
 
             <div>
-                <h3 class="font-semibold text-fg">{fieldTitle('derived_counts')}</h3>
+                <h3 class="font-semibold">{fieldTitle('derived_counts')}</h3>
                 <p class="text-xs text-fg-muted mb-3">Last 24 hours</p>
                 <div class="grid grid-cols-2 gap-3">
                     <div class="p-3 rounded-lg bg-success-soft">
@@ -83,15 +83,13 @@
                         </div>
                     </div>
                     <div class="p-3 rounded-lg bg-muted">
-                        <div class="text-xs text-fg">{fieldTitle('cancelled')}</div>
-                        <div class="text-xl font-semibold text-fg">
+                        <div class="text-xs">{fieldTitle('cancelled')}</div>
+                        <div class="text-xl font-semibold">
                             {overview.derived_counts.cancelled}
                         </div>
                     </div>
                 </div>
-                <dl
-                    class="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm [&>dt]:text-fg-muted [&>dd]:font-semibold"
-                >
+                <dl class="details mt-3 [&>dd]:font-semibold">
                     <dt>{fieldTitle('terminal_total')}</dt>
                     <dd>{overview.derived_counts.terminal_total}</dd>
                     <dt>{fieldTitle('total_events')}</dt>
@@ -102,7 +100,7 @@
 
         {#if recentEvents.length > 0}
             <div class="mt-6">
-                <h3 class="font-semibold mb-2 text-fg">
+                <h3 class="font-semibold mb-2">
                     {fieldTitle('recent_events')}
                 </h3>
                 <div class="space-y-1 max-h-48 overflow-auto">

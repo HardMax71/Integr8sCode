@@ -1,4 +1,5 @@
 export { getLanguageExtension } from '#lib/editor/languages.ts';
+export { pickRuntime, type Runtime } from '#lib/editor/runtime.ts';
 export {
     createExecutionState,
     executionContext,

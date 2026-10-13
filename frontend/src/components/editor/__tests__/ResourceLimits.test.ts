@@ -9,6 +9,11 @@ import { draft } from '#lib/editor/draft.svelte.ts';
 
 const LIMITS = {
     ...fakeResourceLimits(),
+    supported_runtimes: {
+        python: { versions: ['3.14'], file_ext: 'py' },
+        go: { versions: ['1.27'], file_ext: 'go' },
+        ruby: { versions: ['3.4'], file_ext: 'rb' },
+    },
     language_limits: {
         python: { cpu_limit: '500m', memory_limit: '256Mi', execution_timeout: 30 },
         go: { cpu_limit: '1000m', memory_limit: '320Mi', execution_timeout: 45 },

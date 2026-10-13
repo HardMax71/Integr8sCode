@@ -22,21 +22,14 @@ class NotificationStream {
             sseMaxRetryAttempts: 3,
             sseDefaultRetryDelay: 5000,
             sseMaxRetryDelay: 20000,
-            onSseEvent: (event) => {
-                if (event.event !== 'notification') return;
-
-                const data = event.data;
-                onNotification(data);
-
-                if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-                    new Notification(data.subject, { body: data.body, icon: '/favicon.png' });
-                }
-            },
         });
 
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        for await (const _ of stream) {
-            /* events dispatched via onSseEvent */
+        for await (const data of stream) {
+            onNotification(data);
+
+            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                new Notification(data.subject, { body: data.body, icon: '/favicon.png' });
+            }
         }
     }
 

@@ -4,10 +4,11 @@
     import { MessageSquare, ChevronDown, Cpu, MemoryStick, Clock } from '@lucide/svelte';
     import { getK8sResourceLimitsApiV1K8sLimitsGetOptions } from '#lib/api/index.ts';
     import { fieldTitle } from '#lib/formatters.ts';
-    import { draft } from '#lib/editor/index.ts';
+    import { draft, pickRuntime } from '#lib/editor/index.ts';
 
     const limits = createQuery(() => getK8sResourceLimitsApiV1K8sLimitsGetOptions());
-    const effective = $derived(limits.data?.language_limits[draft.current.lang]);
+    const lang = $derived(pickRuntime(draft.current, limits.data?.supported_runtimes ?? {}).lang);
+    const effective = $derived(limits.data?.language_limits[lang]);
 </script>
 
 {#if effective}

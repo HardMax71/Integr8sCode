@@ -1,10 +1,11 @@
-<script>
-    import { Icon, Send } from '@lucide/svelte';
+<script lang="ts">
+    import { resolve } from '$app/paths';
+    import { Icon, Send, type LucideIconData } from '@lucide/svelte';
     import { UserRole } from '#lib/api/index.ts';
     import { authStore } from '#stores/auth.svelte.ts';
 
     // Lucide 1.0 dropped its brand icons, so this is the GitHub mark it used to ship, drawn by its Icon.
-    const github = {
+    const github: LucideIconData = {
         name: 'github',
         node: [
             [
@@ -40,14 +41,14 @@
                     <ul class="space-y-3 text-sm">
                         <li>
                             <a
-                                href="/"
+                                href={resolve('/')}
                                 class="text-fg-default dark:text-dark-fg-default hover:text-primary dark:hover:text-primary-light transition-colors duration-150"
                                 >Home</a
                             >
                         </li>
                         <li>
                             <a
-                                href="/editor"
+                                href={resolve('/(auth)/editor')}
                                 class="text-fg-default dark:text-dark-fg-default hover:text-primary dark:hover:text-primary-light transition-colors duration-150"
                                 >Code Editor</a
                             >
@@ -66,7 +67,7 @@
                                 <a
                                     href="/grafana"
                                     target="_blank"
-                                    rel="noopener noreferrer"
+                                    rel="external noopener noreferrer"
                                     class="text-fg-default dark:text-dark-fg-default hover:text-primary dark:hover:text-primary-light transition-colors duration-150"
                                     >Grafana</a
                                 >
@@ -74,7 +75,7 @@
                         {/if}
                         <li>
                             <a
-                                href="/privacy"
+                                href={resolve('/privacy')}
                                 class="text-fg-default dark:text-dark-fg-default hover:text-primary dark:hover:text-primary-light transition-colors duration-150"
                                 >Privacy Policy</a
                             >

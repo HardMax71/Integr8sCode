@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/svelte';
 import { mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
 import * as navigation from '$app/navigation';
+import { match } from '$app/paths';
 import { loginApiV1AuthLoginPost, UserRole, type LoginResponse } from '#lib/api/index.ts';
 import { queryClient } from '#lib/query-client.ts';
 import Login from '#routes/login/+page.svelte';
@@ -76,20 +77,33 @@ describe('Login', () => {
     });
 
     it.each([
-        ['/settings', '/settings', 'valid relative path'],
-        ['/admin/users', '/admin/users', 'valid admin path'],
-        ['//evil.com', '/editor', 'protocol-relative URL blocked'],
-        ['', '/editor', 'empty string fallback'],
-    ])('redirect %s -> navigates to %s (%s)', async (redirectPath, expectedNav) => {
-        if (redirectPath) {
-            sessionStorage.setItem('redirectAfterLogin', redirectPath);
-        }
+        { saved: '/settings', route: { id: '/(auth)/settings', params: {} }, goesTo: '/settings' },
+        { saved: '/admin/users', route: { id: '/admin/users', params: {} }, goesTo: '/admin/users' },
+    ] as const)('goes back to $saved, a page of the app', async ({ saved, route, goesTo }) => {
+        sessionStorage.setItem('redirectAfterLogin', saved);
+        vi.mocked(match).mockResolvedValue(route);
         await submit('u', 'p');
 
-        await waitFor(() => {
-            expect(navigation.goto).toHaveBeenCalledWith(expectedNav);
-        });
+        await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith(goesTo));
+        expect(match).toHaveBeenCalledWith(saved);
         expect(sessionStorage.getItem('redirectAfterLogin')).toBeNull();
+    });
+
+    it('goes to the editor when the saved path is no page of the app', async () => {
+        sessionStorage.setItem('redirectAfterLogin', '//evil.com');
+        vi.mocked(match).mockResolvedValue(null);
+        await submit('u', 'p');
+
+        await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/editor'));
+        expect(match).toHaveBeenCalledWith('//evil.com');
+    });
+
+    it('goes to the editor when nothing is saved', async () => {
+        vi.mocked(match).mockResolvedValue({ id: '/(auth)/editor', params: {} });
+        await submit('u', 'p');
+
+        await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/editor'));
+        expect(match).toHaveBeenCalledWith('/editor');
     });
 
     it('shows the API error inline and opts out of the global toasts', async () => {

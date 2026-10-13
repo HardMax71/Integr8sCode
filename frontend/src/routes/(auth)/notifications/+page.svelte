@@ -230,7 +230,7 @@
 
                                         {#if notification.tags.length}
                                             <span class="flex flex-wrap gap-1">
-                                                {#each notification.tags.slice(0, 6) as tag}
+                                                {#each notification.tags.slice(0, 6) as tag (tag)}
                                                     <span
                                                         class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-fg-muted dark:text-dark-fg-muted border border-neutral-200 dark:border-neutral-700"
                                                         >{tag}</span

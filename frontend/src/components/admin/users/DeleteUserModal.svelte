@@ -29,44 +29,41 @@
 </script>
 
 <Modal open title="Delete User" {onClose} size="sm">
-    {#snippet children()}
-        <p class="mb-4 text-fg-default dark:text-dark-fg-default">
-            Are you sure you want to delete user <strong>{user.username}</strong>?
+    <p class="mb-4 text-fg-default dark:text-dark-fg-default">
+        Are you sure you want to delete user <strong>{user.username}</strong>?
+    </p>
+    <div class="mb-4">
+        <label class="flex items-center gap-2">
+            <input
+                type="checkbox"
+                bind:checked={cascade}
+                aria-describedby="cascade-description"
+                class="rounded border-border-default dark:border-dark-border-default"
+            />
+            <span class="text-sm text-fg-default dark:text-dark-fg-default">{fieldTitle('cascade')}</span>
+        </label>
+        <p id="cascade-description" class="mt-1 text-xs text-fg-muted dark:text-dark-fg-muted">
+            Also deletes the user's executions, scripts and other data
         </p>
-        <div class="mb-4">
-            <label class="flex items-center gap-2">
-                <input
-                    type="checkbox"
-                    bind:checked={cascade}
-                    aria-describedby="cascade-description"
-                    class="rounded border-border-default dark:border-dark-border-default"
-                />
-                <span class="text-sm text-fg-default dark:text-dark-fg-default">{fieldTitle('cascade')}</span>
-            </label>
-            <p id="cascade-description" class="mt-1 text-xs text-fg-muted dark:text-dark-fg-muted">
-                Also deletes the user's executions, scripts and other data
-            </p>
+    </div>
+    {#if cascade}
+        <div class="mb-4 p-3 alert alert-warning">
+            <strong>Warning:</strong> This will permanently delete all data associated with this user.
         </div>
-        {#if cascade}
-            <div class="mb-4 p-3 alert alert-warning">
-                <strong>Warning:</strong> This will permanently delete all data associated with this user.
-            </div>
-        {/if}
-        <div class="flex gap-3 justify-end">
-            <button type="button" onclick={onClose} class="btn btn-secondary" disabled={remove.isPending}>Cancel</button
-            >
-            <button
-                type="button"
-                onclick={() => remove.mutate({ path: { user_id: user.user_id }, query: { cascade } })}
-                class="btn btn-danger flex items-center gap-2"
-                disabled={remove.isPending}
-            >
-                {#if remove.isPending}
-                    <Spinner size="small" />Deleting...
-                {:else}
-                    Delete User
-                {/if}
-            </button>
-        </div>
-    {/snippet}
+    {/if}
+    <div class="flex gap-3 justify-end">
+        <button type="button" onclick={onClose} class="btn btn-secondary" disabled={remove.isPending}>Cancel</button>
+        <button
+            type="button"
+            onclick={() => remove.mutate({ path: { user_id: user.user_id }, query: { cascade } })}
+            class="btn btn-danger flex items-center gap-2"
+            disabled={remove.isPending}
+        >
+            {#if remove.isPending}
+                <Spinner size="small" />Deleting...
+            {:else}
+                Delete User
+            {/if}
+        </button>
+    </div>
 </Modal>

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { resolve } from '$app/paths';
     import { goto } from '$app/navigation';
     import { createMutation, useQueryClient } from '@tanstack/svelte-query';
     import {
@@ -28,15 +29,16 @@
         Settings,
     } from '@lucide/svelte';
 
-    let isMenuActive = $state(false);
     const desktop = new MediaQuery('min-width: 1024px');
+    let menuRequested = $state(false);
+    const isMenuActive = $derived(menuRequested && !desktop.current);
 
     function toggleMenu() {
-        isMenuActive = !isMenuActive;
+        menuRequested = !isMenuActive;
     }
 
     function closeMenu() {
-        isMenuActive = false;
+        menuRequested = false;
     }
 
     const queryClient = useQueryClient();
@@ -46,7 +48,7 @@
         onSettled: () => {
             authStore.clearAuth();
             closeMenu();
-            void goto('/login');
+            void goto(resolve('/login'));
         },
     }));
 
@@ -65,12 +67,6 @@
     function handleLogout() {
         logout.mutate({});
     }
-
-    $effect(() => {
-        if (desktop.current && isMenuActive) {
-            isMenuActive = false;
-        }
-    });
 </script>
 
 <header
@@ -79,7 +75,7 @@
     <div class="app-container h-full">
         <nav class="flex items-center justify-between h-full">
             <div class="flex items-center shrink-0">
-                <a href="/" onclick={closeMenu} class="flex items-center space-x-2 group">
+                <a href={resolve('/')} onclick={closeMenu} class="flex items-center space-x-2 group">
                     <img
                         src="/favicon.png"
                         alt="Integr8sCode Logo"
@@ -157,13 +153,17 @@
                                     {#if authStore.user?.role === UserRole.ADMIN}
                                         <DropdownMenu.Item class="floating-item">
                                             {#snippet child({ props })}
-                                                <a href="/admin/events" {...props}><Settings class="w-4 h-4" />Admin</a>
+                                                <a href={resolve('/admin/events')} {...props}
+                                                    ><Settings class="w-4 h-4" />Admin</a
+                                                >
                                             {/snippet}
                                         </DropdownMenu.Item>
                                     {/if}
                                     <DropdownMenu.Item class="floating-item">
                                         {#snippet child({ props })}
-                                            <a href="/settings" {...props}><User class="w-4 h-4" />Settings</a>
+                                            <a href={resolve('/(auth)/settings')} {...props}
+                                                ><User class="w-4 h-4" />Settings</a
+                                            >
                                         {/snippet}
                                     </DropdownMenu.Item>
                                     <DropdownMenu.Separator
@@ -179,8 +179,14 @@
                             </DropdownMenu.Portal>
                         </DropdownMenu.Root>
                     {:else}
-                        <a href="/login" onclick={closeMenu} class="btn btn-secondary-outline btn-sm"> Login </a>
-                        <a href="/register" onclick={closeMenu} class="btn btn-primary btn-sm hover:text-white">
+                        <a href={resolve('/login')} onclick={closeMenu} class="btn btn-secondary-outline btn-sm">
+                            Login
+                        </a>
+                        <a
+                            href={resolve('/register')}
+                            onclick={closeMenu}
+                            class="btn btn-primary btn-sm hover:text-white"
+                        >
                             Register
                         </a>
                     {/if}
@@ -222,7 +228,7 @@
                         </div>
                         {#if authStore.user?.role === UserRole.ADMIN}
                             <a
-                                href="/admin/events"
+                                href={resolve('/admin/events')}
                                 onclick={closeMenu}
                                 class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center"
                             >
@@ -230,7 +236,7 @@
                             </a>
                         {/if}
                         <a
-                            href="/settings"
+                            href={resolve('/(auth)/settings')}
                             onclick={closeMenu}
                             class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700"
                         >
@@ -245,14 +251,14 @@
                         </button>
                     {:else}
                         <a
-                            href="/login"
+                            href={resolve('/login')}
                             onclick={closeMenu}
                             class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center"
                         >
                             <LogIn class="w-5 h-5 mr-2 -ml-1" /> Login
                         </a>
                         <a
-                            href="/register"
+                            href={resolve('/register')}
                             onclick={closeMenu}
                             class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center"
                         >

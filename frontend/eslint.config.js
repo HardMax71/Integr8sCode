@@ -18,6 +18,7 @@ const svelteRunes = {
 
 export default [
   eslint.configs.recommended,
+  ...svelte.configs.recommended,
   {
     files: ['src/**/*.ts'],
     ignores: ['**/__tests__/**', '**/tests/**'],
@@ -39,7 +40,8 @@ export default [
     },
     rules: {
       ...tseslint.configs['strict-type-checked'].rules,
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      // tsconfig's noUnusedLocals and noUnusedParameters cover this, and know declaration merging repeats type parameters
+      '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/only-throw-error': 'off', // API client returns unknown errors
       '@typescript-eslint/no-non-null-assertion': 'off', // Needed with noUncheckedIndexedAccess
@@ -59,11 +61,7 @@ export default [
         ...svelteRunes,
       },
     },
-    plugins: {
-      svelte,
-    },
     rules: {
-      ...svelte.configs.recommended.rules,
       'svelte/button-has-type': 'error',
       'no-unused-vars': 'off',
       'no-undef': 'off',

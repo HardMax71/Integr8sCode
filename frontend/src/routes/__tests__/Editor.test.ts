@@ -383,15 +383,13 @@ describe('Editor', () => {
             await user.click(await screen.findByTitle('Load Old Script (python 3.7)'));
 
             await waitFor(() => {
-                expect(toast.info).toHaveBeenCalledWith(
-                    'Version 3.7 of python is no longer available, switched to 3.14.',
+                expect(screen.getByRole('button', { name: 'Select language and version' })).toHaveTextContent(
+                    'python 3.14',
                 );
             });
-            expect(screen.getByRole('button', { name: 'Select language and version' })).toHaveTextContent(
-                'python 3.14',
-            );
 
             await user.click(screen.getByRole('button', { name: /Run Script/i }));
+            expect(toast.info).toHaveBeenCalledWith('Version 3.7 of python is no longer available, switched to 3.14.');
             expect(mocks.mockExecutionState.execute).toHaveBeenCalledWith('print(1)', 'python', '3.14');
 
             await user.click(screen.getByTitle('Save current script'));

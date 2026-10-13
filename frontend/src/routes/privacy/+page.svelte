@@ -3,7 +3,6 @@
 
     // PRIVACY POLICY CONFIGURATION - Update these values
     let lastUpdated = 'August 30, 2025';
-    let effectiveDate = 'August 30, 2025';
 
     // Data Controller Information
     let operatorName = 'Max Azatian';

@@ -82,7 +82,7 @@
 
         {#if session.errors?.length}
             <div class="mt-2 space-y-1">
-                {#each session.errors as err}
+                {#each session.errors as err, i (i)}
                     <div
                         class="p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs"
                     >
@@ -101,7 +101,7 @@
                     {fieldTitle('execution_results')}
                 </h4>
                 <div class="space-y-2">
-                    {#each session.execution_results as result}
+                    {#each session.execution_results as result (result.execution_id)}
                         <div class="bg-surface-overlay dark:bg-dark-surface-overlay rounded p-2 text-sm">
                             <div class="flex justify-between items-start">
                                 <div>

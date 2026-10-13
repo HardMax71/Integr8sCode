@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vite
 import { notificationStreamApiV1EventsNotificationsStreamGet, type NotificationResponse } from '#lib/api/index.ts';
 import { notificationStream } from '#lib/notifications/stream.svelte.ts';
 import { fakeNotificationResponse } from '#lib/api/@faker-js/faker.gen.ts';
+import { mockStreamEvents } from '#test/test-utils.ts';
 
 type StreamOptions = NonNullable<Parameters<typeof notificationStreamApiV1EventsNotificationsStreamGet>[0]>;
-type OnSseEvent = NonNullable<StreamOptions['onSseEvent']>;
 
 const mockSseFn = vi.mocked(notificationStreamApiV1EventsNotificationsStreamGet);
 
@@ -21,24 +21,13 @@ const payload = (): NotificationResponse => ({
     tags: ['tag1'],
 });
 
-function mockStream(): { readonly onSseEvent: OnSseEvent | undefined } {
-    let onSseEvent: OnSseEvent | undefined;
-
-    mockSseFn.mockImplementation(async (options) => {
-        onSseEvent = options?.onSseEvent;
-        return {
-            // stays open until aborted
-            stream: (async function* () {
-                await new Promise<never>(() => {});
-            })(),
-        };
-    });
-
-    return {
-        get onSseEvent() {
-            return onSseEvent;
-        },
-    };
+function mockOpenStream(): void {
+    mockSseFn.mockImplementation(async () => ({
+        // stays open until aborted
+        stream: (async function* () {
+            await new Promise<never>(() => {});
+        })(),
+    }));
 }
 
 const options = (call: number): StreamOptions => mockSseFn.mock.calls[call]![0]!;
@@ -56,12 +45,10 @@ describe('NotificationStream', () => {
         vi.unstubAllGlobals();
     });
 
-    it('calls callback with parsed NotificationResponse', async () => {
-        const mock = mockStream();
+    it('calls callback with each notification from the stream', async () => {
+        mockStreamEvents(mockSseFn, payload());
         notificationStream.connect(callback);
         await tick();
-
-        mock.onSseEvent!({ event: 'notification', data: payload() });
 
         expect(callback).toHaveBeenCalledOnce();
         expect(callback.mock.calls[0]![0]).toMatchObject({
@@ -73,32 +60,20 @@ describe('NotificationStream', () => {
         });
     });
 
-    it('ignores non-notification events', async () => {
-        const mock = mockStream();
-        notificationStream.connect(callback);
-        await tick();
-
-        mock.onSseEvent!({ event: 'ping', data: payload() });
-        mock.onSseEvent!({ event: '', data: payload() });
-        mock.onSseEvent!({ data: payload() });
-        expect(callback).not.toHaveBeenCalled();
-    });
-
     it('fires browser Notification when permission is granted', async () => {
         const MockNotification = vi.fn();
         Object.defineProperty(MockNotification, 'permission', { value: 'granted' });
         vi.stubGlobal('Notification', MockNotification);
 
-        const mock = mockStream();
+        mockStreamEvents(mockSseFn, payload());
         notificationStream.connect(callback);
         await tick();
 
-        mock.onSseEvent!({ event: 'notification', data: payload() });
         expect(MockNotification).toHaveBeenCalledWith('Test', { body: 'Hello', icon: '/favicon.png' });
     });
 
     it('passes abort signal to SSE client', async () => {
-        mockStream();
+        mockOpenStream();
         notificationStream.connect(callback);
         await tick();
 
@@ -110,13 +85,13 @@ describe('NotificationStream', () => {
     });
 
     it('aborts previous connection on reconnect', async () => {
-        mockStream();
+        mockOpenStream();
         notificationStream.connect(callback);
         await tick();
 
         const firstSignal = options(0).signal!;
 
-        mockStream();
+        mockOpenStream();
         notificationStream.connect(callback);
         await tick();
 
@@ -125,7 +100,7 @@ describe('NotificationStream', () => {
     });
 
     it('configures SSE retry options', async () => {
-        mockStream();
+        mockOpenStream();
         notificationStream.connect(callback);
         await tick();
 

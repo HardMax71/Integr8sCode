@@ -59,7 +59,7 @@
                         class="form-select-standard text-sm h-20"
                         title="Hold Ctrl/Cmd to select multiple"
                     >
-                        {#each EVENT_TYPES as type}
+                        {#each EVENT_TYPES as type (type)}
                             <option value={type} selected={filters.event_types?.includes(type) ?? false} class="text-xs"
                                 >{type}</option
                             >

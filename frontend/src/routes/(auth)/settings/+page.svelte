@@ -160,7 +160,7 @@
             </div>
 
             <div class="flex space-x-1 mb-6 bg-neutral-100 dark:bg-neutral-800 p-1 rounded-lg">
-                {#each tabs as tab}
+                {#each tabs as tab (tab.id)}
                     <button
                         type="button"
                         class="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200"
@@ -356,11 +356,9 @@
 </div>
 
 <Modal open={showHistory} title="Settings History" onClose={() => (showHistory = false)} size="lg">
-    {#snippet children()}
-        <div class="overflow-y-auto max-h-96">
-            <SettingsHistoryTable {history} loading={historyQuery.isPending} onRestore={restoreSettings} />
-        </div>
-    {/snippet}
+    <div class="overflow-y-auto max-h-96">
+        <SettingsHistoryTable {history} loading={historyQuery.isPending} onRestore={restoreSettings} />
+    </div>
     {#snippet footer()}
         <button type="button" onclick={() => (showHistory = false)} class="btn btn-secondary-outline">Close</button>
     {/snippet}

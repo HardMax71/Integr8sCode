@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { X, ChevronDown, Funnel } from '@lucide/svelte';
+    import { Funnel } from '@lucide/svelte';
     import type { Snippet } from 'svelte';
 
     interface Props {

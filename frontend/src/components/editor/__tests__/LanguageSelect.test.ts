@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, within, waitFor } from '@testing-library/svelte';
 import { mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
 import { fakeResourceLimits } from '#lib/api/@faker-js/faker.gen.ts';
-import { toast } from 'svelte-sonner';
 
 import LanguageSelect from '#components/editor/LanguageSelect.svelte';
 import { getK8sResourceLimitsApiV1K8sLimitsGet, type ResourceLimits } from '#lib/api/index.ts';
@@ -50,24 +49,27 @@ describe('LanguageSelect', () => {
         });
     });
 
-    describe('dropped versions', () => {
-        it('switches to the first offered version, the newest, when the current one is no longer offered', async () => {
-            renderSelect({ version: '3.7' });
-            await waitFor(() => expect(selection()).toEqual(['python', '3.14']));
-            expect(toast.info).toHaveBeenCalledWith('Version 3.7 of python is no longer available, switched to 3.14.');
-        });
+    describe('runtimes the API no longer offers', () => {
+        const trigger = () => screen.getByRole('button', { name: /Select language/i });
 
-        it('switches a language the API no longer offers to the first one it does, without a notice', async () => {
-            renderSelect({ lang: 'cobol', version: '85' });
-            await waitFor(() => expect(selection()).toEqual(['python', '3.14']));
-            expect(toast.info).not.toHaveBeenCalled();
-        });
-
-        it('leaves an offered version alone', async () => {
-            renderSelect({ version: '3.13' });
-            await waitFor(() => expect(screen.getByRole('button', { name: /Select language/i })).toBeEnabled());
-            expect(selection()).toEqual(['python', '3.13']);
-            expect(toast.info).not.toHaveBeenCalled();
+        it.each([
+            {
+                name: "its language's newest version for a dropped version",
+                lang: 'python',
+                version: '3.7',
+                shown: 'python 3.14',
+            },
+            {
+                name: 'the first offered language for a dropped language',
+                lang: 'cobol',
+                version: '85',
+                shown: 'python 3.14',
+            },
+            { name: 'an offered version as it is', lang: 'python', version: '3.13', shown: 'python 3.13' },
+        ])('shows $name and leaves the draft alone', async ({ lang, version, shown }) => {
+            renderSelect({ lang, version });
+            await waitFor(() => expect(trigger()).toHaveTextContent(shown));
+            expect(selection()).toEqual([lang, version]);
         });
     });
 

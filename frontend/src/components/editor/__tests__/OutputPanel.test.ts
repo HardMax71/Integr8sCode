@@ -73,6 +73,17 @@ describe('OutputPanel', () => {
             await waitFor(() => expect(screen.getByText(heading)).toBeInTheDocument());
         });
 
+        it('renders ANSI colors as classes and markup in the output as text', async () => {
+            renderIdle({
+                result: { ...fakeExecutionResult(), stdout: 'plain \x1b[31mred\x1b[0m \x1b[1;44mbold\x1b[0m <b>x</b>' },
+            });
+            const pre = await screen.findByTestId('output-pre');
+            expect(pre.textContent).toBe('plain red bold <b>x</b>');
+            expect(within(pre).getByText('red')).toHaveClass('ansi-red-fg');
+            expect(within(pre).getByText('bold')).toHaveClass('ansi-blue-bg', 'ansi-bold');
+            expect(pre.querySelector('b')).toBeNull();
+        });
+
         it('hides stdout and stderr sections when both null', async () => {
             renderIdle({ result: { ...fakeExecutionResult(), stdout: null, stderr: null } });
             await waitFor(() => expect(screen.getByText('Status')).toBeInTheDocument());

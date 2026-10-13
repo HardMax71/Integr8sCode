@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { resolve } from '$app/paths';
     import type { Snippet } from 'svelte';
     import { page } from '$app/state';
     import { ShieldCheck } from '@lucide/svelte';
@@ -30,17 +31,18 @@
             </div>
 
             <nav bind:this={nav} aria-label="Admin" class="flex gap-2 overflow-x-auto lg:block lg:space-y-2">
-                {#each ADMIN_ROUTES as navItem}
+                {#each ADMIN_ROUTES as navItem (navItem.path)}
+                    {@const href = resolve(navItem.path)}
                     <a
-                        href={navItem.path}
-                        aria-current={path === navItem.path ? 'page' : undefined}
+                        {href}
+                        aria-current={path === href ? 'page' : undefined}
                         class="flex shrink-0 items-center gap-3 whitespace-nowrap px-4 py-2 rounded-lg transition-colors cursor-pointer"
-                        class:bg-primary={path === navItem.path}
-                        class:text-white={path === navItem.path}
-                        class:hover:bg-neutral-200={path !== navItem.path}
-                        class:dark:hover:bg-neutral-700={path !== navItem.path}
-                        class:text-fg-default={path !== navItem.path}
-                        class:dark:text-dark-fg-default={path !== navItem.path}
+                        class:bg-primary={path === href}
+                        class:text-white={path === href}
+                        class:hover:bg-neutral-200={path !== href}
+                        class:dark:hover:bg-neutral-700={path !== href}
+                        class:text-fg-default={path !== href}
+                        class:dark:text-dark-fg-default={path !== href}
                     >
                         <span>{navItem.sidebarLabel}</span>
                     </a>

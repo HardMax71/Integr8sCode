@@ -144,7 +144,6 @@ async def test_k8s_limits_report_effective_limits_per_language(
         cpu_limit="500m", memory_limit="128Mi", execution_timeout=5
     )
     go = POD_RUNTIME_CONFIGS["go"]
-    assert go.min_cpu and go.min_memory and go.min_timeout_seconds
     assert limits.language_limits["go"] == LanguageLimitsDomain(
         cpu_limit=go.min_cpu, memory_limit=go.min_memory, execution_timeout=go.min_timeout_seconds
     )

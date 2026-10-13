@@ -126,6 +126,6 @@ def test_python_example_parses_on_every_offered_version(version: str) -> None:
     ast.parse(EXAMPLE_SCRIPTS["python"], feature_version=(major, minor))
 
 
-@pytest.mark.parametrize(("minimum", "configured", "expected"), [(None, 5, 5), (30, 5, 30), (30, 60, 60)])
-def test_pod_timeout_is_raised_to_the_language_minimum(minimum: int | None, configured: int, expected: int) -> None:
+@pytest.mark.parametrize(("minimum", "configured", "expected"), [(0, 5, 5), (30, 5, 30), (30, 60, 60)])
+def test_pod_timeout_is_raised_to_the_language_minimum(minimum: int, configured: int, expected: int) -> None:
     assert PodRuntimeConfig(min_timeout_seconds=minimum).timeout_for(configured) == expected

@@ -459,7 +459,7 @@ class ExecutionService:
 - `LANGUAGE_SPECS` lists each language's versions newest first, plus image template, file extension and interpreter. A unit test enforces the order
 - `DEFAULT_LANG` ("python") and `DEFAULT_LANG_VERSION` (the first python version, currently 3.14) are the only defaults. Every `lang` and `lang_version` default in schemas, domain models, documents and `ExecutionService` reads them, and a test pins that. Never hardcode a version
 - `Settings.SUPPORTED_RUNTIMES` and `ExecutionRequest` validation both derive from `LANGUAGE_SPECS`. Removing a version makes new executions, retries and saved-script writes on it fail with 422; stored scripts still load
-- Per-language pod settings go in the spec's optional `pod` key as a `PodRuntimeConfig` (env, tmp_size, min_cpu, min_memory, min_timeout_seconds). `POD_RUNTIME_CONFIGS` exposes them and the pod builder raises limits to those minimums. Only Go sets one today
+- Per-language pod settings go in the spec's optional `pod` key as a `PodRuntimeConfig` (env, tmp_size, min_cpu, min_memory, min_timeout_seconds; the minimums default to zero, never None). `POD_RUNTIME_CONFIGS` exposes them and the pod builder raises limits to those minimums. Only Go sets one today
 - Scripts mount at `/scripts/main.<ext>`. Every language needs an `EXAMPLE_SCRIPTS` entry, and the Python example must parse on every offered version
 - The API lists each language's versions newest first, so the frontend takes `versions[0]` as the newest
 

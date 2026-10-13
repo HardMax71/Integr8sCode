@@ -1,19 +1,19 @@
 # Metrics Reference
 
-Only the backend (API) process exports metrics today. It pushes them over OTLP to the OpenTelemetry Collector every 60 seconds, and the collector writes them to VictoriaMetrics. The worker records into the same metric classes but never installs a meter provider, so their numbers never leave the process ([#289](https://github.com/HardMax71/Integr8sCode/issues/289)). Every table below says which process records a metric, so you can tell which panels stay empty until that lands.
+The backend (API) and the worker both push their metrics over OTLP to the OpenTelemetry Collector every 60 seconds, and the collector writes them to VictoriaMetrics. Every resource attribute becomes a label, so a series carries `service_name` (`integr8scode-backend` or `integr8scode-worker`, from `SERVICE_NAME`), `job` (`integr8scode/<service_name>`) and a `service_instance_id` that the OTel SDK generates per process. Every table below says which process records a metric.
 
 ## Export path
 
 ```mermaid
 flowchart LR
     API["backend"] -->|"OTLP gRPC, every 60 s"| Collector["otel-collector"]
+    Worker["worker"] -->|"OTLP gRPC, every 60 s"| Collector
     Receivers["host_metrics, mongodb, kafka_metrics receivers"] --> Collector
     Collector -->|"prometheus remote write"| VM["VictoriaMetrics"]
     VM --> Grafana
-    Worker["worker"] -.->|"no meter provider, issue 289"| Dropped["no-op"]
 ```
 
-`create_app` calls `setup_metrics` (`app/core/middlewares/metrics.py`) once. It installs a global `MeterProvider` whose `PeriodicExportingMetricReader` exports every 60 000 ms through an OTLP gRPC exporter. The exporter targets `OTEL_EXPORTER_OTLP_ENDPOINT`, which `config.toml` sets to `http://otel-collector:4317`. Without an endpoint it returns early and the no-op provider stays. Each metrics class takes its meter from the global provider when DI builds it, which is why the worker, which skips `setup_metrics`, records into nothing:
+`create_app` and the worker's `main()` each call `setup_metrics` (`app/core/middlewares/metrics.py`) once. It installs a global `MeterProvider` whose `PeriodicExportingMetricReader` exports every 60 000 ms through an OTLP gRPC exporter. The exporter targets `OTEL_EXPORTER_OTLP_ENDPOINT`, which `config.toml` sets to `http://otel-collector:4317`. Without an endpoint it returns early and the no-op provider stays. Each metrics class takes its meter from the global provider when DI builds it, so `setup_metrics` has to run before the container resolves anything:
 
 ```python
 --8<-- "backend/app/core/metrics/base.py:init"
@@ -194,11 +194,11 @@ The status snapshot a stream sends first comes from the database, not Redis, and
 | `dlq_message_age_seconds` | histogram | none | `handle_message` |
 | `dlq_processing_errors_total` | counter | original_topic, event_type, error_type | nothing records it |
 
-`handle_message` runs wherever a router's `DeadLetterMiddleware` catches a failure: backend for notifications, and the k8s worker, result processor and saga orchestrator groups in the worker. Only backend's numbers leave the process until the worker exports ([#289](https://github.com/HardMax71/Integr8sCode/issues/289)). `dlq_processing_errors_total` was only recorded by a batch retry method that had no callers and is gone, so it stays empty.
+`handle_message` runs wherever a router's `DeadLetterMiddleware` catches a failure: backend for notifications, and the k8s worker, result processor and saga orchestrator groups in the worker. `dlq_processing_errors_total` was only recorded by a batch retry method that had no callers and is gone, so it stays empty.
 
 ## FastStream messaging families
 
-`BrokerProvider` puts FastStream's `KafkaTelemetryMiddleware` on every broker, so every process records these. Only backend's leave the process today.
+`BrokerProvider` puts FastStream's `KafkaTelemetryMiddleware` on every broker, so both processes record these.
 
 | Metric | Type | Labels |
 |--------|------|--------|
@@ -251,4 +251,4 @@ sum by (reason) (rate(token_validation_failures_total[5m]))
 sum(rate(mongodb_cache_operations_total{type="hit"}[5m])) / sum(rate(mongodb_cache_operations_total[5m]))
 ```
 
-Once the worker exports, `sum(pods_by_phase{phase="Pending"})` shows executor pods waiting for a node or a Kueue slot.
+`sum(pods_by_phase{phase="Pending"})` shows executor pods waiting for a node or a Kueue slot.

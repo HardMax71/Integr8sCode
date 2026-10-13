@@ -6,7 +6,7 @@ The backend and the worker export OpenTelemetry traces straight to Jaeger. A req
 
 [`Tracer`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/tracing/tracer.py) is a DI-managed class that does all the work in its constructor:
 
-- builds a `TracerProvider` with `service.name` from `TRACING_SERVICE_NAME`, plus version, environment, `service.namespace=integr8scode` and `service.instance.id`
+- builds a `TracerProvider` with `service.name` from `SERVICE_NAME`, plus version, environment, `service.namespace=integr8scode` and `service.instance.id`
 - picks the sampler from `TRACING_SAMPLING_RATE`: `ALWAYS_OFF` at 0 or below, `ALWAYS_ON` at 1 or above, `ParentBased(TraceIdRatioBased(rate))` in between
 - adds a `BatchSpanProcessor` with a gRPC OTLP exporter when `OTLP_TRACES_ENDPOINT` is set
 - sets the W3C TraceContext propagator
@@ -16,7 +16,7 @@ The backend resolves `Tracer` in `dishka_lifespan` and then instruments FastAPI 
 
 config.toml sends traces to `http://jaeger:4317` with a sampling rate of 1.0. The collector also has a traces pipeline (with tail sampling) into Jaeger, but the app doesn't use it. config.test.toml leaves the endpoint empty, so tests create spans and export nothing, and pytest sets `OTEL_SDK_DISABLED=true` on top.
 
-`config.worker.toml` overrides `TRACING_SERVICE_NAME`, so Jaeger lists two services: `integr8scode-backend` and `integr8scode-worker`.
+`config.worker.toml` sets `SERVICE_NAME` to `integr8scode-worker`, so Jaeger lists two services, `integr8scode-backend` and `integr8scode-worker`. Logs and metrics use the same name.
 
 ## Kafka propagation
 

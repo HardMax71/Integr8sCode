@@ -25,7 +25,7 @@ class Settings(BaseModel):
 
     Load order (each layer overrides the previous):
         1. config_path: base settings (committed to git)
-        2. override_path: the worker's overrides (TRACING_SERVICE_NAME)
+        2. override_path: the worker's overrides (SERVICE_NAME)
         3. Environment variables for secrets: SECRET_KEY, MONGO_USER, MONGO_PASSWORD, REDIS_PASSWORD
 
     Usage:
@@ -138,8 +138,6 @@ class Settings(BaseModel):
         le=1.0,
         description="Sampling rate for distributed tracing (0.0 to 1.0)",
     )
-    TRACING_SERVICE_NAME: str = "integr8scode-backend"
-    TRACING_SERVICE_VERSION: str = "1.0.0"
     # Dead Letter Queue Configuration
     DLQ_RETRY_MAX_ATTEMPTS: int = 5
     DLQ_RETRY_BASE_DELAY_SECONDS: float = 60.0

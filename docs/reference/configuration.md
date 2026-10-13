@@ -115,11 +115,9 @@ A language can raise its own pod's limits above the system settings. Go gets at 
 |-----|-------|--------|--------------|
 | `OTLP_TRACES_ENDPOINT` | `http://jaeger:4317` | config.toml | OTLP gRPC endpoint for traces; empty turns export off (the default is empty) |
 | `TRACING_SAMPLING_RATE` | `1.0` | config.toml | Fraction of traces kept, 0.0 to 1.0 (the default is 0.1) |
-| `TRACING_SERVICE_NAME` | `integr8scode-backend` | config.toml | `service.name` on spans; `config.worker.toml` sets `integr8scode-worker` |
-| `TRACING_SERVICE_VERSION` | `1.0.0` | config.toml | `service.version` on spans |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4317` | config.toml | OTLP endpoint for metrics and logs; unset turns both off |
-| `SERVICE_NAME` | `integr8scode-backend` | config.toml | `service.name` on metrics and logs, Kafka client id, event metadata |
-| `SERVICE_VERSION` | `1.0.0` | config.toml | `service.version` on metrics and logs |
+| `SERVICE_NAME` | `integr8scode-backend` | config.toml | `service.name` on traces, metrics and logs, Kafka client id, event metadata; `config.worker.toml` sets `integr8scode-worker` |
+| `SERVICE_VERSION` | `1.0.0` | config.toml | `service.version` on traces, metrics and logs |
 | `ENVIRONMENT` | `development` | default | `deployment.environment` attribute; `test` also turns off notification throttling |
 | `HOSTNAME` | the machine's hostname | default | `service.instance.id` on logs and spans; inside a container that's the container ID |
 | `LOG_LEVEL` | `INFO` | config.toml | structlog level |
@@ -188,7 +186,7 @@ These have no entry in `config.toml`, so the `Settings` default applies.
 
 ## Worker override
 
-The worker loads `config.worker.toml` next to `config.toml`. It sets one key, `TRACING_SERVICE_NAME = "integr8scode-worker"`, so Jaeger shows the worker apart from the API.
+The worker loads `config.worker.toml` next to `config.toml`. It sets one key, `SERVICE_NAME = "integr8scode-worker"`, so traces, logs and metrics tell the worker apart from the API.
 
 ## Test configuration
 

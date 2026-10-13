@@ -8,7 +8,7 @@ from pymongo.errors import ServerSelectionTimeoutError
 
 from app.domain.admin import SystemSettings
 from app.domain.execution import LanguageLimitsDomain
-from app.runtime_registry import at_least, parse_quantity
+from app.runtime_registry import POD_RUNTIME_CONFIGS, at_least, parse_quantity
 from app.services.runtime_settings import RuntimeSettingsLoader
 from app.settings import Settings
 
@@ -100,7 +100,7 @@ async def test_caches_result() -> None:
 @pytest.mark.asyncio
 async def test_cache_expires_after_ttl() -> None:
     loader, repo = _make_loader()
-    loader._cache_ttl = 0.0  # noqa: SLF001
+    loader._cache_ttl = 0.0
 
     await loader.get_effective_settings()
     await loader.get_effective_settings()
@@ -124,7 +124,7 @@ async def test_cache_respects_ttl_boundary() -> None:
     loader, repo = _make_loader()
 
     await loader.get_effective_settings()
-    loader._cache_time = monotonic() - 61.0  # noqa: SLF001
+    loader._cache_time = monotonic() - loader._cache_ttl - 1
     await loader.get_effective_settings()
 
     assert repo.get_system_settings.call_count == 2
@@ -185,11 +185,6 @@ def test_at_least(configured: str, minimum: str | None, expected: str) -> None:
             LanguageLimitsDomain(cpu_limit="500m", memory_limit="128Mi", execution_timeout=5),
         ),
         (
-            SystemSettings(cpu_limit="500m", memory_limit="128Mi", max_timeout_seconds=5),
-            "go",
-            LanguageLimitsDomain(cpu_limit="1000m", memory_limit="320Mi", execution_timeout=30),
-        ),
-        (
             SystemSettings(cpu_limit="2000m", memory_limit="1Gi", max_timeout_seconds=60),
             "go",
             LanguageLimitsDomain(cpu_limit="2000m", memory_limit="1Gi", execution_timeout=60),
@@ -205,10 +200,22 @@ def test_at_least(configured: str, minimum: str | None, expected: str) -> None:
             LanguageLimitsDomain(cpu_limit="500m", memory_limit="128Mi", execution_timeout=5),
         ),
     ],
-    ids=["no-minimum", "raised-to-minimum", "above-minimum", "toml-fallback", "unknown-language"],
+    ids=["no-minimum", "above-minimum", "toml-fallback", "unknown-language"],
 )
 @pytest.mark.asyncio
 async def test_language_limits(admin: SystemSettings, language: str, expected: LanguageLimitsDomain) -> None:
     loader, _ = _make_loader(repo_return=admin)
 
     assert await loader.get_language_limits(language) == expected
+
+
+async def test_language_limits_raise_go_to_its_minimums() -> None:
+    go = POD_RUNTIME_CONFIGS["go"]
+    assert go.min_cpu and go.min_memory and go.min_timeout_seconds
+    loader, _ = _make_loader(
+        repo_return=SystemSettings(cpu_limit="500m", memory_limit="128Mi", max_timeout_seconds=5)
+    )
+
+    assert await loader.get_language_limits("go") == LanguageLimitsDomain(
+        cpu_limit=go.min_cpu, memory_limit=go.min_memory, execution_timeout=go.min_timeout_seconds
+    )

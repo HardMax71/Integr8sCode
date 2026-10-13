@@ -1,12 +1,12 @@
 import pytest
 
-from app.runtime_registry import LANGUAGE_SPECS
+from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION, LANGUAGE_SPECS
 from app.schemas_pydantic.execution import ExecutionRequest
 
 
 def test_execution_request_valid_supported_runtime() -> None:
-    req = ExecutionRequest(script="print('ok')", lang="python", lang_version="3.11")
-    assert req.lang == "python" and req.lang_version == "3.11"
+    req = ExecutionRequest(script="print('ok')", lang=DEFAULT_LANG, lang_version=DEFAULT_LANG_VERSION)
+    assert (req.lang, req.lang_version) == (DEFAULT_LANG, DEFAULT_LANG_VERSION)
 
 
 def test_execution_request_unsupported_language_raises() -> None:

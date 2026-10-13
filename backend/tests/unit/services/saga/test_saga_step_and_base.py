@@ -10,7 +10,7 @@ class _DummyComp(CompensationStep):
     def __init__(self) -> None:
         super().__init__("dummy")
 
-    async def compensate(self, context: SagaContext) -> bool:  # noqa: ARG002
+    async def compensate(self, context: SagaContext) -> bool:
         return True
 
 

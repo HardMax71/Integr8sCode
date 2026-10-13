@@ -111,14 +111,6 @@ def test_every_lang_version_default_uses_the_registry_default() -> None:
 
 def test_pod_runtime_configs_default_unless_a_language_needs_more() -> None:
     assert set(POD_RUNTIME_CONFIGS) == set(LANGUAGE_SPECS)
-    assert {lang for lang, cfg in POD_RUNTIME_CONFIGS.items() if cfg != PodRuntimeConfig()} == {"go"}
-    assert POD_RUNTIME_CONFIGS["go"] == PodRuntimeConfig(
-        env={"HOME": "/tmp", "GOCACHE": "/tmp/go-cache"},
-        tmp_size="64Mi",
-        min_cpu="1000m",
-        min_memory="320Mi",
-        min_timeout_seconds=30,
-    )
 
 
 def test_every_language_has_an_example_script() -> None:

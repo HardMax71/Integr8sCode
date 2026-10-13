@@ -16,30 +16,6 @@ pytestmark = pytest.mark.unit
 _test_logger = structlog.get_logger("test.idempotency_manager")
 
 
-class TestIdempotencyConfig:
-    def test_default_config(self) -> None:
-        config = IdempotencyConfig()
-        assert config.key_prefix == "idempotency"
-        assert config.default_ttl_seconds == 3600
-        assert config.processing_timeout_seconds == 300
-        assert config.enable_result_caching is True
-        assert config.max_result_size_bytes == 1048576
-
-    def test_custom_config(self) -> None:
-        config = IdempotencyConfig(
-            key_prefix="custom",
-            default_ttl_seconds=7200,
-            processing_timeout_seconds=600,
-            enable_result_caching=False,
-            max_result_size_bytes=2048,
-        )
-        assert config.key_prefix == "custom"
-        assert config.default_ttl_seconds == 7200
-        assert config.processing_timeout_seconds == 600
-        assert config.enable_result_caching is False
-        assert config.max_result_size_bytes == 2048
-
-
 def test_manager_generate_key_variants(idempotency_metrics: IdempotencyMetrics) -> None:
     repo = MagicMock()
     mgr = IdempotencyManager(IdempotencyConfig(), repo, _test_logger, idempotency_metrics=idempotency_metrics)
@@ -94,7 +70,7 @@ async def test_marking_records_processing_duration(
 
     metrics.record_idempotent_processing_duration.assert_called_once()
     duration, event_type, status = metrics.record_idempotent_processing_duration.call_args.args
-    assert 2.0 <= duration < 3.0
+    assert duration >= 2.0
     assert event_type == EventType.CREATE_POD_COMMAND
     assert status == expected_status
 

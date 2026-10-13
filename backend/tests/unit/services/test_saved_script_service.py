@@ -11,12 +11,13 @@ from app.domain.saved_script import (
     DomainSavedScriptUpdate,
     SavedScriptNotFoundError,
 )
+from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION, LANGUAGE_SPECS
 from app.services.saved_script_service import SavedScriptService
 
 pytestmark = pytest.mark.unit
 
 
-def _stored(lang: str = "python", lang_version: str = "3.12") -> DomainSavedScript:
+def _stored(lang: str = DEFAULT_LANG, lang_version: str = DEFAULT_LANG_VERSION) -> DomainSavedScript:
     return DomainSavedScript(name="s", script="x", script_id="sid", user_id="u1", lang=lang, lang_version=lang_version)
 
 
@@ -34,7 +35,7 @@ def service(repo: AsyncMock) -> SavedScriptService:
 
 
 async def test_create_accepts_an_offered_runtime(service: SavedScriptService, repo: AsyncMock) -> None:
-    create = DomainSavedScriptCreate(name="s", script="x", lang="go", lang_version="1.26")
+    create = DomainSavedScriptCreate(name="s", script="x", lang="go", lang_version=LANGUAGE_SPECS["go"]["versions"][0])
 
     await service.create_saved_script(create, "u1")
 
@@ -56,12 +57,16 @@ async def test_create_rejects_a_runtime_that_is_not_offered(
 @pytest.mark.parametrize(
     ("stored", "update", "accepted"),
     [
-        (_stored("python", "3.12"), DomainSavedScriptUpdate(lang_version="3.14"), True),
-        (_stored("python", "3.12"), DomainSavedScriptUpdate(lang_version="3.7"), False),
-        (_stored("go", "1.26"), DomainSavedScriptUpdate(lang_version="3.14"), False),
-        (_stored("python", "3.12"), DomainSavedScriptUpdate(lang="node"), False),
-        (_stored("python", "3.12"), DomainSavedScriptUpdate(lang="node", lang_version="26"), True),
-        (_stored("python", "3.12"), DomainSavedScriptUpdate(lang="node", lang_version="18"), False),
+        (_stored(), DomainSavedScriptUpdate(lang_version=LANGUAGE_SPECS["python"]["versions"][-1]), True),
+        (_stored(), DomainSavedScriptUpdate(lang_version="3.7"), False),
+        (
+            _stored("go", LANGUAGE_SPECS["go"]["versions"][0]),
+            DomainSavedScriptUpdate(lang_version=DEFAULT_LANG_VERSION),
+            False,
+        ),
+        (_stored(), DomainSavedScriptUpdate(lang="node"), False),
+        (_stored(), DomainSavedScriptUpdate(lang="node", lang_version=LANGUAGE_SPECS["node"]["versions"][0]), True),
+        (_stored(), DomainSavedScriptUpdate(lang="node", lang_version="18"), False),
         (_stored("python", "3.7"), DomainSavedScriptUpdate(name="renamed"), True),
     ],
     ids=[
@@ -96,7 +101,7 @@ async def test_update_of_a_missing_script_is_not_found(service: SavedScriptServi
     repo.get_saved_script.return_value = None
 
     with pytest.raises(SavedScriptNotFoundError):
-        await service.update_saved_script("sid", "u1", DomainSavedScriptUpdate(lang_version="3.14"))
+        await service.update_saved_script("sid", "u1", DomainSavedScriptUpdate(lang_version=DEFAULT_LANG_VERSION))
 
     repo.update_saved_script.assert_not_awaited()
 

@@ -6,6 +6,8 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
+from app.domain.enums import ExecutionStatus
+
 from .config import LoadConfig
 from .http_client import APIClient, APIUser
 from .stats import StatsCollector
@@ -36,7 +38,7 @@ async def _flow_execute_and_get_result(c: APIClient) -> None:
             r = await c.result(exec_id)
             if r.status_code == 200 and r.headers.get("content-type", "").startswith("application/json"):
                 try:
-                    if r.json().get("status") in ("completed", "failed", "timeout", "cancelled", "error"):
+                    if ExecutionStatus(r.json()["status"]).is_terminal:
                         break
                 except Exception:
                     pass

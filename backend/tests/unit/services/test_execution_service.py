@@ -20,6 +20,7 @@ from app.domain.execution import (
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
 from app.domain.user import User
 from app.events import UnifiedProducer
+from app.runtime_registry import POD_RUNTIME_CONFIGS
 from app.services.execution_queue import ExecutionQueueService
 from app.services.execution_service import ExecutionService
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager, RedisIdempotencyRepository
@@ -142,8 +143,10 @@ async def test_k8s_limits_report_effective_limits_per_language(
     assert limits.language_limits["python"] == LanguageLimitsDomain(
         cpu_limit="500m", memory_limit="128Mi", execution_timeout=5
     )
+    go = POD_RUNTIME_CONFIGS["go"]
+    assert go.min_cpu and go.min_memory and go.min_timeout_seconds
     assert limits.language_limits["go"] == LanguageLimitsDomain(
-        cpu_limit="1000m", memory_limit="320Mi", execution_timeout=30
+        cpu_limit=go.min_cpu, memory_limit=go.min_memory, execution_timeout=go.min_timeout_seconds
     )
 
 
@@ -199,7 +202,7 @@ def idem_service(
 
 async def _run(service: ExecutionService) -> str:
     result = await service.execute_script_idempotent(
-        script="print(1)", user_id="u1", lang="python", lang_version="3.14", idempotency_key="k1"
+        script="print(1)", user_id="u1", idempotency_key="k1"
     )
     return result.execution_id
 
@@ -251,7 +254,7 @@ async def test_execute_refuses_a_user_at_the_execution_limit(
     queue.reserve_user_slot.return_value = False
 
     with pytest.raises(ExecutionLimitExceededError) as exc_info:
-        await service.execute_script(script="print(1)", user_id="u1", lang="python", lang_version="3.14")
+        await service.execute_script(script="print(1)", user_id="u1")
 
     assert _map_to_status_code(exc_info.value) == 429
     assert queue.reserve_user_slot.await_args.args[0] == "u1"
@@ -265,7 +268,7 @@ async def test_execute_reserves_the_slot_under_the_new_execution_id(
 ) -> None:
     repo.create_execution.side_effect = lambda data: make_domain_execution(execution_id=data.execution_id)
 
-    created = await service.execute_script(script="print(1)", user_id="u1", lang="python", lang_version="3.14")
+    created = await service.execute_script(script="print(1)", user_id="u1")
 
     assert queue.reserve_user_slot.await_args.args[1] == created.execution_id
     queue.release_user_slot.assert_not_awaited()
@@ -282,7 +285,7 @@ async def test_execute_gives_the_slot_back_when_submission_fails(
         producer.produce.side_effect = RuntimeError("kafka down")
 
     with pytest.raises(InfrastructureError):
-        await service.execute_script(script="print(1)", user_id="u1", lang="python", lang_version="3.14")
+        await service.execute_script(script="print(1)", user_id="u1")
 
     reserved_id = queue.reserve_user_slot.await_args.args[1]
     queue.release_user_slot.assert_awaited_once_with(reserved_id)

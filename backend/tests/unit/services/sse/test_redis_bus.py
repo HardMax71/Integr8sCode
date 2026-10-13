@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator
+from contextlib import aclosing
 from datetime import datetime, timezone
 from typing import Any, cast
 from unittest.mock import MagicMock
@@ -64,7 +65,7 @@ class _FakeRedis:
         self.published.append((channel, payload))
         return 1
 
-    def pubsub(self, ignore_subscribe_messages: bool = False) -> _FakePubSub:  # noqa: ARG002
+    def pubsub(self, ignore_subscribe_messages: bool = False) -> _FakePubSub:
         return self._pubsub
 
 
@@ -88,25 +89,25 @@ async def test_publish_and_subscribe_round_trip() -> None:
     await r._pubsub.push(ch, payload)
 
     # listen_execution is an async generator — no await needed
-    messages = bus.listen_execution("exec-1")
-    msg = await asyncio.wait_for(messages.__anext__(), timeout=2.0)
-    # Subscription happened inside __anext__
-    assert "sse:exec:exec-1" in r._pubsub.subscribed
-    assert msg.event_type == EventType.EXECUTION_COMPLETED
-    assert msg.execution_id == "exec-1"
+    async with aclosing(bus.listen_execution("exec-1")) as messages:
+        msg = await asyncio.wait_for(messages.__anext__(), timeout=2.0)
+        # Subscription happened inside __anext__
+        assert "sse:exec:exec-1" in r._pubsub.subscribed
+        assert msg.event_type == EventType.EXECUTION_COMPLETED
+        assert msg.execution_id == "exec-1"
 
-    # A second valid message passes through cleanly
-    good_payload = _sse_event_adapter.dump_json(
-        SSEExecutionEventData(
-            event_type=EventType.EXECUTION_COMPLETED,
-            execution_id="exec-1",
+        # A second valid message passes through cleanly
+        good_payload = _sse_event_adapter.dump_json(
+            SSEExecutionEventData(
+                event_type=EventType.EXECUTION_COMPLETED,
+                execution_id="exec-1",
+            )
         )
-    )
-    await r._pubsub.push(ch, good_payload)
-    msg2 = await asyncio.wait_for(messages.__anext__(), timeout=2.0)
-    assert msg2.event_type == EventType.EXECUTION_COMPLETED
-    assert metrics.record_sse_message_sent.call_count == 2
-    metrics.record_sse_message_sent.assert_called_with("executions", EventType.EXECUTION_COMPLETED)
+        await r._pubsub.push(ch, good_payload)
+        msg2 = await asyncio.wait_for(messages.__anext__(), timeout=2.0)
+        assert msg2.event_type == EventType.EXECUTION_COMPLETED
+        assert metrics.record_sse_message_sent.call_count == 2
+        metrics.record_sse_message_sent.assert_called_with("executions", EventType.EXECUTION_COMPLETED)
 
 
 @pytest.mark.asyncio
@@ -132,12 +133,12 @@ async def test_notifications_channels() -> None:
     # Push message before iterating (subscription is lazy)
     await r._pubsub.push(ch, payload)
 
-    messages = bus.listen_notifications("user-1")
-    got = await asyncio.wait_for(messages.__anext__(), timeout=2.0)
-    # Subscription happened inside __anext__
-    assert "sse:notif:user-1" in r._pubsub.subscribed
-    assert got.notification_id == "n1"
-    metrics.record_sse_message_sent.assert_called_once_with("notifications", "notification")
+    async with aclosing(bus.listen_notifications("user-1")) as messages:
+        got = await asyncio.wait_for(messages.__anext__(), timeout=2.0)
+        # Subscription happened inside __anext__
+        assert "sse:notif:user-1" in r._pubsub.subscribed
+        assert got.notification_id == "n1"
+        metrics.record_sse_message_sent.assert_called_once_with("notifications", "notification")
 
 
 @pytest.mark.asyncio
@@ -163,10 +164,11 @@ async def test_replay_publish_and_subscribe_round_trip() -> None:
 
     await r._pubsub.push(ch, payload)
 
-    messages = bus.listen_replay("sess-1")
-    got = await asyncio.wait_for(messages.__anext__(), timeout=2.0)
-    assert "sse:replay:sess-1" in r._pubsub.subscribed
-    assert got.session_id == "sess-1"
-    assert got.status == ReplayStatus.RUNNING
-    assert got.replayed_events == 3
-    metrics.record_sse_message_sent.assert_called_once_with("replay", "replay_status")
+    async with aclosing(bus.listen_replay("sess-1")) as messages:
+        got = await asyncio.wait_for(messages.__anext__(), timeout=2.0)
+        assert "sse:replay:sess-1" in r._pubsub.subscribed
+        assert got.session_id == "sess-1"
+        assert got.status == ReplayStatus.RUNNING
+        assert got.replayed_events == 3
+        metrics.record_sse_message_sent.assert_called_once_with("replay", "replay_status")
+

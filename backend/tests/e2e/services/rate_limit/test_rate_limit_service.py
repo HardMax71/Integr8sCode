@@ -241,7 +241,7 @@ async def test_token_bucket_invalid_data(scope: AsyncContainer) -> None:
 async def test_update_config_serialization_error(scope: AsyncContainer, monkeypatch: pytest.MonkeyPatch) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
 
-    async def failing_set(key: str, value: str) -> None:  # noqa: ARG001
+    async def failing_set(key: str, value: str) -> None:
         raise ValueError("Serialization failed")
 
     monkeypatch.setattr(svc.redis, "set", failing_set)
@@ -267,7 +267,7 @@ async def test_user_without_override_gets_the_defaults(scope: AsyncContainer) ->
 async def test_reset_user_limits_error(scope: AsyncContainer, monkeypatch: pytest.MonkeyPatch) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
 
-    async def failing_smembers(key: str) -> None:  # noqa: ARG001
+    async def failing_smembers(key: str) -> None:
         raise ConnectionError("smembers failed")
 
     monkeypatch.setattr(svc.redis, "smembers", failing_smembers)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import random
 import re
 import string
@@ -47,7 +49,7 @@ class APIClient:
             brx = len(resp.content) if resp.content is not None else 0
             self.stats.record(method.upper(), url, resp.status_code, dur, brx)
             return resp
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             dur = (time.perf_counter() - t0) * 1000
             self.stats.record(method.upper(), url, 599, dur, 0)
             self.stats.record_exception(e)
@@ -78,9 +80,9 @@ class APIClient:
     async def me(self) -> httpx2.Response:
         return await self._request("GET", self.cfg.api("/auth/me"))
 
-    async def execute(self, script: str, lang: str = "python", ver: str = "3.11") -> tuple[int, dict[str, Any]]:
+    async def execute(self, script: str) -> tuple[int, dict[str, Any]]:
         url = self.cfg.api("/execute")
-        payload = {"script": script, "lang": lang, "lang_version": ver}
+        payload = {"script": script}
         r = await self._request("POST", url, json=payload, headers=self._with_csrf())
         body: dict[str, Any] = {}
         try:
@@ -109,15 +111,14 @@ class APIClient:
             try:
                 async with s.stream("GET", url) as resp:
                     bytes_rx = 0
-                    start = time.perf_counter()
-                    async for chunk in resp.aiter_raw():
-                        bytes_rx += len(chunk)
-                        if time.perf_counter() - start > max_seconds:
-                            break
+                    with contextlib.suppress(TimeoutError):
+                        async with asyncio.timeout(max_seconds):
+                            async for chunk in resp.aiter_raw():
+                                bytes_rx += len(chunk)
                 dur = (time.perf_counter() - t0) * 1000
                 self.stats.record("GET", url, getattr(resp, "status_code", 200), dur, bytes_rx)
                 return getattr(resp, "status_code", 200), bytes_rx
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 dur = (time.perf_counter() - t0) * 1000
                 self.stats.record("GET", url, 599, dur, 0)
                 self.stats.record_exception(e)

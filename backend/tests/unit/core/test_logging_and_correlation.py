@@ -1,6 +1,5 @@
 import json
 import logging
-from collections.abc import Iterator
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -11,7 +10,6 @@ from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter, SimpleLogR
 from pymongo.logger import LogMessage
 
 from app.core.logging import (
-    SENSITIVE_PATTERNS,
     add_otel_context,
     sanitize_sensitive_data,
     setup_log_exporter,
@@ -138,9 +136,6 @@ class TestSanitizeSensitiveData:
         result = sanitize_sensitive_data(None, "info", event_dict)
         assert result[key] == "plain-value"
 
-    def test_has_expected_pattern_count(self) -> None:
-        assert len(SENSITIVE_PATTERNS) == 5
-
     @pytest.mark.parametrize(
         ("email", "expected"),
         [
@@ -194,43 +189,22 @@ class TestAddOtelContext:
 class TestSetupLogger:
     """Tests for logger setup."""
 
-    def test_returns_bound_logger(self) -> None:
-        logger = setup_logger("INFO")
-        assert hasattr(logger, "info")
-        assert hasattr(logger, "bind")
-        assert "BoundLogger" in type(logger).__name__ or "LazyProxy" in type(logger).__name__
+    @pytest.mark.parametrize("level", ["debug", "DEBUG"])
+    def test_sets_the_root_level_from_any_case(self, level: str) -> None:
+        setup_logger(level)
+        assert logging.getLogger().level == logging.DEBUG
 
-    def test_has_info_method(self) -> None:
-        logger = setup_logger("INFO")
-        assert hasattr(logger, "info")
-        assert hasattr(logger, "warning")
-        assert hasattr(logger, "error")
-
-    def test_handles_case_insensitive_level(self) -> None:
-        logger = setup_logger("debug")
-        assert hasattr(logger, "debug")
+    def test_keeps_library_loggers_at_warning_or_above(self) -> None:
+        setup_logger("DEBUG")
+        assert logging.getLogger("aiokafka").level == logging.WARNING
 
     def test_logger_captures_event_and_keys(self) -> None:
-        structlog.reset_defaults()
         setup_logger("INFO")
         with structlog.testing.capture_logs() as cap_logs:
             structlog.get_logger("integr8scode").info("test message", key="value")
         assert len(cap_logs) >= 1
         assert cap_logs[0]["event"] == "test message"
         assert cap_logs[0]["key"] == "value"
-
-
-@pytest.fixture
-def restore_logging() -> Iterator[None]:
-    """Put the root handlers and logger levels back after a test reconfigures logging."""
-    root = logging.getLogger()
-    handlers = list(root.handlers)
-    levels = {name: logging.getLogger(name).level for name in ("", "pymongo", "aiokafka")}
-    yield
-    for handler in [h for h in root.handlers if h not in handlers]:
-        root.removeHandler(handler)
-    for name, level in levels.items():
-        logging.getLogger(name).setLevel(level)
 
 
 _SENSITIVE_RECORDS = [
@@ -275,7 +249,6 @@ class TestStdlibRecordRedaction:
         msg: object,
         args: tuple[object, ...],
         capsys: pytest.CaptureFixture[str],
-        restore_logging: None,
     ) -> None:
         setup_logger("DEBUG")
         logging.getLogger(name).warning(msg, *args)
@@ -292,16 +265,17 @@ class TestStdlibRecordRedaction:
         args: tuple[object, ...],
         test_settings: Settings,
         monkeypatch: pytest.MonkeyPatch,
-        restore_logging: None,
     ) -> None:
         monkeypatch.delenv("OTEL_SDK_DISABLED", raising=False)
         settings = test_settings.model_copy(update={"OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317"})
         exporter = InMemoryLogRecordExporter()  # type: ignore[no-untyped-call]
         root = logging.getLogger()
+        monkeypatch.setattr(root, "handlers", list(root.handlers))
         before = list(root.handlers)
         with (
             patch("app.core.logging.OTLPLogExporter", return_value=exporter),
             patch("app.core.logging.BatchLogRecordProcessor", SimpleLogRecordProcessor),
+            patch("app.core.logging.set_logger_provider"),
         ):
             setup_log_exporter(settings, MagicMock())
         (otel_handler,) = [h for h in root.handlers if h not in before and isinstance(h, LoggingHandler)]
@@ -312,9 +286,7 @@ class TestStdlibRecordRedaction:
         assert len(bodies) == 1
         _assert_redacted(bodies[0])
 
-    def test_structlog_json_passes_through_unchanged(
-        self, capsys: pytest.CaptureFixture[str], restore_logging: None
-    ) -> None:
+    def test_structlog_json_passes_through_unchanged(self, capsys: pytest.CaptureFixture[str]) -> None:
         setup_logger("INFO").warning("Produced event", key=5, topic="execution.requested")
 
         line = next(line for line in capsys.readouterr().err.splitlines() if "Produced event" in line)
@@ -331,7 +303,6 @@ class TestStdlibRecordRedaction:
         root_level: str,
         expected_level: int,
         capsys: pytest.CaptureFixture[str],
-        restore_logging: None,
     ) -> None:
         setup_logger(root_level)
         logging.getLogger("pymongo.command").info("find users {'hashed_password': 'x'}")

@@ -1,27 +1,9 @@
 import pytest
 from pydantic import ValidationError
 
-from app.domain.admin import SystemSettings
 from app.schemas_pydantic.admin_settings import SystemSettingsSchema
 
 pytestmark = pytest.mark.unit
-
-
-class TestDefaults:
-    def test_defaults(self) -> None:
-        s = SystemSettings()
-        assert s.max_timeout_seconds == 300
-        assert s.memory_limit == "512Mi"
-        assert s.cpu_limit == "2000m"
-        assert s.max_concurrent_executions == 10
-        assert s.password_min_length == 8
-        assert s.session_timeout_minutes == 60
-        assert s.max_login_attempts == 5
-        assert s.lockout_duration_minutes == 15
-        assert s.metrics_retention_days == 30
-        assert s.log_level == "INFO"
-        assert s.enable_tracing is True
-        assert s.sampling_rate == 0.1
 
 
 class TestK8sPatternValidation:

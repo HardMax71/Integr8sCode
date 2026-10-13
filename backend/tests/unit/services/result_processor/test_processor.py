@@ -17,6 +17,7 @@ from app.domain.events import (
 )
 from app.domain.execution import ExecutionNotFoundError
 from app.domain.execution.models import DomainExecution
+from app.runtime_registry import POD_RUNTIME_CONFIGS, parse_quantity
 from app.services.result_processor import ResultProcessor
 from app.services.runtime_settings import RuntimeSettingsLoader
 from app.settings import Settings
@@ -116,7 +117,7 @@ class TestHandleExecutionCompleted:
         ("lang", "peak_memory_kb", "expected_percent"),
         [
             ("python", 64 * 1024, 50.0),
-            ("go", 160 * 1024, 50.0),
+            ("go", int(parse_quantity(POD_RUNTIME_CONFIGS["go"].min_memory or "0")) // 2048, 50.0),
         ],
     )
     async def test_memory_percent_uses_effective_language_limit(

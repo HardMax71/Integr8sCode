@@ -38,88 +38,46 @@ class TestAppInstance:
         assert app.redoc_url is None
 
 
-class TestRouterConfiguration:
-    """Tests for API router registration."""
-
-    def test_api_routes_registered(self, app: FastAPI) -> None:
-        assert any(p.startswith("/api/") for p in _get_all_paths(app))
-
-    def test_health_routes_registered(self, app: FastAPI) -> None:
-        assert "/api/v1/health/live" in _get_all_paths(app)
-
-    def test_auth_routes_registered(self, app: FastAPI) -> None:
-        paths = _get_all_paths(app)
-        assert "/api/v1/auth/login" in paths
-        assert "/api/v1/auth/register" in paths
-        assert "/api/v1/auth/logout" in paths
-        assert "/api/v1/auth/me" in paths
-
-    def test_execution_routes_registered(self, app: FastAPI) -> None:
-        paths = _get_all_paths(app)
-        assert "/api/v1/execute" in paths
-        assert "/api/v1/user/executions" in paths
-        assert "/api/v1/k8s-limits" in paths
-        assert "/api/v1/example-scripts" in paths
-
-    def test_saved_scripts_routes_registered(self, app: FastAPI) -> None:
-        assert "/api/v1/scripts" in _get_all_paths(app)
-
-    def test_user_settings_routes_registered(self, app: FastAPI) -> None:
-        assert any(p.startswith("/api/v1/user/settings") for p in _get_all_paths(app))
-
-    def test_notifications_routes_registered(self, app: FastAPI) -> None:
-        assert "/api/v1/notifications" in _get_all_paths(app)
-
-    def test_saga_routes_registered(self, app: FastAPI) -> None:
-        assert any(p.startswith("/api/v1/sagas") for p in _get_all_paths(app))
-
-    def test_replay_routes_registered(self, app: FastAPI) -> None:
-        assert "/api/v1/replay/sessions" in _get_all_paths(app)
-
-    def test_events_routes_registered(self, app: FastAPI) -> None:
-        assert any("/api/v1/events" in p for p in _get_all_paths(app))
-
-    def test_admin_routes_registered(self, app: FastAPI) -> None:
-        paths = _get_all_paths(app)
-        assert any(p.startswith("/api/v1/admin/users") for p in paths)
-        assert any(p.startswith("/api/v1/admin/settings") for p in paths)
-        assert any(p.startswith("/api/v1/admin/events") for p in paths)
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/v1/health/live",
+        "/api/v1/auth/login",
+        "/api/v1/auth/register",
+        "/api/v1/auth/logout",
+        "/api/v1/auth/me",
+        "/api/v1/execute",
+        "/api/v1/user/executions",
+        "/api/v1/k8s-limits",
+        "/api/v1/example-scripts",
+        "/api/v1/scripts",
+        "/api/v1/user/settings/",
+        "/api/v1/notifications",
+        "/api/v1/sagas/",
+        "/api/v1/replay/sessions",
+        "/api/v1/events/executions/{execution_id}",
+        "/api/v1/admin/users/",
+        "/api/v1/admin/settings/",
+        "/api/v1/admin/events/browse",
+    ],
+)
+def test_route_is_registered(app: FastAPI, path: str) -> None:
+    assert path in _get_all_paths(app)
 
 
-class TestMiddlewareStack:
-    """Tests for middleware configuration."""
-
-    def _get_middleware_class_names(self, app: FastAPI) -> set[str]:
-        return {getattr(m.cls, "__name__", str(m.cls)) for m in app.user_middleware}
-
-    def test_cors_middleware_configured(self, app: FastAPI) -> None:
-        assert "CORSMiddleware" in self._get_middleware_class_names(app)
-
-    def test_request_size_limit_middleware_configured(self, app: FastAPI) -> None:
-        assert "RequestSizeLimitMiddleware" in self._get_middleware_class_names(app)
-
-    def test_cache_control_middleware_configured(self, app: FastAPI) -> None:
-        assert "CacheControlMiddleware" in self._get_middleware_class_names(app)
-
-    def test_metrics_middleware_configured(self, app: FastAPI) -> None:
-        assert "MetricsMiddleware" in self._get_middleware_class_names(app)
-
-    def test_rate_limit_middleware_configured(self, app: FastAPI) -> None:
-        assert "RateLimitMiddleware" in self._get_middleware_class_names(app)
-
-    def test_csrf_middleware_configured(self, app: FastAPI) -> None:
-        assert "CSRFMiddleware" in self._get_middleware_class_names(app)
-
-    def test_middleware_count(self, app: FastAPI) -> None:
-        expected = {
-            "CORSMiddleware",
-            "RequestSizeLimitMiddleware",
-            "CacheControlMiddleware",
-            "MetricsMiddleware",
-            "RateLimitMiddleware",
-            "CSRFMiddleware",
-        }
-        assert expected.issubset(self._get_middleware_class_names(app))
+@pytest.mark.parametrize(
+    "middleware",
+    [
+        "CORSMiddleware",
+        "RequestSizeLimitMiddleware",
+        "CacheControlMiddleware",
+        "MetricsMiddleware",
+        "RateLimitMiddleware",
+        "CSRFMiddleware",
+    ],
+)
+def test_middleware_is_installed(app: FastAPI, middleware: str) -> None:
+    assert middleware in {getattr(m.cls, "__name__", str(m.cls)) for m in app.user_middleware}
 
 
 class TestCorsConfiguration:

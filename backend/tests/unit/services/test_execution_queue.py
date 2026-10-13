@@ -8,8 +8,11 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 from app.core.metrics.queue import QueueMetrics
 from app.domain.enums import QueuePriority
 from app.services.execution_queue import (
+    _EVENT_TTL,
     _PENDING_KEYS,
+    _PROVISIONAL_SLOT_SECONDS,
     _RUNNING_KEY,
+    _SLOT_GRACE_SECONDS,
     PRIORITY_ORDER,
     ExecutionQueueService,
     _owner_key,
@@ -79,7 +82,9 @@ async def test_try_schedule_returns_event(queue_service: ExecutionQueueService, 
 
     queue_service._schedule_script = None
 
+    before = time.time()
     result = await queue_service.try_schedule(5)
+    after = time.time()
     assert result is not None
     exec_id, returned_event = result
     assert exec_id == "e1"
@@ -91,11 +96,12 @@ async def test_try_schedule_returns_event(queue_service: ExecutionQueueService, 
     assert len(keys) == 1 + len(PRIORITY_ORDER)
     max_active, now, provisional = script.call_args.kwargs["args"]
     assert max_active == 5
-    assert provisional - now == 3600 + 300
+    assert provisional - now == _PROVISIONAL_SLOT_SECONDS
 
     calls = mock_redis.pipeline.return_value.zadd.call_args_list
     assert [c.args[0] for c in calls] == [_RUNNING_KEY, _user_key(event.metadata.user_id)]
-    assert calls[0].args[1] == {"e1": pytest.approx(time.time() + event.timeout_seconds + 300, abs=5)}
+    slot = event.timeout_seconds + _SLOT_GRACE_SECONDS
+    assert before + slot <= calls[0].args[1]["e1"] <= after + slot
     assert calls[1].args[1] == calls[0].args[1]
     assert [c.kwargs for c in calls] == [{"xx": True}, {"xx": True}]
 
@@ -231,7 +237,7 @@ async def test_reserve_user_slot(
     assert script.call_args.kwargs["keys"] == [_user_key("u1"), _owner_key("e1")]
     _, limit, ttl, exec_id, user_id = script.call_args.kwargs["args"]
     assert (limit, exec_id, user_id) == (3, "e1", "u1")
-    assert ttl == 86400
+    assert ttl == _EVENT_TTL
 
 
 @pytest.mark.asyncio

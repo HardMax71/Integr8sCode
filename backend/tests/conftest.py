@@ -15,6 +15,7 @@ from app.db.docs.user import UserDocument
 from app.domain.enums import QueuePriority, UserRole
 from app.domain.events import EventMetadata, ExecutionRequestedEvent
 from app.main import create_app
+from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION, RUNTIME_REGISTRY
 from app.settings import Settings
 
 
@@ -185,11 +186,11 @@ def make_execution_requested_event(
     *,
     execution_id: str | None = None,
     script: str = "print('hello')",
-    language: str = "python",
-    language_version: str = "3.11",
-    runtime_image: str = "python:3.11-slim",
-    runtime_command: Iterable[str] = ("python",),
-    runtime_filename: str = "main.py",
+    language: str = DEFAULT_LANG,
+    language_version: str = DEFAULT_LANG_VERSION,
+    runtime_image: str = RUNTIME_REGISTRY[DEFAULT_LANG][DEFAULT_LANG_VERSION].image,
+    runtime_command: Iterable[str] = tuple(RUNTIME_REGISTRY[DEFAULT_LANG][DEFAULT_LANG_VERSION].command),
+    runtime_filename: str = RUNTIME_REGISTRY[DEFAULT_LANG][DEFAULT_LANG_VERSION].file_name,
     timeout_seconds: int = 5,
     cpu_limit: str = "100m",
     memory_limit: str = "128Mi",

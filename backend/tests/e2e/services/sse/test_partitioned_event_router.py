@@ -13,12 +13,11 @@ from app.domain.sse import SSEExecutionEventData
 from app.services.sse import SSERedisBus
 from app.settings import Settings
 
-pytestmark = [pytest.mark.e2e, pytest.mark.redis]
+pytestmark = [pytest.mark.e2e]
 
 _test_logger = structlog.get_logger("test.services.sse.partitioned_event_router_integration")
 
 
-@pytest.mark.asyncio
 async def test_bus_routes_event_to_redis(redis_client: redis.Redis, test_settings: Settings) -> None:
     suffix = uuid4().hex[:6]
     bus = SSERedisBus(

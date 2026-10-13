@@ -44,7 +44,6 @@ def _make_loader(
     return loader, repo
 
 
-@pytest.mark.asyncio
 async def test_returns_settings_from_repo() -> None:
     db_settings = SystemSettings(max_timeout_seconds=999)
     loader, repo = _make_loader(repo_return=db_settings)
@@ -54,7 +53,6 @@ async def test_returns_settings_from_repo() -> None:
     assert result.max_timeout_seconds == 999
 
 
-@pytest.mark.asyncio
 async def test_passes_toml_defaults_to_repo() -> None:
     loader, repo = _make_loader()
 
@@ -68,7 +66,6 @@ async def test_passes_toml_defaults_to_repo() -> None:
     assert defaults.session_timeout_minutes == 60
 
 
-@pytest.mark.asyncio
 async def test_falls_back_to_toml_on_db_error() -> None:
     loader, repo = _make_loader(repo_side_effect=ServerSelectionTimeoutError("DB down"))
 
@@ -78,7 +75,6 @@ async def test_falls_back_to_toml_on_db_error() -> None:
     assert result.memory_limit == "128Mi"
 
 
-@pytest.mark.asyncio
 async def test_unexpected_error_is_not_swallowed() -> None:
     loader, _ = _make_loader(repo_side_effect=RuntimeError("bug"))
 
@@ -86,7 +82,6 @@ async def test_unexpected_error_is_not_swallowed() -> None:
         await loader.get_effective_settings()
 
 
-@pytest.mark.asyncio
 async def test_caches_result() -> None:
     loader, repo = _make_loader()
 
@@ -97,7 +92,6 @@ async def test_caches_result() -> None:
     repo.get_system_settings.assert_called_once()
 
 
-@pytest.mark.asyncio
 async def test_cache_expires_after_ttl() -> None:
     loader, repo = _make_loader()
     loader._cache_ttl = 0.0
@@ -108,7 +102,6 @@ async def test_cache_expires_after_ttl() -> None:
     assert repo.get_system_settings.call_count == 2
 
 
-@pytest.mark.asyncio
 async def test_invalidate_cache_forces_reload() -> None:
     loader, repo = _make_loader()
 
@@ -119,7 +112,6 @@ async def test_invalidate_cache_forces_reload() -> None:
     assert repo.get_system_settings.call_count == 2
 
 
-@pytest.mark.asyncio
 async def test_cache_respects_ttl_boundary() -> None:
     loader, repo = _make_loader()
 
@@ -130,7 +122,6 @@ async def test_cache_respects_ttl_boundary() -> None:
     assert repo.get_system_settings.call_count == 2
 
 
-@pytest.mark.asyncio
 async def test_db_error_result_is_still_cached() -> None:
     loader, repo = _make_loader(repo_side_effect=ServerSelectionTimeoutError("DB down"))
 
@@ -202,7 +193,6 @@ def test_at_least(configured: str, minimum: str, expected: str) -> None:
     ],
     ids=["no-minimum", "above-minimum", "toml-fallback", "unknown-language"],
 )
-@pytest.mark.asyncio
 async def test_language_limits(admin: SystemSettings, language: str, expected: LanguageLimitsDomain) -> None:
     loader, _ = _make_loader(repo_return=admin)
 
@@ -211,9 +201,7 @@ async def test_language_limits(admin: SystemSettings, language: str, expected: L
 
 async def test_language_limits_raise_go_to_its_minimums() -> None:
     go = POD_RUNTIME_CONFIGS["go"]
-    loader, _ = _make_loader(
-        repo_return=SystemSettings(cpu_limit="500m", memory_limit="128Mi", max_timeout_seconds=5)
-    )
+    loader, _ = _make_loader(repo_return=SystemSettings(cpu_limit="500m", memory_limit="128Mi", max_timeout_seconds=5))
 
     assert await loader.get_language_limits("go") == LanguageLimitsDomain(
         cpu_limit=go.min_cpu, memory_limit=go.min_memory, execution_timeout=go.min_timeout_seconds

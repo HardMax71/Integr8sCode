@@ -1,5 +1,5 @@
 import pytest
-import redis.asyncio as aioredis
+import redis.asyncio as redis
 import structlog
 from dishka import AsyncContainer
 from fastapi import FastAPI
@@ -16,21 +16,18 @@ from app.services.saved_script_service import SavedScriptService
 from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
 
-pytestmark = [pytest.mark.e2e, pytest.mark.mongodb]
+pytestmark = [pytest.mark.e2e]
 
 
 class TestCoreInfrastructure:
     """Tests for core infrastructure dependency resolution."""
 
-    @pytest.mark.asyncio
-    async def test_resolves_settings(self, scope: AsyncContainer) -> None:
+    async def test_resolves_settings(self, test_settings: Settings) -> None:
         """Container resolves Settings."""
-        settings = await scope.get(Settings)
 
-        assert isinstance(settings, Settings)
-        assert settings.PROJECT_NAME is not None
+        assert isinstance(test_settings, Settings)
+        assert test_settings.PROJECT_NAME is not None
 
-    @pytest.mark.asyncio
     async def test_resolves_logger(self, scope: AsyncContainer) -> None:
         """Container resolves BoundLogger."""
         logger = await scope.get(structlog.stdlib.BoundLogger)
@@ -38,7 +35,6 @@ class TestCoreInfrastructure:
         assert hasattr(logger, "info")
         assert hasattr(logger, "bind")
 
-    @pytest.mark.asyncio
     async def test_beanie_initialized(self, app: FastAPI) -> None:
         """Beanie is initialized and document classes work."""
         # app fixture runs lifespan which initializes Beanie
@@ -46,10 +42,8 @@ class TestCoreInfrastructure:
         settings = UserDocument.get_settings()
         assert settings.name == "users"
 
-    @pytest.mark.asyncio
-    async def test_resolves_redis(self, scope: AsyncContainer) -> None:
+    async def test_resolves_redis(self, redis_client: redis.Redis) -> None:
         """Container resolves Redis client."""
-        redis_client = await scope.get(aioredis.Redis)
 
         assert redis_client is not None
         # Verify connection works
@@ -60,117 +54,93 @@ class TestCoreInfrastructure:
 class TestSecurityServices:
     """Tests for security-related service resolution."""
 
-    @pytest.mark.asyncio
-    async def test_resolves_security_service(self, scope: AsyncContainer) -> None:
+    async def test_resolves_security_service(self, security_service: SecurityService) -> None:
         """Container resolves SecurityService."""
-        security = await scope.get(SecurityService)
 
-        assert isinstance(security, SecurityService)
-        assert security.settings is not None
+        assert isinstance(security_service, SecurityService)
+        assert security_service.settings is not None
 
 
 class TestEventServices:
     """Tests for event-related service resolution."""
 
-    @pytest.mark.asyncio
-    async def test_resolves_event_service(self, scope: AsyncContainer) -> None:
+    async def test_resolves_event_service(self, event_service: EventService) -> None:
         """Container resolves EventService."""
-        service = await scope.get(EventService)
 
-        assert isinstance(service, EventService)
+        assert isinstance(event_service, EventService)
 
 
 class TestBusinessServices:
     """Tests for business service resolution."""
 
-    @pytest.mark.asyncio
-    async def test_resolves_execution_service(self, scope: AsyncContainer) -> None:
+    async def test_resolves_execution_service(self, execution_service: ExecutionService) -> None:
         """Container resolves ExecutionService."""
-        service = await scope.get(ExecutionService)
 
-        assert isinstance(service, ExecutionService)
+        assert isinstance(execution_service, ExecutionService)
 
-    @pytest.mark.asyncio
-    async def test_resolves_admin_user_service(self, scope: AsyncContainer) -> None:
+    async def test_resolves_admin_user_service(self, admin_user_service: AdminUserService) -> None:
         """Container resolves AdminUserService."""
-        service = await scope.get(AdminUserService)
 
-        assert isinstance(service, AdminUserService)
+        assert isinstance(admin_user_service, AdminUserService)
 
-    @pytest.mark.asyncio
-    async def test_resolves_saved_script_service(self, scope: AsyncContainer) -> None:
+    async def test_resolves_saved_script_service(self, saved_script_service: SavedScriptService) -> None:
         """Container resolves SavedScriptService."""
-        service = await scope.get(SavedScriptService)
 
-        assert isinstance(service, SavedScriptService)
+        assert isinstance(saved_script_service, SavedScriptService)
 
-    @pytest.mark.asyncio
-    async def test_resolves_notification_service(self, scope: AsyncContainer) -> None:
+    async def test_resolves_notification_service(self, notification_service: NotificationService) -> None:
         """Container resolves NotificationService."""
-        service = await scope.get(NotificationService)
 
-        assert isinstance(service, NotificationService)
+        assert isinstance(notification_service, NotificationService)
 
-    @pytest.mark.asyncio
-    async def test_resolves_user_settings_service(self, scope: AsyncContainer) -> None:
+    async def test_resolves_user_settings_service(self, user_settings_service: UserSettingsService) -> None:
         """Container resolves UserSettingsService."""
-        service = await scope.get(UserSettingsService)
 
-        assert isinstance(service, UserSettingsService)
+        assert isinstance(user_settings_service, UserSettingsService)
 
-    @pytest.mark.asyncio
     async def test_resolves_rate_limit_service(self, scope: AsyncContainer) -> None:
         """Container resolves RateLimitService."""
         service = await scope.get(RateLimitService)
 
         assert isinstance(service, RateLimitService)
 
-    @pytest.mark.asyncio
-    async def test_resolves_replay_service(self, scope: AsyncContainer) -> None:
+    async def test_resolves_replay_service(self, event_replay_service: EventReplayService) -> None:
         """Container resolves EventReplayService."""
-        service = await scope.get(EventReplayService)
 
-        assert isinstance(service, EventReplayService)
+        assert isinstance(event_replay_service, EventReplayService)
 
 
 class TestServiceDependencies:
     """Tests that services have their dependencies correctly injected."""
 
-    @pytest.mark.asyncio
-    async def test_execution_service_has_dependencies(self, scope: AsyncContainer) -> None:
+    async def test_execution_service_has_dependencies(self, execution_service: ExecutionService) -> None:
         """ExecutionService has required dependencies."""
-        service = await scope.get(ExecutionService)
 
         # Check that key dependencies are present
-        assert service.settings is not None
-        assert service.execution_repo is not None
+        assert execution_service.settings is not None
+        assert execution_service.execution_repo is not None
 
-    @pytest.mark.asyncio
-    async def test_security_service_uses_settings(self, scope: AsyncContainer) -> None:
-        """SecurityService uses injected settings."""
-        settings = await scope.get(Settings)
-        security = await scope.get(SecurityService)
+    async def test_security_service_uses_settings(
+        self, test_settings: Settings, security_service: SecurityService
+    ) -> None:
+        """SecurityService uses injected test_settings."""
 
-        # Both should reference same settings
-        assert security.settings.SECRET_KEY == settings.SECRET_KEY
-        assert security.settings.ALGORITHM == settings.ALGORITHM
+        # Both should reference same test_settings
+        assert security_service.settings.SECRET_KEY == test_settings.SECRET_KEY
+        assert security_service.settings.ALGORITHM == test_settings.ALGORITHM
 
 
 class TestContainerScoping:
     """Tests for container scope behavior."""
 
-    @pytest.mark.asyncio
-    async def test_same_scope_returns_same_instance(self, scope: AsyncContainer) -> None:
+    async def test_same_scope_returns_same_instance(
+        self, scope: AsyncContainer, execution_service: ExecutionService
+    ) -> None:
         """Same scope returns same service instance."""
-        service1 = await scope.get(ExecutionService)
-        service2 = await scope.get(ExecutionService)
 
-        assert service1 is service2
+        assert execution_service is execution_service
 
-    @pytest.mark.asyncio
-    async def test_settings_is_singleton(self, scope: AsyncContainer) -> None:
+    async def test_settings_is_singleton(self, scope: AsyncContainer, test_settings: Settings) -> None:
         """Settings is a singleton across the scope."""
-        settings1 = await scope.get(Settings)
-        settings2 = await scope.get(Settings)
 
-        assert settings1 is settings2
+        assert test_settings is test_settings

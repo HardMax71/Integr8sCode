@@ -1,19 +1,16 @@
 import uuid
 
 import pytest
-from dishka import AsyncContainer
 
 from app.db.docs import UserDocument
 from app.domain.enums import UserRole
 from app.domain.exceptions import NotFoundError
 from app.services.admin import AdminUserService
 
-pytestmark = [pytest.mark.e2e, pytest.mark.mongodb]
+pytestmark = [pytest.mark.e2e]
 
 
-@pytest.mark.asyncio
-async def test_get_user_overview_basic(scope: AsyncContainer) -> None:
-    svc: AdminUserService = await scope.get(AdminUserService)
+async def test_get_user_overview_basic(admin_user_service: AdminUserService) -> None:
     uid = uuid.uuid4().hex[:8]
     await UserDocument(
         user_id=f"u_{uid}",
@@ -23,12 +20,10 @@ async def test_get_user_overview_basic(scope: AsyncContainer) -> None:
         hashed_password="h",
     ).insert()
 
-    overview = await svc.get_user_overview(f"u_{uid}", hours=1)
+    overview = await admin_user_service.get_user_overview(f"u_{uid}", hours=1)
     assert overview.user.username == f"bob_{uid}"
 
 
-@pytest.mark.asyncio
-async def test_get_user_overview_user_not_found(scope: AsyncContainer) -> None:
-    svc: AdminUserService = await scope.get(AdminUserService)
+async def test_get_user_overview_user_not_found(admin_user_service: AdminUserService) -> None:
     with pytest.raises(NotFoundError):
-        await svc.get_user_overview("missing")
+        await admin_user_service.get_user_overview("missing")

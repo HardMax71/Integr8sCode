@@ -16,7 +16,6 @@ from app.settings import Settings
 pytestmark = pytest.mark.unit
 
 
-@pytest.mark.asyncio
 async def test_login_on_locked_account_counts_a_blocked_attempt(test_settings: Settings) -> None:
     metrics = MagicMock(spec=SecurityMetrics)
     lockout = AsyncMock(spec=LoginLockoutService)

@@ -109,7 +109,6 @@ def _make_service(bus: _FakeBus, exec_repo: _FakeExecRepo | None = None) -> SSES
     )
 
 
-@pytest.mark.asyncio
 async def test_execution_stream_prepends_status_from_db() -> None:
     execution = DomainExecution(execution_id="exec-1", status=ExecutionStatus.RUNNING)
     bus = _FakeBus()
@@ -130,7 +129,6 @@ async def test_execution_stream_prepends_status_from_db() -> None:
         await agen.__anext__()
 
 
-@pytest.mark.asyncio
 async def test_execution_stream_closes_on_terminal_event() -> None:
     bus = _FakeBus()
     svc = _make_service(
@@ -156,7 +154,6 @@ async def test_execution_stream_closes_on_terminal_event() -> None:
         await agen.__anext__()
 
 
-@pytest.mark.asyncio
 async def test_execution_stream_enriches_result_stored() -> None:
     result = ExecutionResultDomain(
         execution_id="exec-2",
@@ -192,7 +189,6 @@ async def test_execution_stream_enriches_result_stored() -> None:
         await agen.__anext__()
 
 
-@pytest.mark.asyncio
 async def test_execution_stream_for_finished_execution_sends_result_and_closes() -> None:
     result = ExecutionResultDomain(
         execution_id="exec-3", status=ExecutionStatus.COMPLETED, exit_code=0, stdout="done", stderr=""
@@ -211,7 +207,6 @@ async def test_execution_stream_for_finished_execution_sends_result_and_closes()
         await agen.__anext__()
 
 
-@pytest.mark.asyncio
 async def test_notification_stream_yields_notification_and_cleans_up() -> None:
     """Notification stream yields {"event": "notification", "data": ...} for each message."""
     bus = _FakeBus()
@@ -240,7 +235,6 @@ async def test_notification_stream_yields_notification_and_cleans_up() -> None:
     assert bus.notif_closed
 
 
-@pytest.mark.asyncio
 async def test_replay_stream_yields_initial_then_live() -> None:
     """Replay pipeline yields initial status from DB then streams live updates."""
     bus = _FakeBus()
@@ -299,7 +293,6 @@ async def test_replay_stream_yields_initial_then_live() -> None:
         await agen.__anext__()
 
 
-@pytest.mark.asyncio
 async def test_replay_stream_terminal_initial_closes_immediately() -> None:
     """If the initial replay status is terminal, the stream closes after yielding it."""
     bus = _FakeBus()

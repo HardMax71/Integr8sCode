@@ -14,7 +14,6 @@ pytestmark = [pytest.mark.e2e]
 class TestCreateSavedScript:
     """Tests for POST /api/v1/scripts."""
 
-    @pytest.mark.asyncio
     async def test_create_saved_script(
         self, test_user: AsyncClient, new_script_request: SavedScriptCreateRequest
     ) -> None:
@@ -27,22 +26,10 @@ class TestCreateSavedScript:
         assert script.script_id is not None
         assert script.name == new_script_request.name
         assert script.script == new_script_request.script
-        assert script.lang == "python"
+        assert script.lang == new_script_request.lang
         assert script.created_at is not None
         assert script.updated_at is not None
 
-    @pytest.mark.asyncio
-    async def test_create_saved_script_minimal(
-        self, test_user: AsyncClient, new_script_request: SavedScriptCreateRequest
-    ) -> None:
-        """Create script with minimal required fields."""
-        response = await test_user.post("/api/v1/scripts", json=new_script_request.model_dump())
-
-        assert response.status_code == 200
-        script = SavedScriptResponse.model_validate(response.json())
-        assert script.name == new_script_request.name
-
-    @pytest.mark.asyncio
     async def test_create_saved_script_unauthenticated(self, client: AsyncClient) -> None:
         """Unauthenticated request returns 401."""
         response = await client.post(
@@ -59,7 +46,6 @@ class TestCreateSavedScript:
 class TestListSavedScripts:
     """Tests for GET /api/v1/scripts."""
 
-    @pytest.mark.asyncio
     async def test_list_saved_scripts(
         self, test_user: AsyncClient, new_script_request: SavedScriptCreateRequest
     ) -> None:
@@ -74,7 +60,6 @@ class TestListSavedScripts:
         assert len(result.scripts) >= 1
         assert any(new_script_request.name in s.name for s in result.scripts)
 
-    @pytest.mark.asyncio
     async def test_list_saved_scripts_only_own(
         self, test_user: AsyncClient, another_user: AsyncClient, new_script_request: SavedScriptCreateRequest
     ) -> None:
@@ -92,7 +77,6 @@ class TestListSavedScripts:
 class TestGetSavedScript:
     """Tests for GET /api/v1/scripts/{script_id}."""
 
-    @pytest.mark.asyncio
     async def test_get_saved_script(self, test_user: AsyncClient, new_script_request: SavedScriptCreateRequest) -> None:
         """Get a specific saved script."""
         create_response = await test_user.post("/api/v1/scripts", json=new_script_request.model_dump())
@@ -106,13 +90,11 @@ class TestGetSavedScript:
         assert script.name == new_script_request.name
         assert script.script == new_script_request.script
 
-    @pytest.mark.asyncio
     async def test_get_nonexistent_script(self, test_user: AsyncClient) -> None:
         """Get nonexistent script returns 404."""
         response = await test_user.get("/api/v1/scripts/nonexistent-id")
         assert response.status_code == 404
 
-    @pytest.mark.asyncio
     async def test_get_other_users_script_forbidden(
         self, test_user: AsyncClient, another_user: AsyncClient, new_script_request: SavedScriptCreateRequest
     ) -> None:
@@ -127,7 +109,6 @@ class TestGetSavedScript:
 class TestUpdateSavedScript:
     """Tests for PUT /api/v1/scripts/{script_id}."""
 
-    @pytest.mark.asyncio
     async def test_update_saved_script(
         self, test_user: AsyncClient, new_script_request: SavedScriptCreateRequest
     ) -> None:
@@ -150,7 +131,6 @@ class TestUpdateSavedScript:
         assert updated.script == "new content"
         assert updated.updated_at > script.updated_at
 
-    @pytest.mark.asyncio
     async def test_update_other_users_script_forbidden(
         self, test_user: AsyncClient, another_user: AsyncClient, new_script_request: SavedScriptCreateRequest
     ) -> None:
@@ -169,7 +149,6 @@ class TestUpdateSavedScript:
 class TestDeleteSavedScript:
     """Tests for DELETE /api/v1/scripts/{script_id}."""
 
-    @pytest.mark.asyncio
     async def test_delete_saved_script(
         self, test_user: AsyncClient, new_script_request: SavedScriptCreateRequest
     ) -> None:
@@ -183,7 +162,6 @@ class TestDeleteSavedScript:
         get_response = await test_user.get(f"/api/v1/scripts/{script_id}")
         assert get_response.status_code == 404
 
-    @pytest.mark.asyncio
     async def test_delete_other_users_script_forbidden(
         self, test_user: AsyncClient, another_user: AsyncClient, new_script_request: SavedScriptCreateRequest
     ) -> None:
@@ -195,7 +173,6 @@ class TestDeleteSavedScript:
         response = await another_user.delete(f"/api/v1/scripts/{script_id}")
         assert response.status_code == 404
 
-    @pytest.mark.asyncio
     async def test_delete_nonexistent_script(self, test_user: AsyncClient) -> None:
         """Deleting nonexistent script returns 404."""
         response = await test_user.delete("/api/v1/scripts/nonexistent-id")

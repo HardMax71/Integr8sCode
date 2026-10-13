@@ -12,7 +12,6 @@ _test_logger = structlog.get_logger("test.db.repositories.execution_repository")
 pytestmark = pytest.mark.e2e
 
 
-@pytest.mark.asyncio
 async def test_execution_crud_and_query() -> None:
     repo = ExecutionRepository(logger=_test_logger)
     user_id = str(uuid4())
@@ -20,8 +19,6 @@ async def test_execution_crud_and_query() -> None:
     # Create
     create_data = DomainExecutionCreate(
         script="print('hello')",
-        lang="python",
-        lang_version="3.11",
         user_id=user_id,
     )
     created = await repo.create_execution(create_data)
@@ -71,7 +68,6 @@ async def _create_and_complete(
     return created.execution_id
 
 
-@pytest.mark.asyncio
 async def test_terminal_result_exists_only_once_the_execution_finished() -> None:
     repo = ExecutionRepository(logger=_test_logger)
     user_id = str(uuid4())
@@ -86,7 +82,6 @@ async def test_terminal_result_exists_only_once_the_execution_finished() -> None
     assert (result.status, result.exit_code, result.stdout, result.stderr) == (ExecutionStatus.COMPLETED, 0, "ok", "")
 
 
-@pytest.mark.asyncio
 async def test_aggregate_stats_empty() -> None:
     """Empty result set returns zero-value stats."""
     repo = ExecutionRepository(logger=_test_logger)
@@ -101,7 +96,6 @@ async def test_aggregate_stats_empty() -> None:
     assert stats["success_rate"] == 0
 
 
-@pytest.mark.asyncio
 async def test_aggregate_stats_completed_and_failed() -> None:
     """Stats reflect completed vs failed counts, success rate, and duration."""
     repo = ExecutionRepository(logger=_test_logger)
@@ -127,7 +121,6 @@ async def test_aggregate_stats_completed_and_failed() -> None:
             await repo.delete_execution(eid)
 
 
-@pytest.mark.asyncio
 async def test_aggregate_stats_no_completed() -> None:
     """When nothing completed, avg_duration is 0 and success_rate is 0."""
     repo = ExecutionRepository(logger=_test_logger)
@@ -145,14 +138,13 @@ async def test_aggregate_stats_no_completed() -> None:
         await repo.delete_execution(eid)
 
 
-@pytest.mark.asyncio
 async def test_aggregate_stats_multiple_languages() -> None:
     """by_language groups by lang-lang_version correctly."""
     repo = ExecutionRepository(logger=_test_logger)
     user_id = str(uuid4())
     exec_ids: list[str] = []
 
-    exec_ids.append(await _create_and_complete(repo, user_id, lang="python", lang_version="3.11"))
+    exec_ids.append(await _create_and_complete(repo, user_id))
     exec_ids.append(await _create_and_complete(repo, user_id, lang="python", lang_version="3.12"))
     exec_ids.append(await _create_and_complete(repo, user_id, lang="python", lang_version="3.12"))
 
@@ -166,12 +158,9 @@ async def test_aggregate_stats_multiple_languages() -> None:
             await repo.delete_execution(eid)
 
 
-@pytest.mark.asyncio
 async def test_advance_status_moves_forward_only() -> None:
     repo = ExecutionRepository(logger=_test_logger)
-    created = await repo.create_execution(
-        DomainExecutionCreate(script="x = 1", lang="python", lang_version="3.11", user_id=str(uuid4()))
-    )
+    created = await repo.create_execution(DomainExecutionCreate(script="x = 1", user_id=str(uuid4())))
     execution_id = created.execution_id
 
     assert await repo.advance_status(execution_id, ExecutionStatus.RUNNING) is True

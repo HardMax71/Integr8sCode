@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 import pytest
 import redis.asyncio as redis
@@ -14,7 +15,7 @@ from app.services.idempotency.redis_repository import (
     _parse_iso_datetime,
 )
 
-pytestmark = [pytest.mark.e2e, pytest.mark.redis]
+pytestmark = [pytest.mark.e2e]
 
 
 class TestHelperFunctions:
@@ -56,7 +57,7 @@ def repository(redis_client: redis.Redis) -> RedisIdempotencyRepository:
 @pytest.fixture
 def sample_record() -> IdempotencyRecord:
     return IdempotencyRecord(
-        key="test-key",
+        key=f"test-key-{uuid4().hex}",
         status=IdempotencyStatus.PROCESSING,
         event_type=EventType.EXECUTION_REQUESTED,
         event_id="event-123",
@@ -92,7 +93,6 @@ def test_doc_record_roundtrip(repository: RedisIdempotencyRepository) -> None:
     assert back.key == rec.key and back.status == rec.status
 
 
-@pytest.mark.asyncio
 async def test_insert_find_update_delete_flow(
     repository: RedisIdempotencyRepository,
     redis_client: redis.Redis,
@@ -127,7 +127,6 @@ async def test_insert_find_update_delete_flow(
     assert await repository.delete_key(sample_record.key) == 0
 
 
-@pytest.mark.asyncio
 async def test_update_record_when_missing(
     repository: RedisIdempotencyRepository, sample_record: IdempotencyRecord
 ) -> None:

@@ -767,9 +767,9 @@ backend/tests/
 └── load/      # Load test CLI, not collected by pytest
 ```
 
-Markers registered in pyproject.toml: `unit`, `e2e`, `slow`, `kafka`, `mongodb`, `redis`, `k8s`, `performance`, `admin`, `grafana_contract`. pytest-xdist adds `xdist_group`.
+Markers registered in pyproject.toml: `unit`, `e2e`, `grafana_contract` (CI selects the contract tests with it). pytest-xdist adds `xdist_group`. No `@pytest.mark.asyncio`: `asyncio_mode = "auto"` covers it.
 
-`asyncio_mode = "auto"`, so a test is `async def` when it awaits and a plain `def` otherwise; about a quarter of the suite is sync. Key fixtures: `test_settings`, `app`, `client`, `scope`, `redis_client`, `test_user`, `test_admin`, `another_user` (the last three are logged-in `httpx2.AsyncClient`s with the CSRF header set).
+`asyncio_mode = "auto"`, so a test is `async def` when it awaits and a plain `def` otherwise; about a quarter of the suite is sync. Key fixtures: `test_settings`, `app`, `client`, `redis_client`, `test_user`, `test_admin`, `another_user` (the last three are logged-in `httpx2.AsyncClient`s with the CSRF header set), and in e2e one fixture per service or repository (`execution_service`, `execution_repository`, `notification_service`, ...). A test names what it needs as parameters; it doesn't call `scope.get` itself.
 
 Test quality rules:
 - Test API responses precisely: status code **and** response body contents
@@ -795,7 +795,11 @@ async with (
     assert source.response.status_code == 200
 ```
 
-Isolation: only Redis is split per worker; `test_settings` sets `REDIS_DB` to the xdist worker number mod 16. MongoDB is one shared database, so tests isolate by unique ids (uuid usernames, fresh executions). Tests that touch shared global state (system settings, Kafka consumer groups, the DLQ, execution concurrency) carry `@pytest.mark.xdist_group("name")`; `addopts` runs `-n auto --dist=loadgroup`, so each group stays on one worker.
+Isolation: every xdist process, the API it runs and the real `worker` container share one MongoDB, one Redis database and one Kafka, so tests isolate by unique ids (uuid usernames, keys and Redis prefixes, fresh executions) and never by separate databases. Rules that keep the parallel run race-free:
+- System settings are global and every process reads them, so tests change only the monitoring fields (`metrics_retention_days`, `log_level`, `enable_tracing`, `sampling_rate`), starting from the current settings; the two settings files share `xdist_group("system_settings")` so they don't race each other over the one document. That is the only xdist group
+- Wait on what the producer stored, not on Redis pub/sub: `wait_for_event(execution_id, *types)` polls the events collection, which the producer writes before it publishes, so an event that happened first still counts
+- A test that needs an execution row and not a pod uses `store_execution` (or the repository), since real executions share the global concurrency limit
+- Anything a test leaves in a shared place that the worker acts on (DLQ rows, replay sessions that publish) is removed by the fixture that created it
 
 ### Frontend (Vitest)
 

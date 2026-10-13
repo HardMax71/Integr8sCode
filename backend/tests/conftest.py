@@ -1,4 +1,3 @@
-import os
 import uuid
 from collections.abc import Iterable
 from typing import AsyncGenerator
@@ -19,22 +18,14 @@ from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION, RUNTIME_REG
 from app.settings import Settings
 
 
-def _get_worker_num() -> int:
-    """Get numeric pytest-xdist worker ID for Redis DB selection (0-15)."""
-    wid = os.environ.get("PYTEST_XDIST_WORKER", "main")
-    return 0 if wid == "main" else int(wid.removeprefix("gw"))
-
-
 @pytest.fixture(scope="session")
 def test_settings() -> Settings:
-    """Test settings with per-worker Redis DB isolation.
+    """Settings from config.test.toml.
 
-    - MongoDB: Shared database, tests use UUIDs for entity isolation
-    - Kafka: Tests with consumers use xdist_group markers for serial execution
-    - Redis: Per-worker DB number (0-15) to avoid key collisions
+    MongoDB and Redis are shared with the worker and every other test process, so tests isolate by unique ids
+    (uuid usernames, fresh executions, uuid keys) rather than by separate databases.
     """
-    base = Settings(config_path="config.test.toml")
-    return base.model_copy(update={"REDIS_DB": _get_worker_num() % 16})
+    return Settings(config_path="config.test.toml")
 
 
 @pytest_asyncio.fixture(scope="session")

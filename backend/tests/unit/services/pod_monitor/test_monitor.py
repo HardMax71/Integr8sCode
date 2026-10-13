@@ -91,7 +91,6 @@ def make_pod_monitor(
     return monitor
 
 
-@pytest.mark.asyncio
 async def test_watch_pod_events_list_then_watch(
     event_metrics: EventMetrics,
     kubernetes_metrics: KubernetesMetrics,
@@ -123,7 +122,6 @@ async def test_watch_pod_events_list_then_watch(
     assert pm._v1.list_namespaced_pod.await_count == 1  # type: ignore[attr-defined]  # LIST not called again
 
 
-@pytest.mark.asyncio
 async def test_watch_pod_events_with_field_selector(
     event_metrics: EventMetrics,
     kubernetes_metrics: KubernetesMetrics,
@@ -165,7 +163,6 @@ async def test_watch_pod_events_with_field_selector(
     assert any("field_selector" in kw for kw in watch_kwargs)
 
 
-@pytest.mark.asyncio
 async def test_watch_pod_events_raises_api_exception(
     event_metrics: EventMetrics,
     kubernetes_metrics: KubernetesMetrics,
@@ -185,7 +182,6 @@ async def test_watch_pod_events_raises_api_exception(
         await pm.watch_pod_events()
 
 
-@pytest.mark.asyncio
 async def test_watch_resets_after_410(
     event_metrics: EventMetrics,
     kubernetes_metrics: KubernetesMetrics,
@@ -215,7 +211,6 @@ async def test_watch_resets_after_410(
     assert pm._last_resource_version == "rv11"
 
 
-@pytest.mark.asyncio
 async def test_process_pod_event_full_flow(
     event_metrics: EventMetrics,
     kubernetes_metrics: KubernetesMetrics,
@@ -269,7 +264,6 @@ async def test_process_pod_event_full_flow(
     assert len(published) == 0
 
 
-@pytest.mark.asyncio
 async def test_process_pod_event_exception_handling(event_metrics: EventMetrics) -> None:
     cfg = PodMonitorConfig()
 
@@ -289,7 +283,6 @@ async def test_process_pod_event_exception_handling(event_metrics: EventMetrics)
     metrics.record_pod_monitor_watch_error.assert_called_once_with(ErrorType.PROCESSING_ERROR)
 
 
-@pytest.mark.asyncio
 async def test_publish_event_full_flow(
     event_metrics: EventMetrics,
     kubernetes_metrics: KubernetesMetrics,
@@ -313,7 +306,6 @@ async def test_publish_event_full_flow(
     assert fake_producer.produced_events[0][1] == "exec1"
 
 
-@pytest.mark.asyncio
 async def test_publish_event_exception_handling(
     event_metrics: EventMetrics,
     kubernetes_metrics: KubernetesMetrics,
@@ -343,7 +335,6 @@ async def test_publish_event_exception_handling(
         await pm._publish_event(event, pod)
 
 
-@pytest.mark.asyncio
 async def test_list_and_watch_keep_pods_by_phase_current(event_metrics: EventMetrics) -> None:
     metrics = MagicMock(spec=KubernetesMetrics)
     pm = make_pod_monitor(
@@ -363,7 +354,6 @@ async def test_list_and_watch_keep_pods_by_phase_current(event_metrics: EventMet
     assert counts == [{}, {"Pending": 1}, {"Pending": 1, "Running": 1}, {"Running": 2}, {"Running": 1}]
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(("fresh", "expected"), [(["fresh"], {"Pending": 1}), ([], {})])
 async def test_relist_drops_pods_the_watch_missed(
     event_metrics: EventMetrics, fresh: list[str], expected: dict[str, int]
@@ -381,7 +371,6 @@ async def test_relist_drops_pods_the_watch_missed(
     assert dict(metrics.update_pods_by_phase.call_args.args[0]) == expected
 
 
-@pytest.mark.asyncio
 async def test_terminal_event_records_pod_lifetime(event_metrics: EventMetrics) -> None:
     class TerminalMapper:
         async def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:
@@ -404,7 +393,6 @@ async def test_terminal_event_records_pod_lifetime(event_metrics: EventMetrics) 
     mock_v1.delete_namespaced_pod.assert_awaited_once()
 
 
-@pytest.mark.asyncio
 async def test_non_terminal_event_records_no_lifetime(event_metrics: EventMetrics) -> None:
     class RunningMapper:
         async def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:

@@ -40,7 +40,6 @@ def _service(metrics: ReplayMetrics, producer: AsyncMock | None = None) -> tuple
     return service, repo
 
 
-@pytest.mark.asyncio
 async def test_cancelling_a_session_that_never_started_leaves_active_alone() -> None:
     metrics = MagicMock(spec=ReplayMetrics)
     service, _ = _service(metrics)
@@ -54,7 +53,6 @@ async def test_cancelling_a_session_that_never_started_leaves_active_alone() -> 
     )
 
 
-@pytest.mark.asyncio
 async def test_starting_with_nothing_to_replay_records_the_completion() -> None:
     metrics = MagicMock(spec=ReplayMetrics)
     service, _ = _service(metrics)
@@ -69,7 +67,6 @@ async def test_starting_with_nothing_to_replay_records_the_completion() -> None:
     metrics.increment_active_replays.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_cleanup_takes_removed_sessions_out_of_the_status_gauge() -> None:
     metrics = MagicMock(spec=ReplayMetrics)
     service, _ = _service(metrics)
@@ -100,7 +97,6 @@ def test_session_created_counts_towards_created_status() -> None:
     assert calls == [(1, ReplayStatus.CREATED), (-1, ReplayStatus.CREATED), (1, ReplayStatus.RUNNING)]
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("produce_error", "success"),
     [(None, True), (KafkaError(), False), (TypeError("bug"), False)],

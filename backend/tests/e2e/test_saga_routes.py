@@ -1,5 +1,4 @@
 import pytest
-import redis.asyncio as redis
 from httpx2 import AsyncClient
 
 from app.domain.enums import SagaState
@@ -11,21 +10,19 @@ from app.schemas_pydantic.saga import (
 )
 from tests.e2e.conftest import create_execution_with_saga
 
-pytestmark = [pytest.mark.e2e, pytest.mark.kafka]
+pytestmark = [pytest.mark.e2e]
 
 
 class TestGetSagaStatus:
     """Tests for GET /api/v1/sagas/{saga_id}."""
 
-    @pytest.mark.asyncio
     async def test_get_saga_status(
         self,
         test_user: AsyncClient,
-        redis_client: redis.Redis,
         exec_request: ExecutionRequest,
     ) -> None:
         """Get saga status by ID returns valid response."""
-        execution, saga = await create_execution_with_saga(test_user, redis_client, exec_request)
+        execution, saga = await create_execution_with_saga(test_user, exec_request)
 
         response = await test_user.get(f"/api/v1/sagas/{saga.saga_id}")
 
@@ -39,23 +36,20 @@ class TestGetSagaStatus:
         assert result.error_message is None
         assert result.completed_steps is not None
 
-    @pytest.mark.asyncio
     async def test_get_saga_not_found(self, test_user: AsyncClient) -> None:
         """Get nonexistent saga returns 404."""
         response = await test_user.get("/api/v1/sagas/nonexistent-saga-id")
 
         assert response.status_code == 404
 
-    @pytest.mark.asyncio
     async def test_get_saga_access_denied(
         self,
         test_user: AsyncClient,
         another_user: AsyncClient,
-        redis_client: redis.Redis,
         exec_request: ExecutionRequest,
     ) -> None:
         """Cannot access another user's saga."""
-        _, saga = await create_execution_with_saga(test_user, redis_client, exec_request)
+        _, saga = await create_execution_with_saga(test_user, exec_request)
 
         response = await another_user.get(f"/api/v1/sagas/{saga.saga_id}")
 
@@ -65,15 +59,13 @@ class TestGetSagaStatus:
 class TestGetExecutionSagas:
     """Tests for GET /api/v1/sagas/execution/{execution_id}."""
 
-    @pytest.mark.asyncio
     async def test_get_execution_sagas(
         self,
         test_user: AsyncClient,
-        redis_client: redis.Redis,
         exec_request: ExecutionRequest,
     ) -> None:
         """Get sagas for a specific execution."""
-        execution, saga = await create_execution_with_saga(test_user, redis_client, exec_request)
+        execution, saga = await create_execution_with_saga(test_user, exec_request)
 
         response = await test_user.get(f"/api/v1/sagas/execution/{execution.execution_id}")
 
@@ -87,15 +79,13 @@ class TestGetExecutionSagas:
         saga_ids = [s.saga_id for s in result.sagas]
         assert saga.saga_id in saga_ids
 
-    @pytest.mark.asyncio
     async def test_get_execution_sagas_with_pagination(
         self,
         test_user: AsyncClient,
-        redis_client: redis.Redis,
         exec_request: ExecutionRequest,
     ) -> None:
         """Pagination works for execution sagas."""
-        execution, _ = await create_execution_with_saga(test_user, redis_client, exec_request)
+        execution, _ = await create_execution_with_saga(test_user, exec_request)
 
         response = await test_user.get(
             f"/api/v1/sagas/execution/{execution.execution_id}",
@@ -108,15 +98,13 @@ class TestGetExecutionSagas:
         assert result.skip == 0
         assert len(result.sagas) <= 5
 
-    @pytest.mark.asyncio
     async def test_get_execution_sagas_with_state_filter(
         self,
         test_user: AsyncClient,
-        redis_client: redis.Redis,
         exec_request: ExecutionRequest,
     ) -> None:
         """Filter sagas by state."""
-        execution, saga = await create_execution_with_saga(test_user, redis_client, exec_request)
+        execution, saga = await create_execution_with_saga(test_user, exec_request)
 
         response = await test_user.get(
             f"/api/v1/sagas/execution/{execution.execution_id}",
@@ -133,15 +121,13 @@ class TestGetExecutionSagas:
 class TestListSagas:
     """Tests for GET /api/v1/sagas/."""
 
-    @pytest.mark.asyncio
     async def test_list_sagas(
         self,
         test_user: AsyncClient,
-        redis_client: redis.Redis,
         exec_request: ExecutionRequest,
     ) -> None:
         """List sagas for current user."""
-        _, saga = await create_execution_with_saga(test_user, redis_client, exec_request)
+        _, saga = await create_execution_with_saga(test_user, exec_request)
 
         response = await test_user.get("/api/v1/sagas/")
 
@@ -155,15 +141,13 @@ class TestListSagas:
         saga_ids = [s.saga_id for s in result.sagas]
         assert saga.saga_id in saga_ids
 
-    @pytest.mark.asyncio
     async def test_list_sagas_with_state_filter(
         self,
         test_user: AsyncClient,
-        redis_client: redis.Redis,
         exec_request: ExecutionRequest,
     ) -> None:
         """Filter sagas by state."""
-        _, saga = await create_execution_with_saga(test_user, redis_client, exec_request)
+        _, saga = await create_execution_with_saga(test_user, exec_request)
 
         response = await test_user.get(
             "/api/v1/sagas/",
@@ -177,15 +161,13 @@ class TestListSagas:
         for s in result.sagas:
             assert s.state == saga.state
 
-    @pytest.mark.asyncio
     async def test_list_sagas_pagination(
         self,
         test_user: AsyncClient,
-        redis_client: redis.Redis,
         exec_request: ExecutionRequest,
     ) -> None:
         """Pagination works for saga list."""
-        await create_execution_with_saga(test_user, redis_client, exec_request)
+        await create_execution_with_saga(test_user, exec_request)
 
         response = await test_user.get(
             "/api/v1/sagas/",
@@ -197,15 +179,13 @@ class TestListSagas:
         assert result.limit == 10
         assert result.skip == 0
 
-    @pytest.mark.asyncio
     async def test_list_sagas_search(
         self,
         test_user: AsyncClient,
-        redis_client: redis.Redis,
         exec_request: ExecutionRequest,
     ) -> None:
         """Search by saga ID returns that saga, and a term nothing matches returns none."""
-        _, saga = await create_execution_with_saga(test_user, redis_client, exec_request)
+        _, saga = await create_execution_with_saga(test_user, exec_request)
 
         response = await test_user.get("/api/v1/sagas/", params={"search": saga.saga_id.upper()})
 
@@ -221,7 +201,6 @@ class TestListSagas:
         assert result.sagas == []
         assert result.total == 0
 
-    @pytest.mark.asyncio
     async def test_list_sagas_unauthenticated(self, client: AsyncClient) -> None:
         """Unauthenticated request returns 401."""
         response = await client.get("/api/v1/sagas/")
@@ -232,17 +211,14 @@ class TestListSagas:
 class TestCancelSaga:
     """Tests for POST /api/v1/sagas/{saga_id}/cancel."""
 
-    @pytest.mark.asyncio
     async def test_cancel_saga(
         self,
         test_user: AsyncClient,
-        redis_client: redis.Redis,
         long_running_execution_request: ExecutionRequest,
     ) -> None:
         """Cancel a running saga."""
         execution, saga = await create_execution_with_saga(
             test_user,
-            redis_client,
             long_running_execution_request,
         )
 
@@ -261,25 +237,21 @@ class TestCancelSaga:
         updated_saga = SagaStatusResponse.model_validate(status_resp.json())
         assert updated_saga.state == SagaState.CANCELLED
 
-    @pytest.mark.asyncio
     async def test_cancel_nonexistent_saga(self, test_user: AsyncClient) -> None:
         """Cancel nonexistent saga returns 404."""
         response = await test_user.post("/api/v1/sagas/nonexistent-saga-id/cancel")
 
         assert response.status_code == 404
 
-    @pytest.mark.asyncio
     async def test_cancel_other_users_saga_forbidden(
         self,
         test_user: AsyncClient,
         another_user: AsyncClient,
-        redis_client: redis.Redis,
         long_running_execution_request: ExecutionRequest,
     ) -> None:
         """Cannot cancel another user's saga."""
         _, saga = await create_execution_with_saga(
             test_user,
-            redis_client,
             long_running_execution_request,
         )
 
@@ -291,16 +263,14 @@ class TestCancelSaga:
 class TestSagaIsolation:
     """Tests for saga access isolation between users."""
 
-    @pytest.mark.asyncio
     async def test_user_cannot_see_other_users_sagas(
         self,
         test_user: AsyncClient,
         another_user: AsyncClient,
-        redis_client: redis.Redis,
         exec_request: ExecutionRequest,
     ) -> None:
         """User's saga list does not include other users' sagas."""
-        _, saga = await create_execution_with_saga(test_user, redis_client, exec_request)
+        _, saga = await create_execution_with_saga(test_user, exec_request)
         assert saga.saga_id
 
         # Positive proof: owner CAN see the saga

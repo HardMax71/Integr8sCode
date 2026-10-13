@@ -1,7 +1,7 @@
 from importlib import import_module
 
 import pytest
-import redis.asyncio as aioredis
+import redis.asyncio as redis
 from dishka import AsyncContainer
 from fastapi import FastAPI
 
@@ -50,7 +50,6 @@ class TestCreateAppAttachesContainer:
 class TestLifespanInitialization:
     """Tests for services initialized during lifespan."""
 
-    @pytest.mark.asyncio
     async def test_beanie_initialized(self, app: FastAPI) -> None:
         """Beanie ODM is initialized during lifespan."""
         # app fixture runs lifespan which initializes Beanie
@@ -58,16 +57,12 @@ class TestLifespanInitialization:
         settings = UserDocument.get_settings()
         assert settings.name == "users"
 
-    @pytest.mark.asyncio
-    async def test_redis_connected(self, scope: AsyncContainer) -> None:
+    async def test_redis_connected(self, redis_client: redis.Redis) -> None:
         """Redis client is connected during lifespan."""
-        redis_client = await scope.get(aioredis.Redis)
         # Should be able to ping
         pong = await redis_client.ping()
         assert pong is True
 
-    @pytest.mark.asyncio
-    async def test_sse_redis_bus_available(self, scope: AsyncContainer) -> None:
-        """SSE Redis bus is available after lifespan."""
-        bus = await scope.get(SSERedisBus)
-        assert bus is not None
+    async def test_sse_redis_bus_available(self, sse_redis_bus: SSERedisBus) -> None:
+        """SSE Redis sse_redis_bus is available after lifespan."""
+        assert sse_redis_bus is not None

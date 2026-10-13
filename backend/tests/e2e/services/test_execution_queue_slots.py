@@ -10,7 +10,7 @@ from app.core.metrics.queue import QueueMetrics
 from app.services.execution_queue import ExecutionQueueService, _user_key
 from app.settings import Settings
 
-pytestmark = [pytest.mark.e2e, pytest.mark.redis]
+pytestmark = [pytest.mark.e2e]
 
 
 @pytest.fixture

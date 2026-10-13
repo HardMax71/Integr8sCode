@@ -1,10 +1,10 @@
 # CI/CD pipeline
 
-CI is ten GitHub Actions workflows, two composite actions and a Dependabot config. Three of the workflows form the release chain: Stack Tests builds and tests the images, Docker Scan & Promote scans them and moves `latest`, and Release & Deploy tags a CalVer release and deploys it. The first two run on every merge to `main`, so `latest` is always the newest build that passed both. Release & Deploy doesn't follow them: it runs once a day at 23:00 Europe/Berlin, or by hand, and releases whatever `latest` is then. A manual run of Docker Scan & Promote or Release & Deploy starts partway along the chain, without the steps before it.
+CI is six GitHub Actions workflows, two composite actions and a Dependabot config. Three of the workflows form the release chain: CI checks the code and builds and tests the images, Docker Scan & Promote scans them and moves `latest`, and Release & Deploy tags a CalVer release and deploys it. The first two run on every merge to `main`, so `latest` is always the newest build that passed both. Release & Deploy doesn't follow them: it runs once a day at 23:00 Europe/Berlin, or by hand, and releases whatever `latest` is then. A manual run of Docker Scan & Promote or Release & Deploy starts partway along the chain, without the steps before it.
 
 ```mermaid
 graph LR
-    subgraph ST["Stack Tests"]
+    subgraph ST["CI"]
         UB["backend unit + Grafana contract"] --> Build["build and push 4 images"]
         UF["frontend unit"] --> Build
         Build --> EB["backend E2E"]
@@ -24,35 +24,46 @@ graph LR
 
 | Workflow                       | File                   | Runs on                                                                 |
 |--------------------------------|------------------------|-------------------------------------------------------------------------|
-| Stack Tests                    | stack-tests.yml      | push to `main`, tags `v*`, PRs to `main`, when backend, frontend, cert-generator, compose, deploy.sh, stack-tests.yml or the composite actions change; manual |
-| Docker Scan & Promote          | docker.yml           | after Stack Tests completes; manual with an optional SHA                |
+| CI                             | ci.yml               | push to `main` and tags `v*` (every job); PRs to `main` (the jobs whose files changed); manual |
+| Docker Scan & Promote          | docker.yml           | after CI completes; manual with an optional SHA                         |
 | Release & Deploy               | release-deploy.yml   | daily at 23:00 Europe/Berlin; manual on `main` with `skip_deploy`       |
-| Ruff Linting                   | ruff.yml             | push and PRs to `main`; manual                                          |
-| MyPy Type Checking             | mypy.yml             | push and PRs to `main`; manual                                          |
-| Dead Code Detection            | grimp.yml            | push and PRs to `main`; manual                                          |
-| Security Scanning              | security.yml         | push and PRs to `main`; manual                                          |
-| SBOM & Supply Chain Security   | sbom-compliance.yml  | push and PRs to `main`; Sundays at midnight                             |
-| Frontend CI                    | frontend-ci.yml      | push and PRs to `main` touching `frontend/`; manual                     |
-| docs                           | docs.yml             | push and PRs to `main` touching `docs/`, mkdocs.yml or the workflow; manual |
-| Generated API                  | generated-api.yml    | push and PRs to `main`; manual                                          |
+| SBOM & Supply Chain Security   | sbom-compliance.yml  | push to `main`; PRs to `main` that change a dependency manifest; Sundays at midnight |
 | Labels                         | labels.yml           | PRs opened or updated (`pull_request_target`), issues opened or edited  |
 | Label Sync                     | label-sync.yml       | push and PRs to `main` touching the label files or issue forms; Mondays at 03:00; manual |
 
-The lint workflows are one job each. Ruff runs `ruff check`. MyPy runs `mypy --strict` with `SECRET_KEY` from the `TEST_SECRET_KEY` secret. Grimp runs `python -m scripts.check_orphan_modules`, which fails on any module nothing imports except `app.main` and `__init__.py` files that hold only a docstring. Security Scanning runs `uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/ -ll`. Bandit parses with the Python it runs on, so on anything older it skips the files that use 3.14 syntax such as `except A, B:` without failing. Frontend CI runs ESLint, Stylelint, the Prettier check, `svelte-check --fail-on-warnings` and a production build. The SBOM workflow generates SPDX SBOMs for backend and frontend with `anchore/sbom-action`, scans them with Grype through `anchore/scan-action` (cutoff `high`, `fail-build: false`) and uploads SARIF to the Security tab.
+Besides the tests, CI runs one job per check. Ruff runs `ruff check`. MyPy runs `mypy --strict` with `SECRET_KEY` from the `TEST_SECRET_KEY` secret. Grimp runs `python -m scripts.check_orphan_modules`, which fails on any module nothing imports except `app.main` and `__init__.py` files that hold only a docstring. Security Scanning runs `uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/ -ll`. Bandit parses with the Python it runs on, so on anything older it skips the files that use 3.14 syntax such as `except A, B:` without failing. The frontend job runs ESLint, Stylelint, the Prettier check, `svelte-check --fail-on-warnings` and a production build. The SBOM workflow generates SPDX SBOMs for backend and frontend with `anchore/sbom-action`, scans them with Grype through `anchore/scan-action` (cutoff `high`, `fail-build: false`) and uploads SARIF to the Security tab.
 
-The docs workflow installs the backend dependencies, runs `./deploy.sh openapi`, builds with `mkdocs build --strict` and deploys to GitHub Pages on pushes to `main`.
+The docs job installs the backend dependencies, runs `./deploy.sh openapi` and builds with `mkdocs build --strict`. On pushes to `main`, Deploy Docs publishes the result to GitHub Pages.
 
 Labels adds `area:` labels. On a PR, `actions/labeler` matches the changed paths against `.github/labeler.yml`; it runs on `pull_request_target` so fork PRs can be labeled too, and it never checks out the PR's code. On an issue, `github/issue-labeler` matches the Component answer of the issue form against `.github/issue-labeler.yml` and adds the label. It never removes one, so labels added by hand stay.
 
 Label Sync keeps labels as code. `.github/labels.yml` lists every label in the repo, and `crazy-max/ghaction-github-labeler` makes the repo match it: it creates and updates labels, renames one that has `from_name`, and deletes any label the file doesn't list, which also takes it off every issue. On a PR it only prints what it would change. Before that, a `yq` step fails the run when `.github/labeler.yml`, `.github/issue-labeler.yml` or an issue form uses a label the file doesn't declare. A new area needs its label in `.github/labels.yml`, a path rule in `.github/labeler.yml`, an option in both issue forms and a pattern in `.github/issue-labeler.yml`.
 
-Generated API enforces that `docs/reference/openapi.json` and `frontend/src/lib/api/` only ever come from the generators. It runs `./deploy.sh openapi` and `npm run generate:api` on the checked-out code and fails if either leaves a difference, which catches a hand edit and a spec or client someone forgot to regenerate.
+The `Spec and client match the code` job enforces that `docs/reference/openapi.json` and `frontend/src/lib/api/` only ever come from the generators. It runs `./deploy.sh openapi` and `npm run generate:api` on the checked-out code and fails if either leaves a difference, which catches a hand edit and a spec or client someone forgot to regenerate.
 
-## Stack Tests
+## Pull requests and merging
+
+CI is the only workflow a PR has to pass, and it runs only what the PR can affect. Its first job, Changed Areas, runs `dorny/paths-filter` on the PR's files:
+
+| Changed                                                         | Jobs                                                                 |
+|-----------------------------------------------------------------|----------------------------------------------------------------------|
+| `backend/`                                                      | ruff, mypy, grimp, bandit, backend unit tests                        |
+| `frontend/`                                                     | frontend lint and type check, frontend unit tests                    |
+| `backend/`, `frontend/`, cert-generator, compose, deploy.sh or the composite actions | the images and frontend E2E; backend E2E unless only `frontend/` changed |
+| `backend/`, the spec, the generated client or its generator config | Spec and client match the code                                    |
+| `docs/`, mkdocs.yml, or `backend/` and `frontend/`, since the docs include snippets of them | Docs Build                                  |
+
+A change to ci.yml itself runs every job, and so does every push to `main`. The last job, All checks pass, runs `re-actors/alls-green` over the others: a job skipped because its files didn't change counts as passed, and a failed or cancelled one fails it. FastAPI, pydantic and CPython gate their PRs the same way. All checks pass is the one required status check, so a PR that only touches the docs waits for the docs build and nothing else, and a new job only needs adding to its `needs`.
+
+The `integr8scode_main` ruleset protects `main`: changes arrive through a PR, merged by squash only; `main` can't be force-pushed or deleted; and All checks pass from GitHub Actions has to succeed. Nobody can bypass it, admins included, so the merge box never offers to merge before the checks pass. Auto-merge is on: enable it on a PR (`gh pr merge --auto --squash`, or the button) and GitHub merges it once All checks pass. Merged branches are deleted, and a PR that was based on one moves to `main`.
+
+Stacked PRs come from `gh stack`. CI runs for every PR in a stack, each against the PR below it, and `main`'s rules apply to every one of them. `gh stack merge` lands a stack, or its lower part, in one step once those PRs pass; GitHub then rebases the PRs above onto `main`. Auto-merge doesn't cover stacks yet.
+
+## Tests and images
 
 The backend unit job installs with `uv sync --frozen --group test --no-dev --no-install-project --no-build` and runs `pytest tests/unit` with coverage. The pytest config adds `-n auto --dist=loadgroup`, so tests run in parallel with xdist and tests that share a group stay on one worker. The same job then runs the [Grafana contract tests](../testing/contract-testing.md) with `pytest tests/contract -m grafana_contract`. The frontend unit job runs `npm ci --ignore-scripts` and `npm run test:coverage`. Coverage goes to Codecov with the flags `backend-unit`, `frontend-unit` and later `backend-e2e`.
 
-Once both pass, one job builds the four images and pushes them to GHCR as `sha-<7 chars>`:
+Once both pass, or are skipped because only one side changed, one job builds the four images and pushes them to GHCR as `sha-<7 chars>`:
 
 | Image            | Dockerfile                  | Build                                                         |
 |------------------|-----------------------------|---------------------------------------------------------------|
@@ -75,11 +86,11 @@ The backend E2E job runs `pytest tests/e2e` inside the backend container after `
 
 ## Docker Scan & Promote
 
-The jobs run only when Stack Tests succeeded on `main`, or on a manual run. A matrix scans `base`, `backend`, `frontend` and `cert-generator` with Trivy v0.75.0 (`CRITICAL,HIGH`, unfixed ignored, `backend/.trivyignore`) and uploads SARIF to the Security tab. A finding fails the scan job, and `promote` needs every scan to pass, so an image with a fixable `CRITICAL` or `HIGH` vulnerability never becomes `latest`. `limit-severities-for-sarif` keeps the SARIF to those two levels; without it the action drops the severity filter for SARIF and the gate would trip on everything. The promote job then copies each `sha-` tag to `latest` with `crane copy`, a registry-side manifest copy with no rebuild.
+The jobs run only when CI succeeded on `main`, or on a manual run. A matrix scans `base`, `backend`, `frontend` and `cert-generator` with Trivy v0.75.0 (`CRITICAL,HIGH`, unfixed ignored, `backend/.trivyignore`) and uploads SARIF to the Security tab. A finding fails the scan job, and `promote` needs every scan to pass, so an image with a fixable `CRITICAL` or `HIGH` vulnerability never becomes `latest`. `limit-severities-for-sarif` keeps the SARIF to those two levels; without it the action drops the severity filter for SARIF and the gate would trip on everything. The promote job then copies each `sha-` tag to `latest` with `crane copy`, a registry-side manifest copy with no rebuild.
 
 ## Release & Deploy
 
-The release job first finds the commit `latest` was built from, by matching the digest of `backend:latest` against the `sha-` tags of the last 100 commits on `main`. That commit can be behind `main`'s head when a later merge is still in Stack Tests or failed it. If the commit already has a CalVer tag, nothing new passed since the last release: a scheduled run stops there, and a manual run deploys that release again. Otherwise the job computes a CalVer version `YYYY.M.PATCH`, where `PATCH` is one more than the highest tag of the current month, starting at 0. It copies the commit's `sha-` images to that tag for all four images with crane, pushes an annotated git tag on that commit and creates a GitHub release with generated notes.
+The release job first finds the commit `latest` was built from, by matching the digest of `backend:latest` against the `sha-` tags of the last 100 commits on `main`. That commit can be behind `main`'s head when a later merge is still in CI or failed it. If the commit already has a CalVer tag, nothing new passed since the last release: a scheduled run stops there, and a manual run deploys that release again. Otherwise the job computes a CalVer version `YYYY.M.PATCH`, where `PATCH` is one more than the highest tag of the current month, starting at 0. It copies the commit's `sha-` images to that tag for all four images with crane, pushes an annotated git tag on that commit and creates a GitHub release with generated notes.
 
 The deploy job runs `appleboy/ssh-action` against the production server. It's skipped on a manual run with `skip_deploy`, and on a scheduled run with nothing new. What it runs on the server is in [Deployment](deployment.md#production).
 
@@ -96,8 +107,8 @@ The deploy job runs `appleboy/ssh-action` against the production server. It's sk
 | `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD` | Release & Deploy            | Grafana admin login                         |
 | `MAILJET_HOST`, `MAILJET_API_KEY`, `MAILJET_SECRET_KEY`, `MAILJET_FROM_ADDRESS` | Release & Deploy | Grafana alert mail over SMTP |
 | `GRAFANA_ALERT_RECIPIENTS`                     | Release & Deploy            | who gets alert mail                         |
-| `CODECOV_TOKEN`                                | Stack Tests                 | coverage upload                             |
-| `TEST_SECRET_KEY`                              | MyPy Type Checking          | exported as `SECRET_KEY` for the mypy step |
+| `CODECOV_TOKEN`                                | CI                          | coverage upload                             |
+| `TEST_SECRET_KEY`                              | CI                          | exported as `SECRET_KEY` for the mypy step |
 
 Compose falls back to public defaults for `SECRET_KEY`, the MongoDB and Redis credentials, the monitor password and the two account passwords, so the deploy script stops before it touches the server when any of those secrets is empty.
 

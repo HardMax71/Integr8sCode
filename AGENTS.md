@@ -635,7 +635,7 @@ Use `interface` for object shapes, `type` for unions/intersections/aliases. Defi
 
 ## Frontend: API Client
 
-Hard rule: `docs/reference/openapi.json` and everything under `frontend/src/lib/api/` come from the generators only. Never edit them by hand, not even a one-line fix; change the backend (routes, schemas) and regenerate. The Generated API workflow regenerates both from the code on every PR and fails on any difference, so a hand edit can't merge.
+Hard rule: `docs/reference/openapi.json` and everything under `frontend/src/lib/api/` come from the generators only. Never edit them by hand, not even a one-line fix; change the backend (routes, schemas) and regenerate. CI's `Spec and client match the code` job regenerates both on every PR that touches the backend, the spec or the client, and fails on any difference, so a hand edit can't merge.
 
 `npm run generate:api` reads `../docs/reference/openapi.json`, and `./deploy.sh types` regenerates the spec only when that file is missing. After any backend API change, regenerate the spec first:
 ```bash
@@ -855,6 +855,8 @@ npm run test:coverage   # Vitest with coverage thresholds
 ./deploy.sh openapi && (cd frontend && npm run generate:api)
 git status --porcelain -- docs/reference/openapi.json frontend/src/lib/api
 ```
+
+On GitHub every check above is a job of `.github/workflows/ci.yml` that runs only when its files changed (`dorny/paths-filter`), and `All checks pass` (`re-actors/alls-green`) is the one required check on `main`, with no bypass for anyone. A new CI job goes into that job's `needs` and `allowed-skips`. Open a PR with auto-merge on (`gh pr merge --auto --squash`); a stack from `gh stack` lands with `gh stack merge` once every PR in it passes, since auto-merge doesn't cover stacks yet.
 
 CI also runs the backend E2E suite and Playwright against a k3s stack, plus bandit and image scans. The grimp check (`backend/scripts/check_orphan_modules.py`) fails on any module in `app` that no other module imports. It skips `app.main`, the only whitelisted entry point, and `__init__.py` files that hold nothing but a docstring.
 

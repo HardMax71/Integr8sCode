@@ -3,8 +3,15 @@ name: SBOM & Supply Chain Security
 on:
   push:
     branches: [ main ]
+  # Report-only and not required, so a path filter is fine: a PR scans only when it changes dependencies
   pull_request:
     branches: [ main ]
+    paths:
+      - 'backend/pyproject.toml'
+      - 'backend/uv.lock'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      - '.github/workflows/sbom-compliance.yml'
   schedule:
     - cron: '0 0 * * 0'  # Run weekly on Sundays
 

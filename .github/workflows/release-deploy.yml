@@ -45,7 +45,7 @@ jobs:
       - name: Install crane
         uses: imjasonh/setup-crane@feee3b6bb0d4c68370f256a4502498c9227e5c6b  # v0.7
 
-      # latest is the newest build that passed Stack Tests and the scan, which can be behind main's head
+      # latest is the newest build that passed CI and the scan, which can be behind main's head
       - name: Find the commit latest was built from
         id: sha
         run: |

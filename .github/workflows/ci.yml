@@ -1,28 +1,21 @@
-name: Stack Tests
+name: CI
 
+# One workflow for every check, the way FastAPI, pydantic and CPython run theirs: on a PR the changes job decides what
+# runs, and the last job, alls-green, is the one required status check. Pushes to main run everything.
 on:
   push:
     branches: [main]
     tags: ['v*']
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'cert-generator/**'
-      - 'docker-compose.yaml'
-      - 'deploy.sh'
-      - '.github/workflows/stack-tests.yml'
-      - '.github/actions/**'
   pull_request:
     branches: [main]
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'cert-generator/**'
-      - 'docker-compose.yaml'
-      - 'deploy.sh'
-      - '.github/workflows/stack-tests.yml'
-      - '.github/actions/**'
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   REGISTRY: ghcr.io
@@ -32,9 +25,294 @@ env:
   KUEUE_MANIFEST_SHA256: c48514295365aae0c7dc578c70330befdd0015fec57cb4a06ba872bbef8750dd
 
 jobs:
+  changes:
+    name: Changed Areas
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ github.event_name != 'pull_request' || steps.filter.outputs.backend == 'true' }}
+      frontend: ${{ github.event_name != 'pull_request' || steps.filter.outputs.frontend == 'true' }}
+      infra: ${{ github.event_name != 'pull_request' || steps.filter.outputs.infra == 'true' }}
+      api: ${{ github.event_name != 'pull_request' || steps.filter.outputs.api == 'true' }}
+      docs: ${{ github.event_name != 'pull_request' || steps.filter.outputs.docs == 'true' }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            workflow: &workflow
+              - '.github/workflows/ci.yml'
+            backend:
+              - *workflow
+              - 'backend/**'
+            frontend:
+              - *workflow
+              - 'frontend/**'
+            infra:
+              - *workflow
+              - 'cert-generator/**'
+              - 'docker-compose.yaml'
+              - 'deploy.sh'
+              - '.github/actions/**'
+            api:
+              - *workflow
+              - 'backend/**'
+              - 'deploy.sh'
+              - 'docs/reference/openapi.json'
+              - 'frontend/src/lib/api/**'
+              - 'frontend/openapi-ts.config.ts'
+              - 'frontend/package.json'
+              - 'frontend/package-lock.json'
+            # The docs include snippets of backend and frontend files and build the spec from the backend
+            docs:
+              - *workflow
+              - 'docs/**'
+              - 'mkdocs.yml'
+              - 'backend/**'
+              - 'frontend/**'
+              - 'docker-compose.yaml'
+              - 'deploy.sh'
+
+  ruff:
+    name: Ruff Linting
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Install Python and dependencies
+        run: |
+          cd backend
+          uv python install 3.14
+          uv sync --frozen --group lint --no-dev --no-install-project --no-build
+
+      - name: Run ruff
+        run: |
+          cd backend
+          uv run --no-sync --no-build ruff check . --config pyproject.toml
+
+  mypy:
+    name: Mypy Type Checking
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Install Python and dependencies
+        run: |
+          cd backend
+          uv python install 3.14
+          uv sync --frozen --group lint --group test --no-dev --no-install-project --no-build
+
+      - name: Run mypy
+        env:
+          SECRET_KEY: ${{ secrets.TEST_SECRET_KEY }}
+        run: |
+          cd backend
+          uv run --no-sync --no-build mypy --config-file pyproject.toml --strict .
+
+  grimp:
+    name: Grimp Orphan Module Check
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Install Python and dependencies
+        run: |
+          cd backend
+          uv python install 3.14
+          uv sync --frozen --group lint --no-dev --no-install-project --no-build
+
+      - name: Run grimp orphan module check
+        run: |
+          cd backend
+          uv run --no-sync --no-build python -m scripts.check_orphan_modules
+
+  security:
+    name: Security Scanning
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Run bandit
+        run: uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/ -ll
+
+  frontend:
+    name: Frontend Lint & Type Check
+    needs: [changes]
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: '26'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+
+      - name: Run ESLint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Run Stylelint
+        working-directory: frontend
+        run: npm run stylelint
+
+      - name: Check formatting (Prettier)
+        working-directory: frontend
+        run: npm run format:check
+
+      - name: Run svelte-check
+        working-directory: frontend
+        run: npm run check
+
+      - name: Verify production build
+        working-directory: frontend
+        run: npm run build
+
+  generated-api:
+    name: Spec and client match the code
+    needs: [changes]
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          uv python install 3.14
+          uv sync --frozen --no-dev --no-install-project --no-build
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: '26'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+
+      - name: Regenerate the spec and the client
+        run: |
+          ./deploy.sh openapi
+          cd frontend && npm run generate:api
+
+      - name: Fail on any difference
+        run: |
+          changes=$(git status --porcelain -- docs/reference/openapi.json frontend/src/lib/api)
+          if [ -n "$changes" ]; then
+            echo "::error::docs/reference/openapi.json and frontend/src/lib/api must come from the generators, never from hand edits. Run ./deploy.sh openapi, then ./deploy.sh types, and commit the result."
+            echo "$changes"
+            git diff --stat -- docs/reference/openapi.json frontend/src/lib/api
+            exit 1
+          fi
+
+  docs:
+    name: Docs Build
+    needs: [changes]
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          enable-cache: true
+
+      - name: Install backend dependencies
+        run: cd backend && uv sync --frozen --no-dev --no-install-project --no-build
+
+      - name: Generate OpenAPI spec
+        run: ./deploy.sh openapi
+
+      - name: Build documentation
+        run: >-
+          uvx --no-build --from mkdocs==1.6.1
+          --with mkdocs-material==9.7.7
+          --with mkdocs-mermaid2-plugin==1.2.3
+          --with mkdocs-swagger-ui-tag==0.8.1
+          mkdocs build --strict
+
+      - name: Upload artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9  # v5.0.0
+        with:
+          path: site/
+
+  docs-deploy:
+    name: Deploy Docs
+    needs: [docs]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346  # v5.0.1
+
   # Fast unit tests (no infrastructure needed)
   backend-unit:
     name: Backend Unit Tests
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -79,6 +357,8 @@ jobs:
 
   frontend-unit:
     name: Frontend Unit Tests
+    needs: [changes]
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -112,7 +392,12 @@ jobs:
   # Fork PRs skip GHCR push (no write access) — E2E tests require pushed images.
   build-images:
     name: Build & Push Images
-    needs: [backend-unit, frontend-unit]
+    needs: [changes, backend-unit, frontend-unit]
+    # Runs when a unit job passed or was skipped, not after a failure
+    if: >-
+      !cancelled() && !failure() &&
+      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true' ||
+      needs.changes.outputs.infra == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -230,8 +515,10 @@ jobs:
   # Parallel E2E test jobs — compose pulls from GHCR using IMAGE_TAG
   backend-e2e:
     name: Backend E2E Tests
-    needs: [build-images]
-    if: ${{ !github.event.pull_request.head.repo.fork }}
+    needs: [changes, build-images]
+    if: >-
+      !github.event.pull_request.head.repo.fork &&
+      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.infra == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -379,3 +666,31 @@ jobs:
         with:
           name: frontend-e2e-logs-${{ matrix.shardIndex }}
           path: logs/
+
+  # https://github.com/marketplace/actions/alls-green#why: the one required check, so a job skipped because its files
+  # didn't change counts as passed, while a failed or cancelled one fails it
+  check:
+    name: All checks pass
+    if: always()
+    needs:
+      - changes
+      - ruff
+      - mypy
+      - grimp
+      - security
+      - frontend
+      - generated-api
+      - docs
+      - backend-unit
+      - frontend-unit
+      - build-images
+      - backend-e2e
+      - frontend-e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35  # v1.3.0
+        with:
+          allowed-skips: >-
+            ruff, mypy, grimp, security, frontend, generated-api, docs,
+            backend-unit, frontend-unit, build-images, backend-e2e, frontend-e2e
+          jobs: ${{ toJSON(needs) }}

@@ -1,13 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { user } from '#test/test-utils.ts';
 import FilterPanelWrapper from './FilterPanelWrapper.svelte';
 
 describe('FilterPanel', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
     describe('toggle button', () => {
         it('renders toggle button by default', () => {
             render(FilterPanelWrapper);

@@ -1,17 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
+import * as z from 'zod/mini';
 import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { toast } from 'svelte-sonner';
 import * as navigation from '$app/navigation';
 import Register from '#routes/register/+page.svelte';
 
-import { registerApiV1AuthRegisterPost } from '#lib/api/index.ts';
+import { registerApiV1AuthRegisterPost, zUserCreate } from '#lib/api/index.ts';
 import { queryClient } from '#lib/query-client.ts';
 
 describe('Register', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
         mockApi(registerApiV1AuthRegisterPost).ok(fakeUserResponse());
     });
 
@@ -46,7 +46,7 @@ describe('Register', () => {
             password: 'short',
             confirmPassword: 'short',
             field: 'Password',
-            expectedError: 'Must be at least 8 characters',
+            expectedError: `Must be at least ${z.toJSONSchema(zUserCreate.shape.password).minLength} characters`,
         },
     ])('shows $name under the field and sends nothing', async ({ password, confirmPassword, field, expectedError }) => {
         await renderRegister();
@@ -81,15 +81,13 @@ describe('Register', () => {
         await user.type(screen.getByPlaceholderText('Confirm Password'), 'securepass');
         await user.click(screen.getByRole('button', { name: /create account/i }));
 
-        await waitFor(() => {
-            expect(vi.mocked(registerApiV1AuthRegisterPost)).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    body: { username: 'newuser', email: 'new@email.com', password: 'securepass' },
-                }),
-            );
-        });
+        await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/login'));
+        expect(vi.mocked(registerApiV1AuthRegisterPost)).toHaveBeenCalledWith(
+            expect.objectContaining({
+                body: { username: 'newuser', email: 'new@email.com', password: 'securepass' },
+            }),
+        );
         expect(toast.success).toHaveBeenCalledWith('Registration successful! Please log in.');
-        expect(navigation.goto).toHaveBeenCalledWith('/login');
     });
 
     it('shows the API error inline and opts out of the global toasts', async () => {

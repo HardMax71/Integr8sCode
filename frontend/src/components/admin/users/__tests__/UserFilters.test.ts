@@ -1,20 +1,19 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { proxy } from 'svelte/internal/client';
-import { user, selectOption } from '#test/test-utils.ts';
+import { user } from '#test/test-utils.ts';
 import UserFilters, { type UserListFilters } from '#components/admin/users/UserFilters.svelte';
 import { UserRole } from '#lib/api/index.ts';
 
 function renderFilters(overrides: Record<string, unknown> = {}) {
     const onReset = vi.fn();
-    const filters = proxy<UserListFilters>({
+    const filters: UserListFilters = {
         search: null,
         role: null,
         is_active: null,
         bypass_rate_limit: null,
         has_custom_limits: null,
         custom_multiplier: null,
-    });
+    };
     const result = render(UserFilters, {
         props: {
             filters,
@@ -28,8 +27,6 @@ function renderFilters(overrides: Record<string, unknown> = {}) {
 }
 
 describe('UserFilters', () => {
-    beforeEach(() => vi.clearAllMocks());
-
     it.each(['Search', 'Role', 'Is Active'])('renders the %s filter', (label) => {
         renderFilters();
         expect(screen.getByLabelText(label)).toBeInTheDocument();
@@ -95,9 +92,9 @@ describe('UserFilters', () => {
         ['Has Custom Limits', 'has_custom_limits', 'true', true],
         ['Custom Multiplier', 'custom_multiplier', 'false', false],
         ['Role', 'role', 'admin', 'admin'],
-    ] as const)('writes the %s choice to filters.%s', (label, key, option, value) => {
+    ] as const)('writes the %s choice to filters.%s', async (label, key, option, value) => {
         const { filters } = renderFilters({ showAdvancedFilters: true });
-        selectOption(screen.getByLabelText(label), option);
+        await user.selectOptions(screen.getByLabelText(label), option);
         expect(filters[key]).toBe(value);
     });
 });

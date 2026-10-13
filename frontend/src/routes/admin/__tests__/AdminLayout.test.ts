@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
 import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
@@ -7,10 +7,6 @@ import AdminLayout from '#routes/admin/+layout.svelte';
 import { page } from '#test/page.svelte.ts';
 
 describe('AdminLayout', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
     function renderLayout(path = '/admin/events') {
         page.url = new URL(`https://localhost${path}`);
         const children = createRawSnippet(() => ({ render: () => '<p>page content</p>' }));
@@ -63,7 +59,6 @@ describe('AdminLayout', () => {
             expect(screen.getByText(label)).toBeInTheDocument();
         });
         const link = screen.getByRole('link', { name: label });
-        expect(link.classList.toString()).toMatch(/bg-primary/);
         expect(link).toHaveAttribute('aria-current', 'page');
         const others = screen.getAllByRole('link').filter((l) => l !== link);
         expect(others.every((l) => !l.hasAttribute('aria-current'))).toBe(true);

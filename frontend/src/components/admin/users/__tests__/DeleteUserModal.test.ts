@@ -1,24 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
 import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
-import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
+import { fakeDeleteUserResponse, fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { deleteUserApiV1AdminUsersUserIdDelete } from '#lib/api/index.ts';
 import DeleteUserModal from '#components/admin/users/DeleteUserModal.svelte';
-
-vi.mock('#components/Spinner.svelte', async () => {
-    const utils = await import('#test/test-utils.ts');
-    return { default: utils.createMockNamedComponents({ default: '<span data-testid="spinner">...</span>' }).default };
-});
-
-const DELETED = {
-    user_deleted: true,
-    executions: 0,
-    saved_scripts: 0,
-    notifications: 0,
-    user_settings: 0,
-    events: 0,
-    sagas: 0,
-};
 
 function renderModal() {
     const onClose = vi.fn();
@@ -31,8 +16,7 @@ function renderModal() {
 
 describe('DeleteUserModal', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
-        mockApi(deleteUserApiV1AdminUsersUserIdDelete).ok(DELETED);
+        mockApi(deleteUserApiV1AdminUsersUserIdDelete).ok(fakeDeleteUserResponse());
     });
 
     it('shows username in confirmation message', () => {
@@ -75,7 +59,7 @@ describe('DeleteUserModal', () => {
 
         expect(await screen.findByText('Deleting...')).toBeInTheDocument();
         expect(screen.getByText('Cancel')).toBeDisabled();
-        expect(screen.getByText('Deleting...').closest('button')).toBeDisabled();
+        expect(screen.getByRole('button', { name: /Deleting/ })).toBeDisabled();
     });
 
     it('calls onClose when Cancel button clicked', async () => {

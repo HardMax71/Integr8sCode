@@ -1,12 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { user } from '#test/test-utils.ts';
 import AutoRefreshControl from '#components/admin/AutoRefreshControl.svelte';
-
-vi.mock('#components/Spinner.svelte', async () => {
-    const utils = await import('#test/test-utils.ts');
-    return { default: utils.createMockNamedComponents({ default: '<span data-testid="spinner">...</span>' }).default };
-});
 
 function renderControl(overrides: Record<string, unknown> = {}) {
     const onRefresh = vi.fn();
@@ -27,8 +22,6 @@ function renderControl(overrides: Record<string, unknown> = {}) {
 }
 
 describe('AutoRefreshControl', () => {
-    beforeEach(() => vi.clearAllMocks());
-
     it('renders auto-refresh checkbox', () => {
         renderControl();
         expect(screen.getByText('Auto-refresh')).toBeInTheDocument();
@@ -51,8 +44,7 @@ describe('AutoRefreshControl', () => {
         [true, 'Refreshing...', true],
     ] as const)('when loading=%s: shows "%s" button, disabled=%s', (loading, text, disabled) => {
         renderControl({ loading });
-        const btn = screen.getByText(text).closest('button')!;
-        expect(btn).toBeInTheDocument();
+        const btn = screen.getByRole('button', { name: new RegExp(text) });
         if (disabled) expect(btn).toBeDisabled();
         else expect(btn).toBeEnabled();
     });

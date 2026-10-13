@@ -1,12 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import Home from '#routes/+page.svelte';
 
 describe('Home', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
     function renderHome() {
         return render(Home);
     }

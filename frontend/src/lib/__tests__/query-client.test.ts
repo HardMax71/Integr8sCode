@@ -7,7 +7,6 @@ describe('queryClient', () => {
     const handler = vi.fn();
 
     beforeEach(() => {
-        handler.mockReset();
         setQueryErrorHandler(handler);
     });
 

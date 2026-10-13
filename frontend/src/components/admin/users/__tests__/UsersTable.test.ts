@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/svelte';
 import { user } from '#test/test-utils.ts';
 import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { UserRole } from '#lib/api/index.ts';
+import { fieldTitle } from '#lib/formatters.ts';
 import UsersTable from '#components/admin/users/UsersTable.svelte';
 
 vi.mock('#lib/formatters.ts', async (importOriginal) => ({
@@ -30,8 +31,6 @@ function renderTable(props: Record<string, unknown> = {}) {
 }
 
 describe('UsersTable', () => {
-    beforeEach(() => vi.clearAllMocks());
-
     it('shows loading text when loading', () => {
         renderTable({ loading: true });
         expect(screen.getByText('Loading users...')).toBeInTheDocument();
@@ -48,16 +47,15 @@ describe('UsersTable', () => {
         expect(screen.queryByText('No users found matching filters')).not.toBeInTheDocument();
     });
 
-    it.each(['Username', 'Email', 'Role', 'Created At', 'Is Active', 'Actions'])('renders the %s header', (header) => {
+    it.each(['username', 'email', 'role', 'created_at', 'is_active', 'actions'])('renders the %s header', (key) => {
         renderTable({ users: [fakeUserResponse()] });
-        expect(screen.getByRole('columnheader', { name: header })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: fieldTitle(key) })).toBeInTheDocument();
     });
 
-    it('renders one row per user in desktop table', () => {
+    it('renders one row per user in desktop table, under the header row', () => {
         const users = Array.from({ length: 3 }, () => fakeUserResponse());
-        const { container } = renderTable({ users });
-        const rows = container.querySelectorAll('tbody tr');
-        expect(rows).toHaveLength(3);
+        renderTable({ users });
+        expect(within(screen.getByRole('table', { name: 'Users' })).getAllByRole('row')).toHaveLength(1 + users.length);
     });
 
     it('renders a card for each user for narrow screens', () => {

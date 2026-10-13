@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/svelte';
 import { EventType } from '#lib/api/index.ts';
 import EventTypeIcon from '#components/EventTypeIcon.svelte';
@@ -7,10 +7,6 @@ const iconOf = (eventType: EventType) =>
     render(EventTypeIcon, { props: { eventType } }).container.querySelector('svg')?.innerHTML;
 
 describe('EventTypeIcon', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
     describe('event types with their own icon', () => {
         it.each([
             EventType.EXECUTION_REQUESTED,

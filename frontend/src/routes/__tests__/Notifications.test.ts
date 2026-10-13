@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/svelte';
 import { mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
 import { fakeNotificationResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { toast } from 'svelte-sonner';
+import { queryClient } from '#lib/query-client.ts';
 import {
     deleteNotificationApiV1NotificationsNotificationIdDelete,
     getNotificationsApiV1NotificationsGet,
@@ -27,7 +28,6 @@ function setNotifications(notifications: NotificationResponse[], unreadCount = 0
 
 describe('Notifications', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
         setNotifications([]);
         mockApi(markNotificationReadApiV1NotificationsNotificationIdReadPut).ok();
         mockApi(markAllReadApiV1NotificationsMarkAllReadPost).ok();
@@ -109,6 +109,7 @@ describe('Notifications', () => {
             [5 * 60 * 60 * 1000, '5h ago'],
             [2 * 24 * 60 * 60 * 1000, '2d ago'],
         ])('formats %dms ago as "%s"', async (msAgo, expected) => {
+            vi.setSystemTime(new Date(2026, 0, 15, 12));
             setNotifications([
                 { ...fakeNotificationResponse(), created_at: new Date(Date.now() - msAgo).toISOString() },
             ]);
@@ -189,7 +190,8 @@ describe('Notifications', () => {
 
             renderNotifications();
             await user.click(await screen.findByRole('button', { name: /mark all as read/i }));
-            await waitFor(() => expect(markAllRead).toHaveBeenCalled());
+            await waitFor(() => expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+            expect(markAllRead).toHaveBeenCalled();
             expect(toast.success).not.toHaveBeenCalled();
         });
     });
@@ -215,7 +217,8 @@ describe('Notifications', () => {
 
             renderNotifications();
             await user.click(await screen.findByRole('button', { name: 'Delete notification' }));
-            await waitFor(() => expect(deleteNotification).toHaveBeenCalled());
+            await waitFor(() => expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+            expect(deleteNotification).toHaveBeenCalled();
             expect(toast.success).not.toHaveBeenCalled();
         });
 

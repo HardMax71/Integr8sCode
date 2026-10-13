@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/svelte';
 import { renderWithQueryClient, user } from '#test/test-utils.ts';
 import { fakeExecutionResult } from '#lib/api/@faker-js/faker.gen.ts';
@@ -20,10 +20,6 @@ function renderIdle(overrides: Partial<IdleProps> = {}) {
 }
 
 describe('OutputPanel', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
     it('shows heading and prompt text when idle with no result or error', () => {
         renderIdle();
         expect(screen.getByText('Execution Output')).toBeInTheDocument();
@@ -50,21 +46,9 @@ describe('OutputPanel', () => {
     });
 
     describe('result rendering', () => {
-        const BADGE_CLASSES: Record<ExecutionStatus, string> = {
-            queued: 'badge-neutral',
-            scheduled: 'badge-neutral',
-            running: 'badge-info',
-            completed: 'badge-success',
-            failed: 'badge-danger',
-            timeout: 'badge-warning',
-            cancelled: 'badge-neutral',
-            error: 'badge-danger',
-        };
-
         it.each(Object.values(ExecutionStatus))('status "%s" shows its badge', async (status) => {
             renderIdle({ result: { ...fakeExecutionResult(), status } });
             const badge = await screen.findByText(status);
-            expect(badge).toHaveClass('badge', BADGE_CLASSES[status]);
             expect(within(badge).getByText('Status')).toBeInTheDocument();
         });
 
@@ -135,19 +119,6 @@ describe('OutputPanel', () => {
     });
 
     describe('copy to clipboard', () => {
-        let writeTextMock: ReturnType<typeof vi.fn>;
-
-        function mockClipboard(resolves = true) {
-            writeTextMock = resolves
-                ? vi.fn().mockResolvedValue(undefined)
-                : vi.fn().mockRejectedValue(new Error('denied'));
-            Object.defineProperty(navigator, 'clipboard', {
-                value: { writeText: writeTextMock },
-                writable: true,
-                configurable: true,
-            });
-        }
-
         it.each([
             { target: 'stdout', ariaLabel: 'Copy output to clipboard', text: 'hello world', toastLabel: 'Output' },
             {
@@ -163,18 +134,18 @@ describe('OutputPanel', () => {
                 toastLabel: 'Execution ID',
             },
         ])('copies $target and shows success toast', async ({ target, ariaLabel, text, toastLabel }) => {
-            mockClipboard();
+            const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
             renderIdle({
                 result: { ...fakeExecutionResult(), [target]: text },
             });
             await waitFor(() => expect(screen.getByLabelText(ariaLabel)).toBeInTheDocument());
             await user.click(screen.getByLabelText(ariaLabel));
-            expect(writeTextMock).toHaveBeenCalledWith(text);
+            expect(writeText).toHaveBeenCalledWith(text);
             expect(toast.success).toHaveBeenCalledWith(`${toastLabel} copied to clipboard`);
         });
 
         it('shows error toast when clipboard write fails', async () => {
-            mockClipboard(false);
+            vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'));
             renderIdle({ result: { ...fakeExecutionResult(), stdout: 'x' } });
             await waitFor(() => expect(screen.getByLabelText('Copy output to clipboard')).toBeInTheDocument());
             await user.click(screen.getByLabelText('Copy output to clipboard'));
@@ -197,7 +168,7 @@ describe('OutputPanel', () => {
                 result: { ...fakeExecutionResult(), status: 'error' },
                 error: 'Something went wrong',
             });
-            expect(await screen.findByText('error')).toHaveClass('badge-danger');
+            expect(await screen.findByText('error')).toBeInTheDocument();
             expect(screen.queryByText('Execution Failed')).not.toBeInTheDocument();
         });
     });

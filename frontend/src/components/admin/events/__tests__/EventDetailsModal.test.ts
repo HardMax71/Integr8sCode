@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
 import { mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
 import { getEventDetailApiV1AdminEventsEventIdGet, type EventDetailResponse } from '#lib/api/index.ts';
+import { fieldTitle } from '#lib/formatters.ts';
 import {
     fakeEventDetailResponse,
     fakeEventSummary,
@@ -13,7 +14,12 @@ import EventDetailsModal from '#components/admin/events/EventDetailsModal.svelte
 function renderModal(
     detail: EventDetailResponse = {
         ...fakeEventDetailResponse(),
-        event: { ...fakeExecutionCompletedEvent(), event_id: 'evt-1', aggregate_id: 'exec-456' },
+        event: {
+            ...fakeExecutionCompletedEvent(),
+            event_id: 'evt-1',
+            aggregate_id: 'exec-456',
+            timestamp: '2024-06-15T14:30:00Z',
+        },
         related_events: [
             { ...fakeEventSummary(), event_id: 'rel-1', event_type: 'execution_started' },
             { ...fakeEventSummary(), event_id: 'rel-2', event_type: 'pod_created' },
@@ -29,10 +35,6 @@ function renderModal(
 }
 
 describe('EventDetailsModal', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
     it('loads the event by its id', async () => {
         renderModal();
         await waitFor(() =>
@@ -59,14 +61,18 @@ describe('EventDetailsModal', () => {
         expect(await screen.findByText('Basic Information')).toBeInTheDocument();
     });
 
-    it.each([
-        { term: 'Event Id', value: 'evt-1' },
-        { term: 'Event Type', value: 'execution_completed' },
-        { term: 'Aggregate Id', value: 'exec-456' },
-    ])('displays $term with value "$value"', async ({ term, value }) => {
+    it('lists each field of the event next to its value', async () => {
         renderModal();
-        const dt = await screen.findByText(term, { selector: 'dt' });
-        expect(dt.nextElementSibling).toHaveTextContent(value);
+        await screen.findByText('Basic Information');
+        expect(screen.getAllByRole('term').map((term) => term.textContent)).toEqual(
+            ['event_id', 'event_type', 'timestamp', 'aggregate_id'].map(fieldTitle),
+        );
+        expect(screen.getAllByRole('definition').map((definition) => definition.textContent?.trim())).toEqual([
+            'evt-1',
+            'execution_completed',
+            'Jun 15, 2024, 02:30:00 PM',
+            'exec-456',
+        ]);
     });
 
     it('shows full event JSON in pre block', async () => {

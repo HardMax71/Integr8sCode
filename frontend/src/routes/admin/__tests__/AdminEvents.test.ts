@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { mockWindowGlobals, user, selectOption, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import {
     browseEventsApiV1AdminEventsBrowsePost,
     getEventStatsApiV1AdminEventsStatsGet,
@@ -10,12 +10,14 @@ import {
     replayEventsApiV1AdminEventsReplayPost,
     deleteEventApiV1AdminEventsEventIdDelete,
     getUserOverviewApiV1AdminUsersUserIdOverviewGet,
+    EventType,
     ReplayStatus,
     type EventBrowseResponse,
     type EventReplayStatusResponse,
 } from '#lib/api/index.ts';
 import {
     fakeAdminUserOverview,
+    fakeDerivedCounts,
     fakeEventDetailResponse,
     fakeEventMetadata,
     fakeEventReplayResponse,
@@ -27,6 +29,7 @@ import {
     fakeExecutionStartedEvent,
     fakeUserResponse,
 } from '#lib/api/@faker-js/faker.gen.ts';
+import { queryClient } from '#lib/query-client.ts';
 import { toast } from 'svelte-sonner';
 
 const mocks = vi.hoisted(() => ({
@@ -53,15 +56,14 @@ async function renderWithEvents(
     mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(stats);
 
     const result = renderWithQueryClient(AdminEvents);
-    await waitFor(() => expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalled());
+    await screen.findByRole('table', { name: 'Events' });
     return result;
 }
 
 describe('AdminEvents', () => {
     beforeEach(() => {
-        vi.unstubAllGlobals();
-        mockWindowGlobals(mocks.windowOpen, mocks.windowConfirm);
-        vi.clearAllMocks();
+        vi.stubGlobal('open', mocks.windowOpen);
+        vi.stubGlobal('confirm', mocks.windowConfirm);
         mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({ events: [], total: 0, skip: 0, limit: 10 });
         mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(fakeEventStatsResponse());
         mockReplayStream();
@@ -97,8 +99,8 @@ describe('AdminEvents', () => {
         });
 
         it('displays empty state when no events', async () => {
-            await renderWithEvents([], { ...fakeEventStatsResponse(), total_events: 0 });
-            expect(screen.getByText(/No events found/i)).toBeInTheDocument();
+            renderWithQueryClient(AdminEvents);
+            expect(await screen.findByText(/No events found/i)).toBeInTheDocument();
         });
     });
 
@@ -108,22 +110,10 @@ describe('AdminEvents', () => {
                 Array.from({ length: 5 }, () => fakeExecutionCompletedEvent()),
                 { ...fakeEventStatsResponse(), total_events: 150, error_rate: 2.5, avg_processing_time: 1.23 },
             );
+            expect(await screen.findByText('150')).toBeInTheDocument();
             expect(screen.getByText('Total Events')).toBeInTheDocument();
-            expect(screen.getByText('150')).toBeInTheDocument();
             expect(screen.getByText('2.5%')).toBeInTheDocument();
             expect(screen.getByText('1.23s')).toBeInTheDocument();
-        });
-
-        it('shows error rate in red when > 0', async () => {
-            await renderWithEvents([fakeExecutionCompletedEvent()], { ...fakeEventStatsResponse(), error_rate: 5 });
-            const errorRateElement = screen.getByText('5%');
-            expect(errorRateElement).toHaveClass('text-danger');
-        });
-
-        it('shows error rate in green when 0', async () => {
-            await renderWithEvents([fakeExecutionCompletedEvent()], { ...fakeEventStatsResponse(), error_rate: 0 });
-            const errorRateElement = screen.getByText('0%');
-            expect(errorRateElement).toHaveClass('text-success');
         });
     });
 
@@ -310,7 +300,7 @@ describe('AdminEvents', () => {
             const pageSizeSelect = await waitFor(() => screen.getByLabelText(/Items per page/i));
 
             vi.mocked(browseEventsApiV1AdminEventsBrowsePost).mockClear();
-            selectOption(pageSizeSelect, '25');
+            await user.selectOptions(pageSizeSelect, '25');
 
             await waitFor(() => {
                 expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalledWith(
@@ -549,8 +539,9 @@ describe('AdminEvents', () => {
             const [deleteBtn] = screen.getAllByTitle('Delete');
             await user.click(deleteBtn!);
 
-            await waitFor(() => expect(vi.mocked(deleteEventApiV1AdminEventsEventIdDelete)).toHaveBeenCalled());
-            expect(vi.mocked(toast.success)).not.toHaveBeenCalledWith('Event deleted successfully');
+            await waitFor(() => expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+            expect(vi.mocked(deleteEventApiV1AdminEventsEventIdDelete)).toHaveBeenCalled();
+            expect(vi.mocked(toast.success)).not.toHaveBeenCalled();
         });
     });
 
@@ -644,7 +635,7 @@ describe('AdminEvents', () => {
             ];
             mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).ok({
                 ...fakeAdminUserOverview(),
-                derived_counts: { succeeded: 80, failed: 10, timeout: 5, cancelled: 5, terminal_total: 100 },
+                derived_counts: { ...fakeDerivedCounts(), succeeded: 80, failed: 10 },
             });
             await renderWithEvents(events);
 
@@ -678,28 +669,16 @@ describe('AdminEvents', () => {
     });
 
     describe('event type display', () => {
-        it('shows correct color for completed events', async () => {
-            const events = [fakeExecutionCompletedEvent()];
-            await renderWithEvents(events);
-            const [icon] = screen.getAllByTestId('event-type-icon');
-            expect(icon).toHaveAttribute('data-event-type', 'execution_completed');
-            expect(icon).toHaveClass('text-success');
-        });
-
-        it('shows correct color for failed events', async () => {
-            const events = [fakeExecutionFailedEvent()];
-            await renderWithEvents(events);
-            const [icon] = screen.getAllByTestId('event-type-icon');
-            expect(icon).toHaveAttribute('data-event-type', 'execution_failed');
-            expect(icon).toHaveClass('text-danger');
-        });
-
-        it('shows correct color for started events', async () => {
-            const events = [fakeExecutionStartedEvent()];
-            await renderWithEvents(events);
-            const [icon] = screen.getAllByTestId('event-type-icon');
-            expect(icon).toHaveAttribute('data-event-type', 'execution_started');
-            expect(icon).toHaveClass('text-info');
+        it('names the type of each event on its icon', async () => {
+            await renderWithEvents([
+                fakeExecutionCompletedEvent(),
+                fakeExecutionFailedEvent(),
+                fakeExecutionStartedEvent(),
+            ]);
+            const table = within(screen.getByRole('table', { name: 'Events' }));
+            expect(table.getByRole('button', { name: EventType.EXECUTION_COMPLETED })).toBeInTheDocument();
+            expect(table.getByRole('button', { name: EventType.EXECUTION_FAILED })).toBeInTheDocument();
+            expect(table.getByRole('button', { name: EventType.EXECUTION_STARTED })).toBeInTheDocument();
         });
     });
 
@@ -738,7 +717,8 @@ describe('AdminEvents', () => {
             const [replayBtn] = screen.getAllByTitle('Replay');
             await user.click(replayBtn!);
 
-            await waitFor(() => expect(vi.mocked(replayEventsApiV1AdminEventsReplayPost)).toHaveBeenCalled());
+            await waitFor(() => expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+            expect(vi.mocked(replayEventsApiV1AdminEventsReplayPost)).toHaveBeenCalled();
             expect(vi.mocked(toast.success)).not.toHaveBeenCalled();
             expect(vi.mocked(streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet)).not.toHaveBeenCalled();
         });

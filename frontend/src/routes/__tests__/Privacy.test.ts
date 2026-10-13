@@ -11,10 +11,6 @@ beforeEach(() => {
 });
 
 describe('Privacy', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
     function renderPrivacy() {
         return render(Privacy);
     }

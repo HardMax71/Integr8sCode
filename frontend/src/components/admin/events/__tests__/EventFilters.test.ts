@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { user } from '#test/test-utils.ts';
 import { EVENT_TYPES } from '#lib/admin/events/eventTypes.ts';
 import type { EventFilter } from '#lib/api/index.ts';
+import { fieldTitle } from '#lib/formatters.ts';
 
 import EventFilters from '#components/admin/events/EventFilters.svelte';
 
@@ -15,10 +16,6 @@ function renderFilters(overrides: Partial<{ onApply: () => void; onClear: () => 
 }
 
 describe('EventFilters', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
     it('renders heading and both action buttons', () => {
         renderFilters();
         expect(screen.getByText('Filter Events')).toBeInTheDocument();
@@ -27,22 +24,22 @@ describe('EventFilters', () => {
     });
 
     it.each([
-        { id: 'event-types-filter', label: 'Event Types' },
-        { id: 'search-filter', label: 'Search Text' },
-        { id: 'aggregate-filter', label: 'Aggregate Id' },
-        { id: 'user-filter', label: 'User Id' },
-        { id: 'service-filter', label: 'Service Name' },
-        { id: 'start-time-filter', label: 'Start Time' },
-        { id: 'end-time-filter', label: 'End Time' },
-    ])('renders "$label" filter with id=$id', ({ id, label }) => {
+        { id: 'event-types-filter', key: 'event_types' },
+        { id: 'search-filter', key: 'search_text' },
+        { id: 'aggregate-filter', key: 'aggregate_id' },
+        { id: 'user-filter', key: 'user_id' },
+        { id: 'service-filter', key: 'service_name' },
+        { id: 'start-time-filter', key: 'start_time' },
+        { id: 'end-time-filter', key: 'end_time' },
+    ])('renders the $key filter with id=$id', ({ id, key }) => {
         renderFilters();
-        expect(screen.getByLabelText(label)).toBeInTheDocument();
+        expect(screen.getByLabelText(fieldTitle(key))).toBeInTheDocument();
         expect(document.getElementById(id)).not.toBeNull();
     });
 
     it('event types select lists all EVENT_TYPES as options', () => {
         renderFilters();
-        const select = screen.getByLabelText('Event Types') as HTMLSelectElement;
+        const select = screen.getByLabelText(fieldTitle('event_types')) as HTMLSelectElement;
         const options = Array.from(select.options).map((o) => o.value);
         expect(options).toEqual(EVENT_TYPES);
     });

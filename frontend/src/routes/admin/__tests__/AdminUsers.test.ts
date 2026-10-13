@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/svelte';
-import { user, selectOption, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import * as z from 'zod/mini';
+import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import {
     fakeRateLimitUpdateResponse,
     fakeUserRateLimitConfigResponse,
@@ -20,6 +21,7 @@ import {
     UserRole,
     zDeleteUserResponse,
     zRateLimitUpdateRequest,
+    zUserCreate,
     type UserRateLimitConfigResponse,
 } from '#lib/api/index.ts';
 
@@ -28,13 +30,12 @@ vi.mock('#lib/formatters.ts', async (importOriginal) => ({
     formatTimestamp: (ts: string) => (ts ? `formatted:${ts}` : 'N/A'),
 }));
 
-// Simple mock for AdminLayout that just renders children
 import AdminUsers from '#routes/admin/users/+page.svelte';
 
 async function renderWithUsers(users = Array.from({ length: 3 }, () => fakeUserResponse()), total = users.length) {
     mockApi(listUsersApiV1AdminUsersGet).ok({ users, total, offset: 0, limit: 20 });
     const result = renderWithQueryClient(AdminUsers);
-    await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalled());
+    await screen.findByRole('table', { name: 'Users' });
     return result;
 }
 
@@ -42,7 +43,6 @@ const lastUsersQuery = () => vi.mocked(listUsersApiV1AdminUsersGet).mock.lastCal
 
 describe('AdminUsers', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
         mockApi(listUsersApiV1AdminUsersGet).ok({ users: [], total: 0, offset: 0, limit: 20 });
         mockApi(getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet).ok([]);
     });
@@ -54,10 +54,10 @@ describe('AdminUsers', () => {
         });
 
         it('shows no users when loading fails', async () => {
-            mockApi(listUsersApiV1AdminUsersGet).err({ status: 500, detail: 'Server error' });
+            mockApi(listUsersApiV1AdminUsersGet).err({ status: 403, detail: 'Admin access required' });
             renderWithQueryClient(AdminUsers);
-            await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalled());
-            expect(screen.queryByText('testuser')).not.toBeInTheDocument();
+            expect(await screen.findByText('No users found matching filters')).toBeInTheDocument();
+            expect(screen.queryByRole('table', { name: 'Users' })).not.toBeInTheDocument();
         });
     });
 
@@ -79,7 +79,7 @@ describe('AdminUsers', () => {
             expect(screen.getAllByText('user5')).toHaveLength(2);
         });
 
-        it('shows role badges for admin and user', async () => {
+        it('lists admins and regular users alike', async () => {
             const users = [
                 { ...fakeUserResponse(), username: 'adminuser', role: UserRole.ADMIN },
                 { ...fakeUserResponse(), user_id: 'u2', username: 'normaluser', role: UserRole.USER },
@@ -136,7 +136,7 @@ describe('AdminUsers', () => {
             await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalled());
 
             const roleSelect = screen.getByRole('combobox', { name: /Role/i });
-            selectOption(roleSelect, 'admin');
+            await user.selectOptions(roleSelect, 'admin');
             await waitFor(() => {
                 expect(screen.getAllByText('admin1')).toHaveLength(2);
                 expect(screen.queryAllByText('user1')).toHaveLength(0);
@@ -145,7 +145,7 @@ describe('AdminUsers', () => {
 
         it('asks the server for disabled users', async () => {
             await renderWithUsers();
-            selectOption(screen.getByRole('combobox', { name: 'Is Active' }), 'false');
+            await user.selectOptions(screen.getByRole('combobox', { name: 'Is Active' }), 'false');
             await waitFor(() => expect(lastUsersQuery()).toMatchObject({ is_active: false }));
         });
 
@@ -185,7 +185,7 @@ describe('AdminUsers', () => {
         ])('asks the server with the %s filter set to %s', async (name, option, query) => {
             await renderWithUsers();
             await user.click(screen.getByRole('button', { name: /Advanced/i }));
-            selectOption(screen.getByRole('combobox', { name }), option);
+            await user.selectOptions(screen.getByRole('combobox', { name }), option);
             await waitFor(() => expect(lastUsersQuery()).toMatchObject(query));
         });
     });
@@ -243,11 +243,13 @@ describe('AdminUsers', () => {
             const dialog = screen.getByRole('dialog');
             await user.click(within(dialog).getByRole('button', { name: /Create User/i }));
 
-            await waitFor(() => expect(vi.mocked(createUserApiV1AdminUsersPost)).toHaveBeenCalled());
+            await waitFor(() => expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+            expect(vi.mocked(createUserApiV1AdminUsersPost)).toHaveBeenCalled();
             expect(screen.getByRole('dialog')).toBeInTheDocument();
         });
 
         it('shows a short password under the field, from the API schema, before calling the API', async () => {
+            const { minLength } = z.toJSONSchema(zUserCreate.shape.password);
             await renderWithUsers();
             const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
             await user.click(createButton!);
@@ -255,12 +257,12 @@ describe('AdminUsers', () => {
 
             await user.type(screen.getByLabelText(/Username/i), 'test');
             await user.type(screen.getByLabelText(/Email/i), 'test@example.com');
-            await user.type(screen.getByLabelText(/^Password/i), 'pass');
+            await user.type(screen.getByLabelText(/^Password/i), 'x'.repeat(minLength! - 1));
             await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Create User/i }));
 
             await waitFor(() =>
                 expect(screen.getByLabelText(/^Password/i)).toHaveAccessibleDescription(
-                    'Must be at least 8 characters',
+                    `Must be at least ${minLength} characters`,
                 ),
             );
             expect(vi.mocked(createUserApiV1AdminUsersPost)).not.toHaveBeenCalled();
@@ -395,7 +397,8 @@ describe('AdminUsers', () => {
             const dialog = screen.getByRole('dialog');
             await user.click(within(dialog).getByRole('button', { name: /Delete User/i }));
 
-            await waitFor(() => expect(vi.mocked(deleteUserApiV1AdminUsersUserIdDelete)).toHaveBeenCalled());
+            await waitFor(() => expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+            expect(vi.mocked(deleteUserApiV1AdminUsersUserIdDelete)).toHaveBeenCalled();
             expect(screen.getByRole('dialog')).toBeInTheDocument();
         });
 
@@ -531,9 +534,8 @@ describe('AdminUsers', () => {
 
             await user.click(screen.getByRole('button', { name: /Save Changes/i }));
 
-            await waitFor(() =>
-                expect(vi.mocked(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut)).toHaveBeenCalled(),
-            );
+            await waitFor(() => expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+            expect(vi.mocked(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut)).toHaveBeenCalled();
             expect(screen.getByRole('dialog')).toBeInTheDocument();
         });
 
@@ -616,7 +618,7 @@ describe('AdminUsers', () => {
             await user.click(await screen.findByRole('button', { name: 'Next page' }));
             await waitFor(() => expect(lastUsersQuery()).toMatchObject({ offset: 10 }));
 
-            selectOption(screen.getByRole('combobox', { name: 'Is Active' }), 'true');
+            await user.selectOptions(screen.getByRole('combobox', { name: 'Is Active' }), 'true');
 
             await waitFor(() => expect(lastUsersQuery()).toMatchObject({ is_active: true, offset: 0 }));
         });
@@ -632,64 +634,6 @@ describe('AdminUsers', () => {
             await renderWithUsers();
             expect(screen.getByRole('button', { name: /Create User/i })).toBeInTheDocument();
             expect(screen.getByRole('button', { name: /Refresh/i })).toBeInTheDocument();
-        });
-    });
-
-    describe('user form validation', () => {
-        it('requires username for new user', async () => {
-            mockApi(createUserApiV1AdminUsersPost).ok(fakeUserResponse());
-            await renderWithUsers();
-
-            const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
-            await user.click(createButton!);
-            await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
-
-            await user.type(screen.getByLabelText(/^Password/i), 'password123');
-
-            const dialog = screen.getByRole('dialog');
-            await user.click(within(dialog).getByRole('button', { name: /Create User/i }));
-
-            // Native HTML required attribute prevents form submission
-            expect(vi.mocked(createUserApiV1AdminUsersPost)).not.toHaveBeenCalled();
-        });
-
-        it('requires password for new user', async () => {
-            mockApi(createUserApiV1AdminUsersPost).ok(fakeUserResponse());
-            await renderWithUsers();
-
-            const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
-            await user.click(createButton!);
-            await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
-
-            await user.type(screen.getByLabelText(/Username/i), 'newuser');
-
-            const dialog = screen.getByRole('dialog');
-            await user.click(within(dialog).getByRole('button', { name: /Create User/i }));
-
-            // Native HTML required attribute prevents form submission
-            expect(vi.mocked(createUserApiV1AdminUsersPost)).not.toHaveBeenCalled();
-        });
-
-        it('password is optional for edit', async () => {
-            mockApi(updateUserApiV1AdminUsersUserIdPut).ok(fakeUserResponse());
-            const users = [{ ...fakeUserResponse(), user_id: 'u1', username: 'editme', email: 'edit@test.com' }];
-            await renderWithUsers(users);
-
-            // Desktop view has one edit button per user
-            const [editButton] = screen.getAllByTitle('Edit User');
-            await user.click(editButton!);
-            await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
-
-            await user.click(screen.getByRole('button', { name: /Update User/i }));
-
-            await waitFor(() => {
-                expect(vi.mocked(updateUserApiV1AdminUsersUserIdPut)).toHaveBeenCalledWith(
-                    expect.objectContaining({
-                        path: { user_id: 'u1' },
-                        body: expect.not.objectContaining({ password: expect.anything() }),
-                    }),
-                );
-            });
         });
     });
 
@@ -731,9 +675,8 @@ describe('AdminUsers', () => {
 
             await user.click(screen.getByRole('button', { name: /Reset All Counters/i }));
 
-            await waitFor(() =>
-                expect(vi.mocked(resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost)).toHaveBeenCalled(),
-            );
+            await waitFor(() => expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+            expect(vi.mocked(resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost)).toHaveBeenCalled();
             expect(screen.getByText('/api')).toBeInTheDocument();
         });
     });

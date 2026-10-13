@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { notificationStreamApiV1EventsNotificationsStreamGet, type NotificationResponse } from '#lib/api/index.ts';
 import { notificationStream } from '#lib/notifications/stream.svelte.ts';
 import { fakeNotificationResponse } from '#lib/api/@faker-js/faker.gen.ts';
@@ -7,8 +7,6 @@ import { captureLogs, mockStreamEvents } from '#test/test-utils.ts';
 type StreamOptions = NonNullable<Parameters<typeof notificationStreamApiV1EventsNotificationsStreamGet>[0]>;
 
 const mockSseFn = vi.mocked(notificationStreamApiV1EventsNotificationsStreamGet);
-
-const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 const payload = (): NotificationResponse => ({
     ...fakeNotificationResponse(),
@@ -37,20 +35,14 @@ describe('NotificationStream', () => {
 
     beforeEach(() => {
         callback = vi.fn<(data: NotificationResponse) => void>();
-        mockSseFn.mockReset();
         notificationStream.disconnect();
-    });
-
-    afterEach(() => {
-        vi.unstubAllGlobals();
     });
 
     it('calls callback with each notification from the stream', async () => {
         mockStreamEvents(mockSseFn, payload());
         notificationStream.connect(callback);
-        await tick();
 
-        expect(callback).toHaveBeenCalledOnce();
+        await vi.waitFor(() => expect(callback).toHaveBeenCalledOnce());
         expect(callback.mock.calls[0]![0]).toMatchObject({
             notification_id: 'n-1',
             channel: 'in_app',
@@ -67,15 +59,15 @@ describe('NotificationStream', () => {
 
         mockStreamEvents(mockSseFn, payload());
         notificationStream.connect(callback);
-        await tick();
 
-        expect(MockNotification).toHaveBeenCalledWith('Test', { body: 'Hello', icon: '/favicon.png' });
+        await vi.waitFor(() =>
+            expect(MockNotification).toHaveBeenCalledWith('Test', { body: 'Hello', icon: '/favicon.png' }),
+        );
     });
 
-    it('passes abort signal to SSE client', async () => {
+    it('passes abort signal to SSE client', () => {
         mockOpenStream();
         notificationStream.connect(callback);
-        await tick();
 
         const signal = options(0).signal!;
         expect(signal.aborted).toBe(false);
@@ -84,26 +76,23 @@ describe('NotificationStream', () => {
         expect(signal.aborted).toBe(true);
     });
 
-    it('aborts previous connection on reconnect', async () => {
+    it('aborts previous connection on reconnect', () => {
         mockOpenStream();
         notificationStream.connect(callback);
-        await tick();
 
         const firstSignal = options(0).signal!;
 
         mockOpenStream();
         notificationStream.connect(callback);
-        await tick();
 
         expect(firstSignal.aborted).toBe(true);
         expect(mockSseFn).toHaveBeenCalledTimes(2);
     });
 
-    it('logs a lost connection, but not the abort of its own disconnect', async () => {
+    it('logs a lost connection, but not the abort of its own disconnect', () => {
         const records = captureLogs();
         mockOpenStream();
         notificationStream.connect(callback);
-        await tick();
         const error = new TypeError('Failed to fetch');
 
         options(0).onSseError!(error);
@@ -119,10 +108,9 @@ describe('NotificationStream', () => {
         ]);
     });
 
-    it('configures SSE retry options', async () => {
+    it('configures SSE retry options', () => {
         mockOpenStream();
         notificationStream.connect(callback);
-        await tick();
 
         expect(options(0)).toMatchObject({
             sseMaxRetryAttempts: 3,

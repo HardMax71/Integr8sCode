@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { screen, within, waitFor } from '@testing-library/svelte';
 import { mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
 import { fakeResourceLimits } from '#lib/api/@faker-js/faker.gen.ts';
@@ -22,10 +22,6 @@ function renderSelect({ runtimes = RUNTIMES, lang = 'python', version = '3.14' }
 const selection = () => [draft.current.lang, draft.current.lang_version];
 
 describe('LanguageSelect', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
     async function openMenu() {
         renderSelect();
         const trigger = screen.getByRole('button', { name: /Select language/i });

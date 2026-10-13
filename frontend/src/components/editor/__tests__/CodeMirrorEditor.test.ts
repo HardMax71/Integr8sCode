@@ -101,7 +101,6 @@ function renderEditor(overrides: Partial<{ content: string; lang: string; settin
 describe('CodeMirrorEditor', () => {
     beforeEach(() => {
         setMode(Theme.LIGHT);
-        vi.clearAllMocks();
     });
 
     it('renders wrapper with h-full and w-full classes', () => {

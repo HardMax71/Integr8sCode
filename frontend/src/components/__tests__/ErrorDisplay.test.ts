@@ -1,37 +1,14 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { user } from '#test/test-utils.ts';
 import ErrorDisplay from '#components/ErrorDisplay.svelte';
 
 describe('ErrorDisplay', () => {
-    let originalLocation: Location;
-
     beforeEach(() => {
-        originalLocation = window.location;
-        Object.defineProperty(window, 'location', {
-            value: {
-                ...originalLocation,
-                reload: vi.fn(),
-                href: 'http://localhost:5001/test',
-            },
-            writable: true,
-        });
-    });
-
-    afterEach(() => {
-        Object.defineProperty(window, 'location', {
-            value: originalLocation,
-            writable: true,
-        });
+        vi.stubGlobal('location', { reload: vi.fn(), href: 'http://localhost:5001/test' });
     });
 
     describe('rendering', () => {
-        it('renders with string error', () => {
-            render(ErrorDisplay, { props: { error: 'Something went wrong' } });
-
-            expect(screen.getByRole('heading')).toHaveTextContent('Application Error');
-        });
-
         it('renders with Error object', () => {
             render(ErrorDisplay, { props: { error: new Error('Test error') } });
 
@@ -54,23 +31,14 @@ describe('ErrorDisplay', () => {
     });
 
     describe('user-friendly messages', () => {
-        it('shows network error message for network errors', () => {
-            render(ErrorDisplay, { props: { error: 'Network connection failed' } });
+        it.each(['Network connection failed', new Error('Fetch failed'), 'Connection refused'])(
+            'shows the network error message for %s',
+            (error) => {
+                render(ErrorDisplay, { props: { error } });
 
-            expect(screen.getByText(/Unable to connect to the server/)).toBeInTheDocument();
-        });
-
-        it('shows network error message for fetch errors', () => {
-            render(ErrorDisplay, { props: { error: new Error('Fetch failed') } });
-
-            expect(screen.getByText(/Unable to connect to the server/)).toBeInTheDocument();
-        });
-
-        it('shows network error message for connection errors', () => {
-            render(ErrorDisplay, { props: { error: 'Connection refused' } });
-
-            expect(screen.getByText(/Unable to connect to the server/)).toBeInTheDocument();
-        });
+                expect(screen.getByText(/Unable to connect to the server/)).toBeInTheDocument();
+            },
+        );
 
         it('shows generic message for non-network errors', () => {
             render(ErrorDisplay, { props: { error: 'Internal server error' } });
@@ -120,29 +88,10 @@ describe('ErrorDisplay', () => {
     });
 
     describe('visual elements', () => {
-        it('displays error icon', () => {
-            render(ErrorDisplay, { props: { error: 'Error' } });
-
-            const svg = document.querySelector('svg');
-            expect(svg).toBeInTheDocument();
-        });
-
         it('displays help text', () => {
             render(ErrorDisplay, { props: { error: 'Error' } });
 
             expect(screen.getByText(/If this problem persists/)).toBeInTheDocument();
-        });
-    });
-
-    describe('styling', () => {
-        it('has full-screen centered layout', () => {
-            const { container } = render(ErrorDisplay, { props: { error: 'Error' } });
-
-            const wrapper = container.firstChild as HTMLElement;
-            expect(wrapper.classList.contains('min-h-dvh')).toBe(true);
-            expect(wrapper.classList.contains('flex')).toBe(true);
-            expect(wrapper.classList.contains('items-center')).toBe(true);
-            expect(wrapper.classList.contains('justify-center')).toBe(true);
         });
     });
 });

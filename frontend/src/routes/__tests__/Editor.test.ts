@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
+import userEvent from '@testing-library/user-event';
+import * as z from 'zod/mini';
 import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import { fakeResourceLimits, fakeSavedScriptResponse, fakeUserSettings } from '#lib/api/@faker-js/faker.gen.ts';
 import { toast } from 'svelte-sonner';
@@ -14,6 +16,7 @@ import {
     updateSavedScriptApiV1ScriptsScriptIdPut,
     deleteSavedScriptApiV1ScriptsScriptIdDelete,
     getUserSettingsApiV1UserSettingsGet,
+    zExecutionRequest,
 } from '#lib/api/index.ts';
 
 const mocks = vi.hoisted(() => ({
@@ -34,31 +37,10 @@ vi.mock('#lib/editor/index.ts', async (importOriginal) => ({
     createExecutionState: () => mocks.mockExecutionState,
 }));
 
-vi.mock('#components/editor/index.ts', async () => {
-    const utils = await import('#test/test-utils.ts');
-    const components = utils.createMockNamedComponents({
-        OutputPanel: '<div data-testid="output-panel">Execution Output</div>',
-        ResourceLimits: '<div data-testid="resource-limits"></div>',
-        CodeMirrorEditor: '<div data-testid="code-editor" class="cm-editor"></div>',
-    });
-    const { default: EditorToolbar } = await import('#components/editor/EditorToolbar.svelte');
-    components.EditorToolbar = EditorToolbar;
-    const { default: ScriptActions } = await import('#components/editor/ScriptActions.svelte');
-    components.ScriptActions = ScriptActions;
-    const { default: SavedScripts } = await import('#components/editor/SavedScripts.svelte');
-    components.SavedScripts = SavedScripts;
-    const { default: LanguageSelect } = await import('#components/editor/LanguageSelect.svelte');
-    components.LanguageSelect = LanguageSelect;
-    const { default: LoadExample } = await import('#components/editor/LoadExample.svelte');
-    components.LoadExample = LoadExample;
-    return components;
-});
-
 describe('Editor', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
-        localStorage.clear();
-        draft.current = { script_id: null, name: '', script: '', lang: 'python', lang_version: '3.14' };
+        // While storage is empty, the page's field writes change PersistedState's initial value in place
+        draft.current = { script_id: null, name: '', ...zExecutionRequest.parse({ script: '' }) };
         vi.stubGlobal('confirm', mocks.mockConfirm);
         mocks.mockExecutionState.phase = 'idle';
         mocks.mockExecutionState.isExecuting = false;
@@ -133,21 +115,18 @@ describe('Editor', () => {
                     }),
                 );
             });
-            expect(toast.success).toHaveBeenCalledWith('Script saved successfully.');
+            await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Script saved successfully.'));
         });
 
         it('falls back to create when update returns 404', async () => {
             mockApi(listSavedScriptsApiV1ScriptsGet).ok({
                 scripts: [
                     {
+                        ...fakeSavedScriptResponse(),
                         script_id: 'script-99',
                         name: 'Existing Script',
-                        script: 'print(1)',
                         lang: 'python',
                         lang_version: '3.11',
-                        description: null,
-                        created_at: '2024-01-01T00:00:00Z',
-                        updated_at: '2024-01-01T00:00:00Z',
                     },
                 ],
             });
@@ -190,7 +169,7 @@ describe('Editor', () => {
                     }),
                 );
             });
-            expect(toast.success).toHaveBeenCalledWith('Script saved successfully.');
+            await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Script saved successfully.'));
         });
     });
 
@@ -198,18 +177,7 @@ describe('Editor', () => {
         it('calls confirm and delete API when delete button is clicked', async () => {
             mocks.mockConfirm.mockReturnValue(true);
             mockApi(listSavedScriptsApiV1ScriptsGet).ok({
-                scripts: [
-                    {
-                        script_id: 'script-99',
-                        name: 'My Script',
-                        script: 'print(1)',
-                        lang: 'python',
-                        lang_version: '3.11',
-                        description: null,
-                        created_at: '2024-01-01T00:00:00Z',
-                        updated_at: '2024-01-01T00:00:00Z',
-                    },
-                ],
+                scripts: [{ ...fakeSavedScriptResponse(), script_id: 'script-99', name: 'My Script' }],
             });
 
             await renderEditor();
@@ -230,7 +198,7 @@ describe('Editor', () => {
                     }),
                 );
             });
-            expect(toast.success).toHaveBeenCalledWith('Script deleted successfully.');
+            await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Script deleted successfully.'));
         });
     });
 
@@ -331,14 +299,12 @@ describe('Editor', () => {
             mockApi(listSavedScriptsApiV1ScriptsGet).ok({
                 scripts: [
                     {
+                        ...fakeSavedScriptResponse(),
                         script_id: 'old-1',
                         name: 'Old Script',
                         script: 'print(1)',
                         lang: 'python',
                         lang_version: '3.7',
-                        description: null,
-                        created_at: '2024-01-01T00:00:00Z',
-                        updated_at: '2024-01-01T00:00:00Z',
                     },
                 ],
             });
@@ -392,17 +358,13 @@ describe('Editor', () => {
             return container.querySelector('input[type="file"]') as HTMLInputElement;
         }
 
-        function fireFileChange(input: HTMLInputElement, file: File) {
-            Object.defineProperty(input, 'files', { value: [file], writable: true });
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-
         it('rejects a script longer than the API allows, with the spec rule in the toast', async () => {
+            const { maxLength } = z.toJSONSchema(zExecutionRequest.shape.script);
             const input = await openFileInput();
-            const bigFile = new File(['x'.repeat(50_001)], 'large.py', { type: 'text/plain' });
-            fireFileChange(input, bigFile);
+            const bigFile = new File(['x'.repeat(maxLength! + 1)], 'large.py', { type: 'text/plain' });
+            await user.upload(input, bigFile);
             await waitFor(() => {
-                expect(toast.error).toHaveBeenCalledWith('Script must be at most 50000 characters');
+                expect(toast.error).toHaveBeenCalledWith(`Script must be at most ${maxLength} characters`);
             });
             expect(toast.info).not.toHaveBeenCalledWith(expect.stringContaining('Loaded python script'));
         });
@@ -410,14 +372,14 @@ describe('Editor', () => {
         it('rejects unsupported file extension with error toast', async () => {
             const input = await openFileInput();
             const badFile = new File(['content'], 'data.csv', { type: 'text/csv' });
-            fireFileChange(input, badFile);
+            await userEvent.setup({ applyAccept: false, delay: null }).upload(input, badFile);
             expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Unsupported file type'));
         });
 
         it('loads .py file content and shows info toast', async () => {
             const input = await openFileInput();
             const pyFile = new File(['print("loaded")'], 'test_script.py', { type: 'text/plain' });
-            fireFileChange(input, pyFile);
+            await user.upload(input, pyFile);
             await waitFor(() => {
                 expect(toast.info).toHaveBeenCalledWith(
                     expect.stringContaining('Loaded python script from test_script.py'),
@@ -452,30 +414,17 @@ describe('Editor', () => {
             await renderEditor();
             await waitForRuntimes();
 
-            // Spy on anchor creation without replacing createElement entirely
-            const mockClick = vi.fn();
-            const origCreateElement = document.createElement.bind(document);
-            vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
-                const el = origCreateElement(tag);
-                if (tag === 'a') {
-                    el.click = mockClick;
-                }
-                return el;
-            });
-            const mockCreateObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-url');
-            const mockRevokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+            const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+            const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-url');
+            const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
 
             await user.type(screen.getByLabelText('Name'), 'my_script');
             await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
             await user.click(screen.getByTitle('Download current script'));
 
-            expect(mockCreateObjectURL).toHaveBeenCalled();
-            expect(mockClick).toHaveBeenCalled();
-            expect(mockRevokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
-
-            vi.mocked(document.createElement).mockRestore();
-            mockCreateObjectURL.mockRestore();
-            mockRevokeObjectURL.mockRestore();
+            expect(createObjectURL).toHaveBeenCalled();
+            expect(click.mock.contexts[0]).toHaveProperty('download', 'my_script.py');
+            expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
         });
     });
 

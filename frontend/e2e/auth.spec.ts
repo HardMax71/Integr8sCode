@@ -1,96 +1,72 @@
-import { test, expect, clearSession, loginAsUser, TEST_USERS } from './fixtures';
+import { randomUUID } from 'node:crypto';
+import { expect, holdRequest, test } from './fixtures';
+import { fieldTitle } from '#lib/formatters.ts';
 
-const PATH = '/login';
-
-async function navigateToLogin(page: import('@playwright/test').Page): Promise<void> {
-  await clearSession(page);
-  await page.goto(PATH);
-}
-
-async function fillLoginForm(page: import('@playwright/test').Page, username: string, password: string): Promise<void> {
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.locator('button[type="submit"]').click();
-}
-
-test.describe('Authentication', () => {
-  test.beforeEach(async ({ page }) => {
-    await navigateToLogin(page);
-  });
-
-  test('shows login page with form elements', async ({ page }) => {
+test('the login page shows its form', async ({ page }) => {
+    await page.goto('/login');
     await expect(page.getByRole('heading', { name: 'Sign in to your account' })).toBeVisible();
-    await expect(page.locator('#username')).toBeVisible();
-    await expect(page.locator('#password')).toBeVisible();
-    await expect(page.locator('button[type="submit"]')).toBeVisible();
-  });
-
-  test('prevents submission and shows validation for empty form', async ({ page }) => {
-    await page.locator('button[type="submit"]').click();
-    await expect(page).toHaveURL(/\/login/);
-    const usernameInput = page.locator('#username');
-    await expect(usernameInput).toBeFocused();
-    const isInvalid = await usernameInput.evaluate((el: HTMLInputElement) => !el.validity.valid);
-    expect(isInvalid).toBe(true);
-    const validationMessage = await usernameInput.evaluate((el: HTMLInputElement) => el.validationMessage);
-    expect(validationMessage.length).toBeGreaterThan(0);
-  });
-
-  test('shows error with invalid credentials', async ({ page }) => {
-    await fillLoginForm(page, 'invaliduser', 'wrongpassword');
-    await expect(page.getByTestId('error-message')).toBeVisible();
-  });
-
-  test('redirects to editor on successful login', async ({ page }) => {
-    await fillLoginForm(page, TEST_USERS.user.username, TEST_USERS.user.password);
-    await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
-    await expect(page).toHaveURL(/\/editor/);
-  });
-
-  test('shows loading state during login', async ({ page }) => {
-    await page.locator('#username').fill(TEST_USERS.user.username);
-    await page.locator('#password').fill(TEST_USERS.user.password);
-    const submitButton = page.locator('button[type="submit"]');
-    await submitButton.click();
-    await expect(submitButton).toContainText(/Logging in/);
-  });
-
-  test('redirects unauthenticated users from protected routes', async ({ page }) => {
-    await page.goto('/editor');
-    await expect(page).toHaveURL(/\/login/);
-  });
-
-  test('preserves redirect path after login', async ({ page }) => {
-    await page.goto('/settings');
-    await expect(page).toHaveURL(/\/login/);
-    await fillLoginForm(page, TEST_USERS.user.username, TEST_USERS.user.password);
-    await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
-    await expect(page).toHaveURL(/\/settings/);
-  });
-
-  test('has link to registration page', async ({ page }) => {
-    const registerLink = page.getByRole('link', { name: 'create a new account' });
-    await expect(registerLink).toBeVisible();
-  });
-
-  test('can navigate to registration page', async ({ page }) => {
-    await page.getByRole('link', { name: 'create a new account' }).click();
-    await expect(page).toHaveURL(/\/register/);
-  });
+    await expect(page.getByLabel(fieldTitle('username'))).toBeVisible();
+    await expect(page.getByLabel(fieldTitle('password'))).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
 });
 
-test.describe('Logout', () => {
-  test.beforeEach(async ({ page }) => {
-    await loginAsUser(page);
-  });
-
-  test('can logout from authenticated state', async ({ page }) => {
-    const userMenuButton = page.getByRole('button', { name: 'User menu' });
-    await expect(userMenuButton).toBeVisible();
-    await userMenuButton.click();
-    const logoutButton = page.getByRole('menuitem', { name: 'Logout' });
-    await expect(logoutButton).toBeVisible();
-    await logoutButton.click();
+test('an empty login form marks its fields as required', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(/\/login/);
-  });
+    await expect(page.getByLabel(fieldTitle('username'))).toHaveAccessibleDescription('Required');
+    await expect(page.getByLabel(fieldTitle('password'))).toHaveAccessibleDescription('Required');
+});
+
+test('unknown credentials show the error above the form', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByLabel(fieldTitle('username')).fill(`e2e-${randomUUID()}`);
+    await page.getByLabel(fieldTitle('password')).fill(randomUUID());
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.getByTestId('error-message')).toBeVisible();
+    await expect(page).toHaveURL(/\/login/);
+});
+
+test('signing in opens the editor', async ({ page, account }) => {
+    await page.goto('/login');
+    await page.getByLabel(fieldTitle('username')).fill(account.username);
+    await page.getByLabel(fieldTitle('password')).fill(account.password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.getByText('Login successful! Welcome back.')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
+    await expect(page).toHaveURL(/\/editor/);
+});
+
+test('the sign in button shows progress while the request is pending', async ({ page, account }) => {
+    await page.route('**/api/v1/auth/login', holdRequest);
+    await page.goto('/login');
+    await page.getByLabel(fieldTitle('username')).fill(account.username);
+    await page.getByLabel(fieldTitle('password')).fill(account.password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.getByRole('button', { name: 'Logging in...' })).toBeDisabled();
+});
+
+test('signing in returns to the page that asked for it', async ({ page, account }) => {
+    await page.goto('/settings');
+    await expect(page).toHaveURL(/\/login\?redirect=%2Fsettings/);
+    await page.getByLabel(fieldTitle('username')).fill(account.username);
+    await page.getByLabel(fieldTitle('password')).fill(account.password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+    await expect(page).toHaveURL(/\/settings$/);
+});
+
+test('the login page links to registration', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByRole('link', { name: 'create a new account' }).click();
+    await expect(page).toHaveURL(/\/register/);
+});
+
+test('logging out returns to the login page', async ({ userPage }) => {
+    await userPage.goto('/editor');
+    await userPage.getByRole('button', { name: 'User menu' }).click();
+    await userPage.getByRole('menuitem', { name: 'Logout' }).click();
+    await expect(userPage).toHaveURL(/\/login/);
+    await userPage.goto('/editor');
+    await expect(userPage).toHaveURL(/\/login/);
 });

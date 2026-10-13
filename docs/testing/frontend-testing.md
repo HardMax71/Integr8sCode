@@ -79,9 +79,11 @@ When a `vi.mock` factory refers to mock functions, create them in `vi.hoisted()`
 --8<-- "frontend/playwright.config.ts:config"
 ```
 
-Outside CI, Playwright starts `npm run dev` on `https://localhost:5001` unless something already listens there, such as the compose frontend. The suites need a backend with seeded users either way.
+The suite runs against the stack on `https://localhost:5001`, which is the compose frontend that `./deploy.sh dev` starts. `npm run dev` can't stand in for it, since its proxy sends `/api` to a hostname that only resolves inside the compose network. The only account the suite expects is the seeded admin, whose password it reads from `ADMIN_USER_PASSWORD` like seed_users.py does, falling back to `admin123`.
 
-[`e2e/fixtures.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/e2e/fixtures.ts) logs in once per worker. The worker-scoped `userContext` and `adminContext` hold the logged-in browser contexts, and each test gets a fresh `userPage` or `adminPage` from them. Tests of the login flow itself use the plain `page` and `clearSession()`. Every page also collects JS coverage for the monocart reporter, which writes `coverage/e2e/`.
+[`e2e/fixtures.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/e2e/fixtures.ts) registers one account per worker through the API and signs it and the seeded admin in once per worker, so two workers never share a user's settings, scripts or notifications. Every test gets a fresh browser context: `page` for a guest, and `userPage` or `adminPage` starting with the worker's session cookies, so nothing one test leaves in localStorage reaches the next. The `api` fixture is an API client signed in as the worker's user, and `execution` starts an execution through it for the tests that need one, such as the notification and admin table tests.
+
+Tests don't sleep or write polling loops. They assert on what the page shows with Playwright's retrying assertions, and hold a request with `page.route` to look at a loading state. Labels come from `fieldTitle` and option lists from the generated enums and schemas, the same sources the pages use. svelte-check and Prettier cover `e2e/` as well. In CI a failed test is retried once to record a second trace, and a test that passes only on the retry still fails the run. Every page also collects JS coverage for the monocart reporter, which writes `coverage/e2e/`.
 
 ## In CI
 

@@ -1,66 +1,38 @@
-import { test, expect, describeAdminCommonTests, describeAdminAccessControl, expectTableOrEmptyState, expectTableColumn } from './fixtures';
+import { expect, test } from './fixtures';
+import { SagaState } from '#lib/api/types.gen.ts';
+import { fieldTitle } from '#lib/formatters.ts';
 
-const PATH = '/admin/sagas' as const;
-const EMPTY_PATTERN = /No sagas found/i;
-
-test.describe('Admin Sagas', () => {
-  describeAdminCommonTests(test, PATH);
-
-  test('shows auto-refresh control', async ({ adminPage }) => {
-    await adminPage.goto(PATH);
-    await expect(adminPage.getByText(/Auto-refresh/i)).toBeVisible();
-  });
-
-  test.describe('Filtering', () => {
-    test('shows search input', async ({ adminPage }) => {
-      await adminPage.goto(PATH);
-      await expect(adminPage.getByLabel('Search', { exact: true })).toBeVisible();
-    });
-
-    test('shows state filter dropdown', async ({ adminPage }) => {
-      await adminPage.goto(PATH);
-      const stateSelect = adminPage.getByLabel('State', { exact: true });
-      await expect(stateSelect).toBeVisible();
-      await expect(stateSelect.locator('option')).toHaveText(['All', 'created', 'running', 'compensating', 'completed', 'failed', 'timeout', 'cancelled']);
-    });
-
-    test('can clear filters', async ({ adminPage }) => {
-      await adminPage.goto(PATH);
-      const searchInput = adminPage.getByLabel('Search', { exact: true });
-      await searchInput.fill('test-filter');
-      await adminPage.getByRole('button', { name: /Clear/i }).click();
-      await expect(searchInput).toHaveValue('');
-    });
-  });
-
-  test.describe('Table', () => {
-    test('shows sagas table or empty state', async ({ adminPage }) => {
-      await adminPage.goto(PATH);
-      await expectTableOrEmptyState(adminPage, EMPTY_PATTERN);
-    });
-
-    test('shows State column when data exists', async ({ adminPage }) => {
-      await adminPage.goto(PATH);
-      await expectTableColumn(adminPage, 'State', EMPTY_PATTERN);
-    });
-  });
-
-  test.describe('Auto-Refresh', () => {
-    test('can toggle auto-refresh', async ({ adminPage }) => {
-      await adminPage.goto(PATH);
-      const toggle = adminPage.locator('input[type="checkbox"]').first();
-      const initial = await toggle.isChecked();
-      await toggle.click();
-      expect(await toggle.isChecked()).toBe(!initial);
-    });
-
-    test('can change refresh rate', async ({ adminPage }) => {
-      await adminPage.goto(PATH);
-      const rateSelect = adminPage.locator('#refresh-rate');
-      await rateSelect.selectOption('10');
-      await expect(rateSelect).toHaveValue('10');
-    });
-  });
+test('the state filter offers every saga state the API knows', async ({ adminPage }) => {
+    await adminPage.goto('/admin/sagas');
+    await expect(adminPage.getByLabel(fieldTitle('state'), { exact: true }).locator('option')).toHaveText([
+        'All',
+        ...Object.values(SagaState),
+    ]);
 });
 
-describeAdminAccessControl(test, PATH);
+test('clear empties the search', async ({ adminPage }) => {
+    await adminPage.goto('/admin/sagas');
+    const search = adminPage.getByLabel(fieldTitle('search'), { exact: true });
+    await search.fill('anything');
+    await adminPage.getByRole('button', { name: 'Clear' }).click();
+    await expect(search).toHaveValue('');
+});
+
+test('the saga of a new execution shows up', async ({ adminPage, execution }) => {
+    await adminPage.goto('/admin/sagas');
+    await adminPage.getByLabel(fieldTitle('execution_id'), { exact: true }).fill(execution.execution_id);
+    // The worker starts the saga a moment after the API accepts the execution; the page polls every 5 seconds
+    await expect(adminPage.getByRole('table', { name: 'Sagas' }).getByRole('row')).toHaveCount(2, { timeout: 15_000 });
+    for (const key of ['saga_name', 'state', 'created_at']) {
+        await expect(adminPage.getByRole('columnheader', { name: fieldTitle(key), exact: true })).toBeVisible();
+    }
+});
+
+test('auto-refresh turns off and its rate changes', async ({ adminPage }) => {
+    await adminPage.goto('/admin/sagas');
+    const rate = adminPage.getByLabel('Refresh every');
+    await rate.selectOption('10');
+    await expect(rate).toHaveValue('10');
+    await adminPage.getByRole('checkbox', { name: 'Auto-refresh' }).uncheck();
+    await expect(rate).toBeHidden();
+});

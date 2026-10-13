@@ -1,62 +1,33 @@
-import { test, expect, describeAdminCommonTests, describeAdminAccessControl, expectTableOrEmptyState, expectTableColumn } from './fixtures';
+import { expect, test } from './fixtures';
+import { ExecutionStatus, QueuePriority } from '#lib/api/types.gen.ts';
+import { fieldTitle } from '#lib/formatters.ts';
 
-const PATH = '/admin/executions' as const;
-const EMPTY_PATTERN = /No executions found/i;
-
-test.describe('Admin Executions', () => {
-  describeAdminCommonTests(test, PATH);
-
-  test('shows refresh button', async ({ adminPage }) => {
-    await adminPage.goto(PATH);
-    await expect(adminPage.getByRole('button', { name: /Refresh/i })).toBeVisible();
-  });
-
-  test('shows filter controls', async ({ adminPage }) => {
-    await adminPage.goto(PATH);
-    await expect(adminPage.getByLabel('Status', { exact: true })).toBeVisible();
-    await expect(adminPage.getByLabel('Priority', { exact: true })).toBeVisible();
-    await expect(adminPage.getByLabel('User Id', { exact: true })).toBeVisible();
-  });
-
-  test.describe('Filters', () => {
-    test('status filter dropdown has expected options', async ({ adminPage }) => {
-      await adminPage.goto(PATH);
-      const statusSelect = adminPage.getByLabel('Status', { exact: true });
-      await expect(statusSelect).toBeVisible();
-      await expect(statusSelect.locator('option')).toHaveCount(9); // All + 8 statuses
-    });
-
-    test('priority filter dropdown has expected options', async ({ adminPage }) => {
-      await adminPage.goto(PATH);
-      const prioritySelect = adminPage.getByLabel('Priority', { exact: true });
-      await expect(prioritySelect).toBeVisible();
-      await expect(prioritySelect.locator('option')).toHaveCount(6); // All + 5 priorities
-    });
-  });
-
-  test.describe('Table', () => {
-    test('shows executions table or empty state', async ({ adminPage }) => {
-      await adminPage.goto(PATH);
-      await expectTableOrEmptyState(adminPage, EMPTY_PATTERN);
-    });
-
-    test('shows Execution Id column when data exists', async ({ adminPage }) => {
-      await adminPage.goto(PATH);
-      await expectTableColumn(adminPage, 'Execution Id', EMPTY_PATTERN);
-    });
-  });
-
-  test.describe('Refresh', () => {
-    test('can manually refresh executions', async ({ adminPage }) => {
-      await adminPage.goto(PATH);
-      const [response] = await Promise.all([
-        adminPage.waitForResponse(resp => resp.url().includes('/api/v1/admin/executions') && resp.status() === 200),
-        adminPage.getByRole('button', { name: /Refresh/i }).click(),
-      ]);
-      expect(response.ok()).toBe(true);
-      await expect(adminPage.getByRole('heading', { name: 'Execution Management' })).toBeVisible();
-    });
-  });
+test('the status and priority filters offer every value the API knows', async ({ adminPage }) => {
+    await adminPage.goto('/admin/executions');
+    await expect(adminPage.getByLabel(fieldTitle('status'), { exact: true }).locator('option')).toHaveText([
+        'All',
+        ...Object.values(ExecutionStatus),
+    ]);
+    await expect(adminPage.getByLabel(fieldTitle('priority'), { exact: true }).locator('option')).toHaveText([
+        'All',
+        ...Object.values(QueuePriority),
+    ]);
 });
 
-describeAdminAccessControl(test, PATH);
+test("a user's new execution shows in the table", async ({ adminPage, account, execution }) => {
+    await adminPage.goto('/admin/executions');
+    await adminPage.getByLabel(fieldTitle('user_id'), { exact: true }).fill(account.user_id);
+    const table = adminPage.getByRole('table', { name: 'Executions' });
+    await expect(table.getByRole('combobox', { name: `Priority for ${execution.execution_id}` })).toBeVisible();
+    for (const key of ['execution_id', 'user_id', 'lang', 'status', 'priority', 'created_at']) {
+        await expect(table.getByRole('columnheader', { name: fieldTitle(key), exact: true })).toBeVisible();
+    }
+});
+
+test('refresh fetches the executions again', async ({ adminPage }) => {
+    await adminPage.goto('/admin/executions');
+    await expect(adminPage.getByRole('heading', { name: 'Execution Management' })).toBeVisible();
+    const refreshed = adminPage.waitForResponse(/\/api\/v1\/admin\/executions\/\?/);
+    await adminPage.getByRole('button', { name: 'Refresh' }).click();
+    expect((await refreshed).ok()).toBe(true);
+});

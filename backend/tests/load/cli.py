@@ -27,7 +27,7 @@ async def _run(cfg: LoadConfig) -> int:
     try:
         r = await pre._request("GET", cfg.api("/example-scripts"))
         print(f"Preflight /example-scripts status={r.status_code}")
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"Preflight error: {e}")
     finally:
         await pre.close()
@@ -58,7 +58,7 @@ async def _run(cfg: LoadConfig) -> int:
             generated = generate_plots(str(stats_path))
             for pth in generated:
                 print(f"Plot saved: {pth}")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"Plot generation failed: {e}")
     return 0
 

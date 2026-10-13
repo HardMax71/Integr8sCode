@@ -398,24 +398,16 @@ async def test_retry_count_increments_across_failures() -> None:
     fake_repo.fail_on_create = True
     orch = _orch(repo=fake_repo, queue=fake_queue)
 
-    event = make_execution_requested_event(execution_id="e1")
-    await orch.handle_execution_requested(event)
+    await orch.handle_execution_requested(make_execution_requested_event(execution_id="e1"))
+    for attempt in range(1, orch._MAX_SAGA_START_RETRIES):
+        assert fake_queue._retry_counts["e1"] == attempt
+        assert len(fake_queue.enqueued) == attempt + 1
+        assert fake_queue.released_user_slots == []
+        await orch.try_schedule_from_queue()
 
-    # First failure: retry count = 1, event re-enqueued, and the user's slot stays reserved
-    assert fake_queue._retry_counts["e1"] == 1
-    assert len(fake_queue.enqueued) == 2  # initial + re-enqueue
-    assert fake_queue.released_user_slots == []
-
-    # Trigger second attempt (fake queue has the re-enqueued event)
-    await orch.try_schedule_from_queue()
-    assert fake_queue._retry_counts["e1"] == 2
-    assert len(fake_queue.enqueued) == 3  # another re-enqueue
-
-    # Trigger third attempt — should exceed max retries (3 >= 3)
-    await orch.try_schedule_from_queue()
-    assert fake_queue._retry_counts["e1"] == 3
-    # No more re-enqueues after max retries, and giving up frees the user's slot
-    assert len(fake_queue.enqueued) == 3
+    # Giving up stops the re-enqueues and frees the user's slot
+    assert fake_queue._retry_counts["e1"] == orch._MAX_SAGA_START_RETRIES
+    assert len(fake_queue.enqueued) == orch._MAX_SAGA_START_RETRIES
     assert fake_queue.released_user_slots == ["e1"]
 
 

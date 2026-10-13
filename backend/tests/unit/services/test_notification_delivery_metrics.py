@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import structlog
+from tenacity import wait_none
 
 from app.core.metrics import NotificationMetrics
 from app.db import NotificationRepository
@@ -28,6 +29,7 @@ def _service(test_settings: Settings, metrics: NotificationMetrics, bus: SSERedi
         settings=test_settings,
         logger=structlog.get_logger("test.notification_delivery_metrics"),
         notification_metrics=metrics,
+        retry_wait=wait_none(),
     )
 
 

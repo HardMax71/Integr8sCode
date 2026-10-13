@@ -31,6 +31,7 @@ from app.core.metrics import (
 )
 from app.domain.enums import ExecutionStatus, QueuePriority
 from app.domain.execution import DomainExecution
+from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION
 from app.settings import Settings
 
 
@@ -39,8 +40,8 @@ def make_domain_execution(
     execution_id: str = "e1",
     script: str = "print('hello')",
     status: ExecutionStatus = ExecutionStatus.QUEUED,
-    lang: str = "python",
-    lang_version: str = "3.11",
+    lang: str = DEFAULT_LANG,
+    lang_version: str = DEFAULT_LANG_VERSION,
     priority: QueuePriority = QueuePriority.NORMAL,
     user_id: str | None = "test-user",
     **kwargs: object,

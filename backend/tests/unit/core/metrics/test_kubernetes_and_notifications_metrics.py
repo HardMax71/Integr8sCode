@@ -2,26 +2,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.core.metrics import KubernetesMetrics, NotificationMetrics
+from app.core.metrics import KubernetesMetrics
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit
-
-
-def test_kubernetes_metrics_methods(test_settings: Settings) -> None:
-    """Test with no-op metrics."""
-    m = KubernetesMetrics(test_settings)
-    m.update_active_pod_creations(2)
-    m.record_k8s_pod_created("success", "python")
-    m.record_k8s_pod_creation_duration(0.3, "python")
-    m.record_k8s_config_map_created("ok")
-    m.increment_pod_monitor_watch_reconnects()
-    m.record_pod_monitor_event_processing_duration(0.2, "ADDED")
-    m.record_pod_monitor_event_published("PodRunning", "Running")
-    m.record_pod_monitor_reconciliation_run()
-    m.record_pod_monitor_watch_error("EOF")
-    m.record_pod_lifetime(12.0, "Succeeded", "python")
-    m.update_pods_by_phase({"Running": 2})
 
 
 def test_pods_by_phase_emits_deltas_and_zeroes_vanished_phases(test_settings: Settings) -> None:
@@ -35,16 +19,3 @@ def test_pods_by_phase_emits_deltas_and_zeroes_vanished_phases(test_settings: Se
 
     adds = sorted((c.args[0], c.kwargs["attributes"]["phase"]) for c in m.pods_by_phase.add.call_args_list)
     assert adds == [(-1, "Running"), (-1, "Running"), (-1, "Succeeded"), (1, "Succeeded"), (2, "Running")]
-
-
-def test_notification_metrics_methods(test_settings: Settings) -> None:
-    """Test with no-op metrics."""
-    m = NotificationMetrics(test_settings)
-    m.record_notification_sent("welcome", channel="email", severity="high")
-    m.record_notification_failed("welcome", "smtp_error", channel="email")
-    m.record_notification_delivery_time(0.5, "welcome", channel="email")
-    m.record_notification_throttled("welcome")
-    m.record_notification_retry("welcome", "webhook")
-    m.record_subscription_change("email", True)
-    m.record_subscription_change("webhook", False)
-    m.record_subscription_change("slack", None)

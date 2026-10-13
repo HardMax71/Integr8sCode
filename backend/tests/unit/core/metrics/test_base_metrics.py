@@ -11,7 +11,7 @@ class DummyMetrics(BaseMetrics):
         self.created = False
         super().__init__(settings, meter_name="dummy")
 
-    def _create_instruments(self) -> None:  # noqa: D401
+    def _create_instruments(self) -> None:
         self.created = True
 
 

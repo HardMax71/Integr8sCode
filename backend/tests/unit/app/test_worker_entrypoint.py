@@ -14,7 +14,7 @@ pytestmark = pytest.mark.unit
 _Hook = Callable[[], Awaitable[None]]
 
 
-async def test_container_closes_after_the_broker_stops(
+async def test_worker_wires_routers_and_jobs_and_closes_the_container_last(
     monkeypatch: pytest.MonkeyPatch, test_settings: Settings
 ) -> None:
     order: list[str] = []
@@ -43,7 +43,9 @@ async def test_container_closes_after_the_broker_stops(
                 await hook()
 
     container = MagicMock()
-    container.get = AsyncMock(return_value=AsyncMock())
+    dependency = AsyncMock()
+    dependency.include_routers = MagicMock()
+    container.get = AsyncMock(return_value=dependency)
     container.close = AsyncMock(side_effect=lambda: order.append("container.close"))
     scheduler = MagicMock()
     scheduler.shutdown.side_effect = lambda **_: order.append("scheduler.shutdown")
@@ -53,6 +55,7 @@ async def test_container_closes_after_the_broker_stops(
     monkeypatch.setattr(module, "Settings", lambda **_: test_settings)
     monkeypatch.setattr(module, "setup_logger", lambda _level: structlog.get_logger("test"))
     monkeypatch.setattr(module, "setup_log_exporter", MagicMock())
+    monkeypatch.setattr(module, "setup_metrics", MagicMock())
     monkeypatch.setattr(module, "AsyncMongoClient", MagicMock())
     monkeypatch.setattr(module, "init_beanie", AsyncMock())
     monkeypatch.setattr(module, "create_worker_container", lambda _settings: container)
@@ -64,3 +67,10 @@ async def test_container_closes_after_the_broker_stops(
     await runs[0]
 
     assert order == ["scheduler.shutdown", "broker.stop", "container.close"]
+    assert len(dependency.include_routers.call_args.args) == 3
+    assert [c.kwargs["id"] for c in scheduler.add_job.call_args_list] == [
+        "pod_monitor_watch",
+        "saga_try_schedule",
+        "saga_check_timeouts",
+        "dlq_monitor_retries",
+    ]

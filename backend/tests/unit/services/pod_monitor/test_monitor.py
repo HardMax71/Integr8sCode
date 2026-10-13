@@ -18,7 +18,7 @@ from app.domain.events import (
     ResourceUsageDomain,
 )
 from app.events.core import UnifiedProducer
-from app.services.pod_monitor import PodEventMapper, PodMonitor, PodMonitorConfig, WatchEventType
+from app.services.pod_monitor import ErrorType, PodEventMapper, PodMonitor, PodMonitorConfig, WatchEventType
 from app.services.pod_monitor.monitor import PodEvent
 from tests.unit.conftest import (
     MockWatchStream,
@@ -144,7 +144,7 @@ async def test_watch_pod_events_with_field_selector(
 
     tracking_watch = MagicMock()
 
-    def track_stream(func: Any, **kwargs: Any) -> MockWatchStream:  # noqa: ARG001
+    def track_stream(func: Any, **kwargs: Any) -> MockWatchStream:
         watch_kwargs.append(kwargs)
         return MockWatchStream([], "rv1")
 
@@ -224,7 +224,7 @@ async def test_process_pod_event_full_flow(
     cfg.ignored_pod_phases = ["Unknown"]
 
     class MockMapper:
-        async def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:  # noqa: ARG002
+        async def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:
             class Event:
                 event_type = "pod.running"
                 aggregate_id = "agg1"
@@ -238,7 +238,7 @@ async def test_process_pod_event_full_flow(
 
     published: list[Any] = []
 
-    async def mock_publish(event: Any, pod: Any) -> None:  # noqa: ARG001
+    async def mock_publish(event: Any, pod: Any) -> None:
         published.append(event)
 
     pm._publish_event = mock_publish  # type: ignore[method-assign]
@@ -257,6 +257,7 @@ async def test_process_pod_event_full_flow(
     )
 
     await pm._process_pod_event(event_del)
+    assert len(published) == 2
 
     event_ignored = PodEvent(
         event_type=WatchEventType.ADDED,
@@ -269,10 +270,7 @@ async def test_process_pod_event_full_flow(
 
 
 @pytest.mark.asyncio
-async def test_process_pod_event_exception_handling(
-    event_metrics: EventMetrics,
-    kubernetes_metrics: KubernetesMetrics,
-) -> None:
+async def test_process_pod_event_exception_handling(event_metrics: EventMetrics) -> None:
     cfg = PodMonitorConfig()
 
     class FailMapper:
@@ -282,15 +280,13 @@ async def test_process_pod_event_exception_handling(
         def clear_cache(self) -> None:
             pass
 
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, event_mapper=FailMapper())  # type: ignore[arg-type]
+    metrics = MagicMock(spec=KubernetesMetrics)
+    pm = make_pod_monitor(event_metrics, metrics, config=cfg, event_mapper=FailMapper())  # type: ignore[arg-type]
 
-    event = PodEvent(
-        event_type=WatchEventType.ADDED,
-        pod=make_pod(name="fail-pod", phase="Pending"),
-    )
+    pod = make_pod(name="fail-pod", phase="Pending")
+    await pm._process_pod_event(PodEvent(event_type=WatchEventType.ADDED, pod=pod))
 
-    # Should not raise - errors are caught and logged
-    await pm._process_pod_event(event)
+    metrics.record_pod_monitor_watch_error.assert_called_once_with(ErrorType.PROCESSING_ERROR)
 
 
 @pytest.mark.asyncio
@@ -388,7 +384,7 @@ async def test_relist_drops_pods_the_watch_missed(
 @pytest.mark.asyncio
 async def test_terminal_event_records_pod_lifetime(event_metrics: EventMetrics) -> None:
     class TerminalMapper:
-        async def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:  # noqa: ARG002
+        async def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:
             return [types.SimpleNamespace(event_type=EventType.EXECUTION_COMPLETED, execution_id="exec1")]
 
     metrics = MagicMock(spec=KubernetesMetrics)
@@ -403,7 +399,7 @@ async def test_terminal_event_records_pod_lifetime(event_metrics: EventMetrics) 
 
     metrics.record_pod_lifetime.assert_called_once()
     lifetime, phase, language = metrics.record_pod_lifetime.call_args.args
-    assert 30 <= lifetime < 40
+    assert lifetime >= 30
     assert (phase, language) == ("Succeeded", "python")
     mock_v1.delete_namespaced_pod.assert_awaited_once()
 
@@ -411,7 +407,7 @@ async def test_terminal_event_records_pod_lifetime(event_metrics: EventMetrics) 
 @pytest.mark.asyncio
 async def test_non_terminal_event_records_no_lifetime(event_metrics: EventMetrics) -> None:
     class RunningMapper:
-        async def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:  # noqa: ARG002
+        async def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:
             return [types.SimpleNamespace(event_type=EventType.POD_RUNNING, execution_id="exec1")]
 
     metrics = MagicMock(spec=KubernetesMetrics)

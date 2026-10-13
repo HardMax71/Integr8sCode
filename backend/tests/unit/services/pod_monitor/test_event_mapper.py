@@ -428,11 +428,11 @@ async def test_all_containers_succeeded_and_cache_behavior() -> None:
     assert ev.event_type == EventType.EXECUTION_COMPLETED
 
     # Cache prevents duplicate for same phase
-    p2 = make_pod(name="p2", phase="Running")
+    p2 = make_pod(name="p2", phase="Running", labels={"execution-id": "e2"})
     a = await pem.map_pod_event(p2, WatchEventType.ADDED)
     b = await pem.map_pod_event(p2, WatchEventType.MODIFIED)
-    assert a == [] or all(x.event_type for x in a)
-    assert b == [] or all(x.event_type for x in b)
+    assert [e.event_type for e in a] == [EventType.POD_RUNNING]
+    assert b == []
 
 
 def test_parse_termination_message() -> None:

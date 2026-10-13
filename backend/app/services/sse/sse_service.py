@@ -1,5 +1,6 @@
 import dataclasses
 from collections.abc import AsyncGenerator
+from contextlib import aclosing
 from typing import Any
 
 import structlog
@@ -73,18 +74,20 @@ class SSEService:
                 ).decode()
             }
             return
-        async for event in self._bus.listen_execution(execution_id):
-            if event.event_type == EventType.RESULT_STORED:
-                result = await self._execution_repository.get_terminal_result(execution_id)
-                event = dataclasses.replace(event, result=result)
-            self._logger.info("SSE event", execution_id=execution_id, event_type=event.event_type)
-            yield {"data": _exec_adapter.dump_json(event).decode()}
-            if event.event_type in EXECUTION_PIPELINE_TERMINAL_EVENT_TYPES:
-                return
+        async with aclosing(self._bus.listen_execution(execution_id)) as events:
+            async for event in events:
+                if event.event_type == EventType.RESULT_STORED:
+                    result = await self._execution_repository.get_terminal_result(execution_id)
+                    event = dataclasses.replace(event, result=result)
+                self._logger.info("SSE event", execution_id=execution_id, event_type=event.event_type)
+                yield {"data": _exec_adapter.dump_json(event).decode()}
+                if event.event_type in EXECUTION_PIPELINE_TERMINAL_EVENT_TYPES:
+                    return
 
     async def create_notification_stream(self, user_id: str) -> AsyncGenerator[dict[str, Any], None]:
-        async for payload in self._bus.listen_notifications(user_id):
-            yield {"event": "notification", "data": _notif_adapter.dump_json(payload).decode()}
+        async with aclosing(self._bus.listen_notifications(user_id)) as payloads:
+            async for payload in payloads:
+                yield {"event": "notification", "data": _notif_adapter.dump_json(payload).decode()}
 
     async def create_replay_stream(
         self, initial_status: DomainReplaySSEPayload
@@ -102,8 +105,9 @@ class SSEService:
         yield initial_status
         if initial_status.status.is_terminal:
             return
-        async for status in self._bus.listen_replay(session_id):
-            self._logger.info("SSE replay event", session_id=session_id, status=status.status)
-            yield status
-            if status.status.is_terminal:
-                return
+        async with aclosing(self._bus.listen_replay(session_id)) as statuses:
+            async for status in statuses:
+                self._logger.info("SSE replay event", session_id=session_id, status=status.status)
+                yield status
+                if status.status.is_terminal:
+                    return

@@ -1,6 +1,7 @@
 import asyncio
 import json
 from collections.abc import AsyncGenerator
+from contextlib import aclosing
 from datetime import datetime, timezone
 from typing import Any
 
@@ -46,7 +47,7 @@ class _FakeBus:
     async def push_replay(self, status: DomainReplaySSEPayload | None) -> None:
         await self._replay_q.put(status)
 
-    async def listen_execution(self, execution_id: str) -> AsyncGenerator[SSEExecutionEventData, None]:  # noqa: ARG002
+    async def listen_execution(self, execution_id: str) -> AsyncGenerator[SSEExecutionEventData, None]:
         try:
             while True:
                 item = await self._exec_q.get()
@@ -56,7 +57,7 @@ class _FakeBus:
         finally:
             self.exec_closed = True
 
-    async def listen_notifications(self, user_id: str) -> AsyncGenerator[DomainNotificationSSEPayload, None]:  # noqa: ARG002
+    async def listen_notifications(self, user_id: str) -> AsyncGenerator[DomainNotificationSSEPayload, None]:
         try:
             while True:
                 item = await self._notif_q.get()
@@ -66,7 +67,7 @@ class _FakeBus:
         finally:
             self.notif_closed = True
 
-    async def listen_replay(self, session_id: str) -> AsyncGenerator[DomainReplaySSEPayload, None]:  # noqa: ARG002
+    async def listen_replay(self, session_id: str) -> AsyncGenerator[DomainReplaySSEPayload, None]:
         try:
             while True:
                 item = await self._replay_q.get()
@@ -88,10 +89,10 @@ class _FakeExecRepo:
         self._execution = execution
         self._result = result
 
-    async def get_execution(self, execution_id: str) -> DomainExecution | None:  # noqa: ARG002
+    async def get_execution(self, execution_id: str) -> DomainExecution | None:
         return self._execution
 
-    async def get_terminal_result(self, execution_id: str) -> ExecutionResultDomain | None:  # noqa: ARG002
+    async def get_terminal_result(self, execution_id: str) -> ExecutionResultDomain | None:
         return self._result
 
 
@@ -216,27 +217,27 @@ async def test_notification_stream_yields_notification_and_cleans_up() -> None:
     bus = _FakeBus()
     svc = _make_service(bus)
 
-    agen = svc.create_notification_stream(user_id="u1")
-
-    await bus.push_notif(
-        DomainNotificationSSEPayload(
-            notification_id="n1",
-            severity=NotificationSeverity.LOW,
-            status=NotificationStatus.PENDING,
-            tags=[],
-            subject="s",
-            body="b",
-            action_url="",
-            created_at=_NOW,
+    async with aclosing(svc.create_notification_stream(user_id="u1")) as agen:
+        await bus.push_notif(
+            DomainNotificationSSEPayload(
+                notification_id="n1",
+                severity=NotificationSeverity.LOW,
+                status=NotificationStatus.PENDING,
+                tags=[],
+                subject="s",
+                body="b",
+                action_url="",
+                created_at=_NOW,
+            )
         )
-    )
 
-    notif = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
-    assert notif["event"] == "notification"
-    data = json.loads(notif["data"])
-    assert data["notification_id"] == "n1"
-    assert data["subject"] == "s"
-    assert data["channel"] == "in_app"
+        notif = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
+        assert notif["event"] == "notification"
+        data = json.loads(notif["data"])
+        assert data["notification_id"] == "n1"
+        assert data["subject"] == "s"
+        assert data["channel"] == "in_app"
+    assert bus.notif_closed
 
 
 @pytest.mark.asyncio

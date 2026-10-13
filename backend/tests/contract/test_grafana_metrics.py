@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import importlib
 import json
-import os
 import pkgutil
 import re
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -190,41 +190,34 @@ def _families(reader: PrometheusMetricReader) -> dict[str, set[str]]:
 
 
 @pytest.fixture(scope="module")
-def produced_families(request: pytest.FixtureRequest) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
+def produced_families() -> Iterator[tuple[dict[str, set[str]], dict[str, set[str]]]]:
     """Run every app metric class and FastStream's Kafka middleware through the real OTel SDK.
 
-    Returns:
+    Yields:
         App families and FastStream families, each mapping family name to its sample names.
     """
-    # pytest-env sets OTEL_SDK_DISABLED=true; override so the real SDK is active.
-    old_otel_disabled = os.environ.pop("OTEL_SDK_DISABLED", None)
+    with pytest.MonkeyPatch.context() as mp:
+        # pytest-env sets OTEL_SDK_DISABLED=true, and the providers below need the real SDK
+        mp.delenv("OTEL_SDK_DISABLED", raising=False)
+        app_reader = PrometheusMetricReader()
+        app_provider = MeterProvider(metric_readers=[app_reader])
+        lib_reader = PrometheusMetricReader()
+        lib_provider = MeterProvider(metric_readers=[lib_reader])
+        otel_api.set_meter_provider(app_provider)
 
-    app_reader = PrometheusMetricReader()
-    app_provider = MeterProvider(metric_readers=[app_reader])
-    otel_api.set_meter_provider(app_provider)
-    lib_reader = PrometheusMetricReader()
-    lib_provider = MeterProvider(metric_readers=[lib_reader])
+        for _, mod_name, _ in pkgutil.iter_modules(metrics_pkg.__path__):
+            importlib.import_module(f"app.core.metrics.{mod_name}")
+        for cls in BaseMetrics.__subclasses__():
+            cls(MagicMock())
+        MetricsMiddleware(MagicMock())
+        create_system_metrics()
+        KafkaTelemetryMiddleware(meter_provider=lib_provider)
 
-    def _teardown() -> None:
-        app_provider.shutdown()
-        lib_provider.shutdown()
-        if old_otel_disabled is not None:
-            os.environ["OTEL_SDK_DISABLED"] = old_otel_disabled
-
-    request.addfinalizer(_teardown)
-
-    for _, mod_name, _ in pkgutil.iter_modules(metrics_pkg.__path__):
-        importlib.import_module(f"app.core.metrics.{mod_name}")
-
-    for cls in BaseMetrics.__subclasses__():
-        cls(MagicMock())
-    MetricsMiddleware(MagicMock())
-    create_system_metrics()
-    KafkaTelemetryMiddleware(meter_provider=lib_provider)
-
-    _trigger_instruments(app_provider)
-    _trigger_instruments(lib_provider)
-    return _families(app_reader), _families(lib_reader)
+        _trigger_instruments(app_provider)
+        _trigger_instruments(lib_provider)
+        yield _families(app_reader), _families(lib_reader)
+    app_provider.shutdown()
+    lib_provider.shutdown()
 
 
 def _collect_exprs(obj: object, out: list[str]) -> None:

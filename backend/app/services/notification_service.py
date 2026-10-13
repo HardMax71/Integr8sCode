@@ -8,6 +8,7 @@ import httpx2
 import structlog
 from opentelemetry import trace
 from tenacity import AsyncRetrying, RetryCallState, stop_after_attempt, wait_exponential
+from tenacity.wait import wait_base
 
 from app.core.metrics import NotificationMetrics
 from app.db import NotificationRepository
@@ -38,6 +39,7 @@ from app.settings import Settings
 
 # Constants
 ENTITY_EXECUTION_TAG = "entity:execution"
+DELIVERY_RETRY_WAIT = wait_exponential(max=30)
 
 # Type aliases
 type EventPayload = dict[str, object]
@@ -106,8 +108,10 @@ class NotificationService:
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
         notification_metrics: NotificationMetrics,
+        retry_wait: wait_base = DELIVERY_RETRY_WAIT,
     ) -> None:
         self.repository = notification_repository
+        self._retry_wait = retry_wait
         self._producer = producer
         self.metrics = notification_metrics
         self.settings = settings
@@ -673,7 +677,7 @@ class NotificationService:
 
         retrying = AsyncRetrying(
             stop=stop_after_attempt(notification.max_retries),
-            wait=wait_exponential(max=30),
+            wait=self._retry_wait,
             before_sleep=_on_retry,
             reraise=True,
         )

@@ -54,11 +54,11 @@
 
 <div class="editor-grid-container space-y-4 md:space-y-0 md:gap-6" in:fade={{ duration: 300 }}>
     <div class="editor-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h2 class="text-xl sm:text-2xl font-semibold text-fg whitespace-nowrap">Code Editor</h2>
+        <h2 class="sm:text-2xl whitespace-nowrap">Code Editor</h2>
         <ResourceLimits />
     </div>
 
-    <div class="editor-main-code flex flex-col rounded-lg overflow-hidden shadow-md border border-border">
+    <div class="editor-main-code flex flex-col rounded-lg overflow-hidden shadow-md border">
         <EditorToolbar />
         <div class="editor-wrapper h-full w-full relative">
             <CodeMirrorEditor
@@ -70,12 +70,12 @@
                 <div
                     class="absolute inset-0 flex flex-col items-center justify-center p-4 text-center pointer-events-none"
                 >
-                    <h3 class="text-lg font-semibold text-fg">Editor is Empty</h3>
+                    <h3 class="text-lg font-semibold">Editor is Empty</h3>
                     <p class="text-sm text-fg-muted mt-1 mb-4">
                         Start typing, upload a file, or use an example to begin.
                     </p>
-                    <LoadExample class="btn btn-primary inline-flex items-center space-x-2 pointer-events-auto">
-                        <Lightbulb class="w-4 h-4" />
+                    <LoadExample class="btn btn-primary gap-2 pointer-events-auto">
+                        <Lightbulb class="size-4" />
                         <span>Start with an Example</span>
                     </LoadExample>
                 </div>
@@ -88,16 +88,16 @@
     </div>
 
     <div class="editor-controls">
-        <div class="flex flex-col space-y-3">
-            <div class="flex items-center space-x-2 flex-wrap gap-y-2">
+        <div class="flex flex-col gap-y-3">
+            <div class="flex items-center gap-x-2 flex-wrap gap-y-2">
                 <LanguageSelect />
                 <button
                     type="button"
-                    class="btn btn-primary btn-sm flex-grow sm:flex-grow-0 min-w-[130px]"
+                    class="btn btn-primary btn-sm flex-grow sm:flex-grow-0 min-w-32.5"
                     onclick={run}
                     disabled={execution.isExecuting || !runtimesAvailable}
                 >
-                    <CirclePlay class="w-5 h-5" />
+                    <CirclePlay class="size-5" />
                     <span class="ml-1.5">{execution.isExecuting ? 'Executing...' : 'Run Script'}</span>
                 </button>
                 <button
@@ -109,20 +109,20 @@
                 >
                     <span class="sr-only">Toggle Script Options</span>
                     <div class="transition-transform duration-300 ease-out-expo" class:rotate-90={showOptions}>
-                        <Settings class="w-5 h-5" />
+                        <Settings class="size-5" />
                     </div>
                 </button>
             </div>
 
             {#if showOptions}
                 <div
-                    class="p-4 bg-surface border border-border rounded-lg flex space-x-4"
+                    class="p-4 bg-surface border rounded-lg flex gap-x-4"
                     transition:slide={{ duration: 300, easing: (t) => 1 - Math.pow(1 - t, 3) }}
                 >
                     <div class="w-1/2">
                         <ScriptActions />
                     </div>
-                    <div class="border-l border-border"></div>
+                    <div class="border-l"></div>
                     <div class="w-1/2">
                         <SavedScripts />
                     </div>

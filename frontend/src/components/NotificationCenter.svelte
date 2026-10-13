@@ -90,10 +90,10 @@
 
 <Popover.Root bind:open={showDropdown}>
     <Popover.Trigger class="btn btn-ghost btn-icon relative" aria-label="Notifications">
-        <Bell class="w-5 h-5" />
+        <Bell class="size-5" />
         {#if unreadCount > 0}
             <span
-                class="absolute -top-1 -right-1 bg-danger-solid text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"
+                class="absolute -top-1 -right-1 bg-danger-solid text-white text-xs rounded-full size-5 flex items-center justify-center"
             >
                 {unreadCount > 9 ? '9+' : unreadCount}
             </span>
@@ -102,7 +102,7 @@
 
     <Popover.Portal>
         <Popover.Content align="end" sideOffset={8} class="floating-panel w-96 p-0">
-            <div class="p-4 border-b border-border">
+            <div class="p-4 border-b">
                 <div class="flex justify-between items-center">
                     <h3 class="font-semibold text-lg">Notifications</h3>
                     {#if unreadCount > 0}
@@ -121,7 +121,7 @@
                         onclick={requestNotificationPermission}
                         class="mt-2 w-full text-xs text-fg-muted hover:text-info flex items-center justify-center gap-1"
                     >
-                        <Bell class="w-3 h-3" />
+                        <Bell class="size-3" />
                         Enable desktop notifications
                     </button>
                 {/if}
@@ -146,9 +146,9 @@
                             onclick={() => handleNotificationClick(notification)}
                             aria-label="View notification: {notification.subject}"
                         >
-                            <span class="flex items-start space-x-3">
+                            <span class="flex items-start gap-x-3">
                                 <span class={`mt-1 ${SEVERITY_COLORS[notification.severity]}`}>
-                                    <NotifIcon class="w-5 h-5" />
+                                    <NotifIcon class="size-5" />
                                 </span>
                                 <span class="flex-1 min-w-0">
                                     <span class="block font-medium text-sm">
@@ -162,7 +162,7 @@
                                     </span>
                                 </span>
                                 {#if notification.status !== NotificationStatus.READ}
-                                    <span class="w-2 h-2 bg-accent rounded-full mt-2"></span>
+                                    <span class="size-2 bg-accent rounded-full mt-2"></span>
                                 {/if}
                             </span>
                         </button>
@@ -170,7 +170,7 @@
                 {/if}
             </div>
 
-            <div class="p-3 border-t border-border">
+            <div class="p-3 border-t">
                 <button
                     type="button"
                     onclick={() => {

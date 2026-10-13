@@ -114,39 +114,34 @@
 <input type="file" accept={extensions.join(',')} bind:this={fileInput} class="hidden" onchange={upload} />
 
 <div class="space-y-3">
-    <h4 class="text-xs font-medium text-fg-muted uppercase tracking-wider">File Actions</h4>
+    <h4 class="section-label">File Actions</h4>
     <div class="grid grid-cols-2 gap-2">
         <button
             type="button"
-            class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1"
+            class="btn btn-secondary-outline btn-sm gap-1"
             onclick={startNew}
             title="Start a new script"
         >
-            <FilePlus class="w-4 h-4" /><span>New</span>
+            <FilePlus class="size-4" /><span>New</span>
         </button>
         <button
             type="button"
-            class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1"
+            class="btn btn-secondary-outline btn-sm gap-1"
             onclick={() => fileInput.click()}
             title="Upload a file"
         >
-            <Upload class="w-4 h-4" /><span>Upload</span>
+            <Upload class="size-4" /><span>Upload</span>
+        </button>
+        <button type="button" class="btn btn-primary btn-sm gap-1" onclick={save} title="Save current script">
+            <Save class="size-4" /><span>Save</span>
         </button>
         <button
             type="button"
-            class="btn btn-primary btn-sm inline-flex items-center justify-center space-x-1"
-            onclick={save}
-            title="Save current script"
-        >
-            <Save class="w-4 h-4" /><span>Save</span>
-        </button>
-        <button
-            type="button"
-            class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1"
+            class="btn btn-secondary-outline btn-sm gap-1"
             onclick={download}
             title="Download current script"
         >
-            <Download class="w-4 h-4" /><span>Export</span>
+            <Download class="size-4" /><span>Export</span>
         </button>
     </div>
 </div>

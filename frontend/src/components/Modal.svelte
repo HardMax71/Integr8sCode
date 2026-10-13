@@ -37,8 +37,8 @@
                 size
             ]}"
         >
-            <div class="flex shrink-0 items-center justify-between border-b border-border p-4 sm:p-6">
-                <Dialog.Title class="text-lg sm:text-xl font-semibold text-fg">
+            <div class="flex shrink-0 items-center justify-between border-b p-4 sm:p-6">
+                <Dialog.Title class="text-lg sm:text-xl font-semibold">
                     {title}
                 </Dialog.Title>
                 <Dialog.Close aria-label="Close dialog" class="rounded-md text-fg-muted hover:text-fg">
@@ -49,7 +49,7 @@
                 {@render children()}
             </div>
             {#if footer}
-                <div class="flex shrink-0 justify-end gap-3 border-t border-border p-4 sm:p-6">
+                <div class="flex shrink-0 justify-end gap-3 border-t p-4 sm:p-6">
                     {@render footer()}
                 </div>
             {/if}

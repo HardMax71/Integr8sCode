@@ -45,8 +45,62 @@
     @apply w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
   }
 
+  /* A page's content column; the page sets its width with a max-w-* class */
+  .page {
+    @apply mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 sm:py-12;
+  }
+
   .card {
     @apply bg-surface rounded-lg shadow-md overflow-hidden border;
+  }
+
+  /* A link inside text; other anchors (nav, menus, buttons) take their parent's color */
+  .link {
+    @apply text-accent hover:underline;
+  }
+
+  /* Small muted labels over their values, in whatever grid the page gives the list */
+  .facts {
+    @apply grid gap-2;
+
+    & dt {
+      @apply text-xs text-fg-muted;
+    }
+  }
+
+  /* A labelled number in a card: the label over the value */
+  .stat {
+    & dt {
+      @apply text-sm text-fg-muted;
+    }
+
+    & dd {
+      @apply mt-1 text-2xl font-bold;
+    }
+  }
+
+  /* A label over its control and error, spaced by the grid gap */
+  .field {
+    @apply grid content-start gap-1;
+  }
+
+  /* A label and value list; the labels are muted */
+  .details {
+    @apply grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm;
+
+    & > dt {
+      @apply text-fg-muted;
+    }
+  }
+
+  /* Plain links in a group (footer, nav) that take the accent color on hover */
+  .link-list a {
+    @apply transition-colors hover:text-accent;
+  }
+
+  /* A full-width link in the mobile menu */
+  .menu-link {
+    @apply flex items-center gap-2 px-3 py-2 rounded-md font-medium hover:bg-muted;
   }
 
   .empty-state {
@@ -54,14 +108,6 @@
   }
 
   /* Forms; plain inputs, selects and checkboxes get their look from the base layer in app.css */
-  .form-control {
-    @apply space-y-1;
-  }
-
-  .form-control label {
-    @apply block text-sm font-medium;
-  }
-
   .form-input-standard {
     @apply form-control-base;
   }
@@ -153,11 +199,11 @@
   }
 
   .table-header-cell {
-    @apply px-4 py-3 text-left text-xs font-medium text-fg-muted uppercase tracking-wider;
+    @apply px-4 py-3 text-left section-label;
   }
 
   .table-header-cell-sm {
-    @apply px-3 py-2 text-left text-xs font-medium text-fg-muted uppercase tracking-wider;
+    @apply px-3 py-2 text-left section-label;
   }
 
   .table-body {
@@ -218,28 +264,6 @@
   .custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: var(--color-fg-subtle) var(--color-muted);
-  }
-
-  .output-section .relative {
-    overflow: visible;
-  }
-
-  .output-section .group,
-  .relative .group {
-    z-index: 10;
-  }
-
-  /* Privacy and other text pages */
-  .prose-page h2 {
-    @apply mt-8 mb-4;
-  }
-
-  .prose-page p {
-    @apply mb-4;
-  }
-
-  .prose-page section {
-    @apply mb-6;
   }
 
   /* ANSI colours from ansi_up, which runs with use_classes */

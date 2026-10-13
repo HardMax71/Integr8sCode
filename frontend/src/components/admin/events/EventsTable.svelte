@@ -95,7 +95,7 @@
         <Tooltip.Portal>
             <Tooltip.Content side="bottom" align="start" sideOffset={6} class="tooltip-content">
                 <div class="font-medium">{event.event_type}</div>
-                <div class="text-fg-subtle text-[10px] font-mono mt-0.5">{event.event_id.slice(0, 8)}...</div>
+                <div class="text-fg-subtle text-xs font-mono mt-0.5">{event.event_id.slice(0, 8)}...</div>
             </Tooltip.Content>
         </Tooltip.Portal>
     </Tooltip.Root>

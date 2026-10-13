@@ -21,15 +21,15 @@
 <div class="lg:flex">
     <!-- A fixed sidebar from lg up; above the content as a scrolling row of links below it -->
     <aside
-        class="bg-sidebar border-b border-border lg:border-b-0 lg:shadow-lg lg:fixed lg:left-0 lg:top-16 lg:bottom-0 lg:w-64 lg:overflow-y-auto lg:z-10"
+        class="bg-sidebar border-b lg:border-b-0 lg:shadow-lg lg:fixed lg:left-0 lg:top-16 lg:bottom-0 lg:w-64 lg:overflow-y-auto lg:z-10"
     >
         <div class="p-3 lg:p-4">
             <div class="hidden lg:flex items-center gap-2 mb-8">
-                <ShieldCheck class="w-6 h-6 text-accent" />
-                <h2 class="text-xl font-bold text-fg">Admin Panel</h2>
+                <ShieldCheck class="size-6 text-accent" />
+                <h2 class="font-bold">Admin Panel</h2>
             </div>
 
-            <nav bind:this={nav} aria-label="Admin" class="flex gap-2 overflow-x-auto lg:block lg:space-y-2">
+            <nav bind:this={nav} aria-label="Admin" class="flex gap-2 overflow-x-auto lg:flex-col">
                 {#each ADMIN_ROUTES as navItem (navItem.path)}
                     {@const href = resolve(navItem.path)}
                     <a
@@ -37,7 +37,7 @@
                         aria-current={path === href ? 'page' : undefined}
                         class={[
                             'flex shrink-0 items-center gap-3 whitespace-nowrap px-4 py-2 rounded-lg transition-colors',
-                            path === href ? 'bg-primary text-white' : 'text-fg hover:bg-fg/10',
+                            path === href ? 'bg-primary text-white' : 'hover:bg-fg/10',
                         ]}
                     >
                         <span>{navItem.sidebarLabel}</span>
@@ -45,9 +45,9 @@
                 {/each}
             </nav>
 
-            <div class="hidden lg:block mt-8 p-4 bg-surface rounded-lg border border-border">
+            <div class="hidden lg:block mt-8 p-4 bg-surface rounded-lg border">
                 <p class="text-sm text-fg-muted">Logged in as:</p>
-                <p class="font-semibold truncate text-fg">
+                <p class="font-semibold truncate">
                     {data.user.username}
                 </p>
             </div>

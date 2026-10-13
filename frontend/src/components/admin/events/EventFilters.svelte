@@ -28,7 +28,7 @@
 <div class="card mb-6">
     <div class="p-4">
         <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-fg uppercase tracking-wide">Filter Events</h3>
+            <h3 class="text-sm font-semibold uppercase tracking-wide">Filter Events</h3>
             <div class="flex gap-2">
                 <button type="button" onclick={onClear} class="btn btn-ghost btn-sm"> Clear All </button>
                 <button type="button" onclick={onApply} class="btn btn-primary btn-sm"> Apply </button>
@@ -36,10 +36,9 @@
         </div>
 
         <div class="space-y-3">
-            <!-- Primary filters row -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                <div class="lg:col-span-1">
-                    <label for="event-types-filter" class="block text-xs font-medium text-fg-muted mb-1">
+                <div class="field lg:col-span-1">
+                    <label for="event-types-filter">
                         {fieldTitle('event_types')}
                     </label>
                     <select
@@ -62,8 +61,8 @@
                     </select>
                 </div>
 
-                <div>
-                    <label for="search-filter" class="block text-xs font-medium text-fg-muted mb-1">
+                <div class="field">
+                    <label for="search-filter">
                         {fieldTitle('search_text')}
                     </label>
                     <input
@@ -77,8 +76,8 @@
                     />
                 </div>
 
-                <div>
-                    <label for="aggregate-filter" class="block text-xs font-medium text-fg-muted mb-1">
+                <div class="field">
+                    <label for="aggregate-filter">
                         {fieldTitle('aggregate_id')}
                     </label>
                     <input
@@ -93,8 +92,8 @@
                     />
                 </div>
 
-                <div>
-                    <label for="user-filter" class="block text-xs font-medium text-fg-muted mb-1">
+                <div class="field">
+                    <label for="user-filter">
                         {fieldTitle('user_id')}
                     </label>
                     <input
@@ -110,10 +109,9 @@
                 </div>
             </div>
 
-            <!-- Secondary filters row -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <div>
-                    <label for="service-filter" class="block text-xs font-medium text-fg-muted mb-1">
+                <div class="field">
+                    <label for="service-filter">
                         {fieldTitle('service_name')}
                     </label>
                     <input
@@ -128,8 +126,8 @@
                     />
                 </div>
 
-                <div>
-                    <label for="start-time-filter" class="block text-xs font-medium text-fg-muted mb-1">
+                <div class="field">
+                    <label for="start-time-filter">
                         {fieldTitle('start_time')}
                     </label>
                     <input
@@ -143,8 +141,8 @@
                     />
                 </div>
 
-                <div>
-                    <label for="end-time-filter" class="block text-xs font-medium text-fg-muted mb-1">
+                <div class="field">
+                    <label for="end-time-filter">
                         {fieldTitle('end_time')}
                     </label>
                     <input

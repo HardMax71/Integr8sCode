@@ -57,7 +57,6 @@
 
 {#if session}
     <div class="bg-info-soft border border-info/30 rounded-lg p-4 mb-6 relative">
-        <!-- Close button -->
         <button
             type="button"
             onclick={onClose}
@@ -80,7 +79,7 @@
             </div>
             <div class="w-full bg-info/25 rounded-full h-2 overflow-hidden">
                 <div
-                    class="bg-info h-2 rounded-full transition-all duration-300"
+                    class="bg-info h-2 rounded-full transition-[width] duration-300"
                     style="width: {Math.min(session.progress_percentage, 100)}%"
                 ></div>
             </div>

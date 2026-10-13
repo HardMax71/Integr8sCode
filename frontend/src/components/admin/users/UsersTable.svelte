@@ -64,7 +64,7 @@
             title="Edit User"
             aria-label="Edit User"
         >
-            <Pencil class="w-5 h-5" />
+            <Pencil class="size-5" />
         </button>
         <button
             type="button"
@@ -73,7 +73,7 @@
             title="Manage Rate Limits"
             aria-label="Manage Rate Limits"
         >
-            <Clock class="w-5 h-5" />
+            <Clock class="size-5" />
         </button>
         <button
             type="button"
@@ -82,7 +82,7 @@
             title="Delete User"
             aria-label="Delete User"
         >
-            <Trash class="w-5 h-5" />
+            <Trash class="size-5" />
         </button>
     </div>
 {/snippet}

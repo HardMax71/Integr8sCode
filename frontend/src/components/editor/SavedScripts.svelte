@@ -45,31 +45,31 @@
 </script>
 
 <div class="space-y-3">
-    <h4 class="text-xs font-medium text-fg-muted uppercase tracking-wider">Saved Scripts</h4>
+    <h4 class="section-label">Saved Scripts</h4>
     <div>
         <button
             type="button"
-            class="btn btn-secondary-outline btn-sm w-full inline-flex items-center justify-center space-x-1.5"
+            class="btn btn-secondary-outline btn-sm w-full gap-1.5"
             onclick={toggle}
             aria-expanded={show}
             title={show ? 'Hide Saved Scripts' : 'Show Saved Scripts'}
         >
-            <List class="w-4 h-4" />
+            <List class="size-4" />
             <span>{show ? 'Hide' : 'Show'} Saved Scripts</span>
         </button>
     </div>
     {#if show}
         <div class="mt-2" transition:slide={{ duration: 200 }}>
             {#if scripts.length > 0}
-                <div class="saved-scripts-container border border-border rounded-lg bg-page shadow-inner">
-                    <ul class="divide-y divide-border">
+                <div class="saved-scripts-container border rounded-lg bg-page shadow-inner">
+                    <ul class="divide-y">
                         {#each scripts as item (item.script_id)}
                             <li
                                 class="flex items-center justify-between hover:bg-muted text-sm group transition-colors duration-100"
                             >
                                 <button
                                     type="button"
-                                    class="flex-grow text-left px-3 py-2 text-fg hover:text-accent font-medium min-w-0"
+                                    class="flex-grow text-left px-3 py-2 hover:text-accent font-medium min-w-0"
                                     onclick={() => open(item)}
                                     title={`Load ${item.name} (${item.lang} ${item.lang_version})`}
                                 >
@@ -88,16 +88,14 @@
                                     aria-label={`Delete ${item.name}`}
                                     title={`Delete ${item.name}`}
                                 >
-                                    <Trash class="w-4 h-4" />
+                                    <Trash class="size-4" />
                                 </button>
                             </li>
                         {/each}
                     </ul>
                 </div>
             {:else}
-                <p class="p-4 text-xs text-fg-muted italic text-center border border-border rounded-lg">
-                    No saved scripts yet.
-                </p>
+                <p class="p-4 text-xs text-fg-muted italic text-center border rounded-lg">No saved scripts yet.</p>
             {/if}
         </div>
     {/if}

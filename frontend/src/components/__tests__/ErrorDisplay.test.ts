@@ -139,7 +139,7 @@ describe('ErrorDisplay', () => {
             const { container } = render(ErrorDisplay, { props: { error: 'Error' } });
 
             const wrapper = container.firstChild as HTMLElement;
-            expect(wrapper.classList.contains('min-h-screen')).toBe(true);
+            expect(wrapper.classList.contains('min-h-dvh')).toBe(true);
             expect(wrapper.classList.contains('flex')).toBe(true);
             expect(wrapper.classList.contains('items-center')).toBe(true);
             expect(wrapper.classList.contains('justify-center')).toBe(true);

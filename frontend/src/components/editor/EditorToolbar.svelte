@@ -5,7 +5,7 @@
     import LoadExample from '#components/editor/LoadExample.svelte';
 </script>
 
-<div class="editor-toolbar flex items-center justify-between px-3 py-1 bg-page border-b border-border shrink-0">
+<div class="editor-toolbar flex items-center justify-between px-3 py-1 bg-page border-b shrink-0">
     <div>
         <label for="scriptNameInput" class="sr-only">{fieldTitle('name')}</label>
         <input
@@ -16,9 +16,9 @@
             bind:value={draft.current.name}
         />
     </div>
-    <div class="flex items-center space-x-2">
-        <LoadExample class="btn btn-secondary-outline btn-sm inline-flex items-center space-x-1.5">
-            <Lightbulb class="w-4 h-4" />
+    <div class="flex items-center gap-x-2">
+        <LoadExample class="btn btn-secondary-outline btn-sm gap-1.5">
+            <Lightbulb class="size-4" />
             <span class="hidden sm:inline">Example</span>
         </LoadExample>
     </div>

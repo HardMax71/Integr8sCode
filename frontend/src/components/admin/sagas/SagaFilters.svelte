@@ -20,13 +20,12 @@
 </script>
 
 <div class="mb-6 flex flex-col lg:grid lg:grid-cols-4 gap-3">
-    <div>
-        <label for="saga-search" class="block text-sm font-medium mb-2 text-fg-muted">{fieldTitle('search')}</label>
+    <div class="field">
+        <label for="saga-search">{fieldTitle('search')}</label>
         <input id="saga-search" type="text" bind:value={filters.search} class="form-input-standard" />
     </div>
-    <div>
-        <label for="saga-state-filter" class="block text-sm font-medium mb-2 text-fg-muted">{fieldTitle('state')}</label
-        >
+    <div class="field">
+        <label for="saga-state-filter">{fieldTitle('state')}</label>
         <select id="saga-state-filter" bind:value={filters.state} class="form-select-standard">
             <option value={null}>All</option>
             {#each Object.values(SagaState) as state (state)}
@@ -34,16 +33,14 @@
             {/each}
         </select>
     </div>
-    <div>
-        <label for="saga-execution-filter" class="block text-sm font-medium mb-2 text-fg-muted"
-            >{fieldTitle('execution_id')}</label
-        >
+    <div class="field">
+        <label for="saga-execution-filter">{fieldTitle('execution_id')}</label>
         <input id="saga-execution-filter" type="text" bind:value={filters.execution_id} class="form-input-standard" />
     </div>
     <div>
         <span class="block text-sm font-medium mb-2 text-fg-muted">Actions</span>
         <button type="button" onclick={onClear} class="w-full btn btn-secondary-outline">
-            <X class="w-4 h-4 mr-1.5" />Clear Filters
+            <X class="size-4 mr-1.5" />Clear Filters
         </button>
     </div>
 </div>

@@ -136,47 +136,47 @@
     />
 </svelte:head>
 
-<div class="min-h-screen bg-page">
-    <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16 max-w-4xl">
-        {#if settingsQuery.isPending}
-            <div class="flex justify-center items-center h-64">
-                <Spinner size="xlarge" />
+<div class="page max-w-4xl">
+    {#if settingsQuery.isPending}
+        <div class="flex justify-center items-center h-64">
+            <Spinner size="xlarge" />
+        </div>
+    {:else}
+        <div class="hero-animate-fly-in" style="--fly-y: -20px; --fly-delay: 100ms;">
+            <div class="flex justify-between items-center mb-8">
+                <h1 class="lg:text-4xl">Settings</h1>
+
+                <button type="button" onclick={() => (showHistory = true)} class="btn btn-secondary-outline btn-sm">
+                    View History
+                </button>
             </div>
-        {:else}
-            <div class="hero-animate-fly-in" style="--fly-y: -20px; --fly-delay: 100ms;">
-                <div class="flex justify-between items-center mb-8">
-                    <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold text-fg">Settings</h1>
+        </div>
 
-                    <button type="button" onclick={() => (showHistory = true)} class="btn btn-secondary-outline btn-sm">
-                        View History
-                    </button>
-                </div>
-            </div>
+        <div class="flex gap-x-1 mb-6 bg-muted p-1 rounded-lg">
+            {#each tabs as tab (tab.id)}
+                <button
+                    type="button"
+                    class={[
+                        'flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors',
+                        activeTab === tab.id ? 'bg-surface shadow-xs text-accent' : 'text-fg-muted hover:text-fg',
+                    ]}
+                    onclick={() => (activeTab = tab.id)}
+                >
+                    {tab.label}
+                </button>
+            {/each}
+        </div>
 
-            <div class="flex space-x-1 mb-6 bg-muted p-1 rounded-lg">
-                {#each tabs as tab (tab.id)}
-                    <button
-                        type="button"
-                        class={[
-                            'flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors',
-                            activeTab === tab.id ? 'bg-surface shadow-xs text-accent' : 'text-fg-muted hover:text-fg',
-                        ]}
-                        onclick={() => (activeTab = tab.id)}
-                    >
-                        {tab.label}
-                    </button>
-                {/each}
-            </div>
+        <form method="post" use:enhance novalidate class="card">
+            <div class="p-6">
+                {#if activeTab === 'general'}
+                    <h2 class="mb-4">General</h2>
 
-            <form method="post" use:enhance novalidate class="card">
-                <div class="p-6">
-                    {#if activeTab === 'general'}
-                        <h2 class="text-xl font-semibold text-fg mb-4">General</h2>
-
-                        <Field {form} name="theme">
+                    <Field {form} name="theme">
+                        <div class="field">
                             <Control>
                                 {#snippet children({ props })}
-                                    <Label class="block mb-2 text-sm font-medium text-fg">{fieldTitle('theme')}</Label>
+                                    <Label>{fieldTitle('theme')}</Label>
                                     <Select.Root
                                         type="single"
                                         value={$formData.theme}
@@ -193,7 +193,7 @@
                                         >
                                             <span class="truncate">{$formData.theme}</span>
                                             <ChevronDown
-                                                class="w-5 h-5 ml-2 shrink-0 text-fg-muted transition-transform group-data-[state=open]:-rotate-180"
+                                                class="size-5 ml-2 shrink-0 text-fg-muted transition-transform group-data-[state=open]:-rotate-180"
                                             />
                                         </Select.Trigger>
                                         <Select.Portal>
@@ -210,7 +210,7 @@
                                                         >
                                                             {#snippet children({ selected })}
                                                                 {theme}
-                                                                {#if selected}<Check class="w-4 h-4 text-accent" />{/if}
+                                                                {#if selected}<Check class="size-4 text-accent" />{/if}
                                                             {/snippet}
                                                         </Select.Item>
                                                     {/each}
@@ -220,114 +220,105 @@
                                     </Select.Root>
                                 {/snippet}
                             </Control>
-                        </Field>
-                    {:else if activeTab === 'editor'}
-                        <h2 class="text-xl font-semibold text-fg mb-4">
-                            {fieldTitle('editor')}
-                        </h2>
+                        </div>
+                    </Field>
+                {:else if activeTab === 'editor'}
+                    <h2 class="mb-4">
+                        {fieldTitle('editor')}
+                    </h2>
 
-                        <div class="flex flex-wrap gap-4">
-                            <Field {form} name="editor.font_size">
+                    <div class="flex flex-wrap gap-4">
+                        <Field {form} name="editor.font_size">
+                            <Control>
+                                {#snippet children({ props })}
+                                    <div class="field flex-1 min-w-25">
+                                        <Label>{fieldTitle('font_size')}</Label>
+                                        <input
+                                            {...props}
+                                            {...$constraints.editor?.font_size}
+                                            type="number"
+                                            bind:value={$formData.editor.font_size}
+                                            class="form-input-standard"
+                                        />
+                                        <FieldErrors class="mt-1" />
+                                    </div>
+                                {/snippet}
+                            </Control>
+                        </Field>
+
+                        <Field {form} name="editor.tab_size">
+                            <Control>
+                                {#snippet children({ props })}
+                                    <div class="field flex-1 min-w-25">
+                                        <Label>{fieldTitle('tab_size')}</Label>
+                                        <select
+                                            {...props}
+                                            bind:value={$formData.editor.tab_size}
+                                            class="form-select-standard"
+                                        >
+                                            {#each tabSizes as size (size)}<option value={size}>{size}</option>{/each}
+                                        </select>
+                                    </div>
+                                {/snippet}
+                            </Control>
+                        </Field>
+                    </div>
+
+                    <div class="my-6 border-t"></div>
+
+                    <div class="space-y-3">
+                        {#each editorToggles as key (key)}
+                            <Field {form} name="editor.{key}">
                                 <Control>
                                     {#snippet children({ props })}
-                                        <div class="flex-1 min-w-[100px]">
-                                            <Label class="block mb-2 text-sm font-medium text-fg"
-                                                >{fieldTitle('font_size')}</Label
-                                            >
+                                        <Label class="settings-toggle">
+                                            <span class="text-sm font-medium">{fieldTitle(key)}</span>
+                                            <input {...props} type="checkbox" bind:checked={$formData.editor[key]} />
+                                        </Label>
+                                    {/snippet}
+                                </Control>
+                            </Field>
+                        {/each}
+                    </div>
+                {:else if activeTab === 'notifications'}
+                    <h2 class="mb-4">
+                        {fieldTitle('notifications')}
+                    </h2>
+
+                    <h3 class="font-semibold mb-2">Notification Types</h3>
+                    <div class="space-y-3">
+                        {#each notificationToggles as key (key)}
+                            <Field {form} name="notifications.{key}">
+                                <Control>
+                                    {#snippet children({ props })}
+                                        <Label class="settings-toggle">
+                                            <span class="text-sm font-medium">{fieldTitle(key)}</span>
                                             <input
                                                 {...props}
-                                                {...$constraints.editor?.font_size}
-                                                type="number"
-                                                bind:value={$formData.editor.font_size}
-                                                class="form-input-standard"
+                                                type="checkbox"
+                                                bind:checked={$formData.notifications[key]}
                                             />
-                                            <FieldErrors class="mt-1 text-sm text-danger" />
-                                        </div>
+                                        </Label>
                                     {/snippet}
                                 </Control>
                             </Field>
-
-                            <Field {form} name="editor.tab_size">
-                                <Control>
-                                    {#snippet children({ props })}
-                                        <div class="flex-1 min-w-[100px]">
-                                            <Label class="block mb-2 text-sm font-medium text-fg"
-                                                >{fieldTitle('tab_size')}</Label
-                                            >
-                                            <select
-                                                {...props}
-                                                bind:value={$formData.editor.tab_size}
-                                                class="form-select-standard"
-                                            >
-                                                {#each tabSizes as size (size)}<option value={size}>{size}</option
-                                                    >{/each}
-                                            </select>
-                                        </div>
-                                    {/snippet}
-                                </Control>
-                            </Field>
-                        </div>
-
-                        <div class="my-6 border-t border-border"></div>
-
-                        <div class="space-y-3">
-                            {#each editorToggles as key (key)}
-                                <Field {form} name="editor.{key}">
-                                    <Control>
-                                        {#snippet children({ props })}
-                                            <Label class="settings-toggle">
-                                                <span class="text-sm font-medium text-fg">{fieldTitle(key)}</span>
-                                                <input
-                                                    {...props}
-                                                    type="checkbox"
-                                                    bind:checked={$formData.editor[key]}
-                                                />
-                                            </Label>
-                                        {/snippet}
-                                    </Control>
-                                </Field>
-                            {/each}
-                        </div>
-                    {:else if activeTab === 'notifications'}
-                        <h2 class="text-xl font-semibold text-fg mb-4">
-                            {fieldTitle('notifications')}
-                        </h2>
-
-                        <h3 class="font-semibold mb-2">Notification Types</h3>
-                        <div class="space-y-3">
-                            {#each notificationToggles as key (key)}
-                                <Field {form} name="notifications.{key}">
-                                    <Control>
-                                        {#snippet children({ props })}
-                                            <Label class="settings-toggle">
-                                                <span class="text-sm font-medium text-fg">{fieldTitle(key)}</span>
-                                                <input
-                                                    {...props}
-                                                    type="checkbox"
-                                                    bind:checked={$formData.notifications[key]}
-                                                />
-                                            </Label>
-                                        {/snippet}
-                                    </Control>
-                                </Field>
-                            {/each}
-                        </div>
-                    {/if}
-
-                    <div class="flex justify-end mt-6">
-                        <button type="submit" class="btn btn-primary" disabled={save.isPending}>
-                            {#if save.isPending}
-                                <Spinner size="small" color="white" className="mr-2 inline-block" />
-                                Saving...
-                            {:else}
-                                Save Settings
-                            {/if}
-                        </button>
+                        {/each}
                     </div>
+                {/if}
+
+                <div class="flex justify-end mt-6">
+                    <button type="submit" class="btn btn-primary" disabled={save.isPending}>
+                        {#if save.isPending}
+                            <Spinner size="small" color="white" className="mr-2 inline-block" />
+                            Saving...
+                        {:else}
+                            Save Settings
+                        {/if}
+                    </button>
                 </div>
-            </form>
-        {/if}
-    </div>
+            </div>
+        </form>
+    {/if}
 </div>
 
 <Modal open={showHistory} title="Settings History" onClose={() => (showHistory = false)} size="lg">

@@ -57,13 +57,13 @@
     </div>
 
     {#if cards}
-        <ul class="lg:hidden divide-y divide-border" aria-label={label}>
+        <ul class="lg:hidden divide-y" aria-label={label}>
             {#each rows as row (row.id)}
                 <li class="p-4">
-                    <dl class="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2 text-sm">
+                    <dl class="details items-center gap-x-4">
                         {#each row.getAllCells() as cell (cell.id)}
-                            <dt class="text-fg-muted">{fieldTitle(cell.column.id)}</dt>
-                            <dd class="min-w-0 wrap-anywhere text-fg">
+                            <dt>{fieldTitle(cell.column.id)}</dt>
+                            <dd class="min-w-0 wrap-anywhere">
                                 <FlexRender {cell} />
                             </dd>
                         {/each}

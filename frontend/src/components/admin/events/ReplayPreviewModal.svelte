@@ -41,7 +41,7 @@
 
     {#if preview.events_preview && preview.events_preview.length > 0}
         <div class="space-y-3">
-            <h3 class="font-medium text-fg mb-2">
+            <h3 class="font-medium mb-2">
                 {fieldTitle('events_preview')}
             </h3>
             {#each preview.events_preview as event (event.event_id)}
@@ -51,7 +51,7 @@
                             <div class="font-mono text-xs text-fg-muted mb-1">
                                 {event.event_id}
                             </div>
-                            <div class="font-medium text-fg">
+                            <div class="font-medium">
                                 {event.event_type}
                             </div>
                             {#if event.aggregate_id}

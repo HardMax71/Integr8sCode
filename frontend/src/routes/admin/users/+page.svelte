@@ -57,22 +57,22 @@
 
 <div class="container mx-auto px-2 sm:px-4 pb-8">
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-fg">User Management</h1>
+        <h1>User Management</h1>
         <div class="flex gap-2 w-full sm:w-auto">
             <button
                 type="button"
                 onclick={() => (dialog = { kind: 'create' })}
-                class="btn btn-primary flex items-center gap-2 flex-1 sm:flex-initial justify-center"
+                class="btn btn-primary gap-2 flex-1 sm:flex-initial"
             >
-                <Plus class="w-4 h-4" />Create User
+                <Plus class="size-4" />Create User
             </button>
             <button
                 type="button"
                 onclick={() => usersQuery.refetch()}
-                class="btn btn-secondary-outline flex items-center gap-2 flex-1 sm:flex-initial justify-center"
+                class="btn btn-secondary-outline gap-2 flex-1 sm:flex-initial"
                 disabled={usersQuery.isFetching}
             >
-                {#if usersQuery.isFetching}<Spinner size="small" />{:else}<RefreshCw class="w-4 h-4" />{/if}Refresh
+                {#if usersQuery.isFetching}<Spinner size="small" />{:else}<RefreshCw class="size-4" />{/if}Refresh
             </button>
         </div>
     </div>
@@ -81,7 +81,7 @@
 
     <div class="card">
         <div class="p-3 sm:p-6">
-            <h3 class="text-lg font-semibold text-fg mb-4">
+            <h3 class="text-lg font-semibold mb-4">
                 Users ({totalUsers})
             </h3>
 

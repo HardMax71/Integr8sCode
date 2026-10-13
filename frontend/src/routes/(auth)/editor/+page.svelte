@@ -7,7 +7,6 @@
         getUserSettingsApiV1UserSettingsGetOptions,
         zEditorSettingsInput,
     } from '#lib/api/index.ts';
-    import { authStore } from '#stores/auth.svelte.ts';
     import { createExecutionState, draft, executionContext, pickRuntime } from '#lib/editor/index.ts';
     import { toast } from 'svelte-sonner';
     import {
@@ -24,10 +23,7 @@
     const DEFAULT_EDITOR_SETTINGS = zEditorSettingsInput.parse({});
 
     const limits = createQuery(() => getK8sResourceLimitsApiV1K8sLimitsGetOptions());
-    const settings = createQuery(() => ({
-        ...getUserSettingsApiV1UserSettingsGetOptions(),
-        enabled: authStore.session.status === 'signed-in',
-    }));
+    const settings = createQuery(() => getUserSettingsApiV1UserSettingsGetOptions());
     const runtimesAvailable = $derived(Object.keys(limits.data?.supported_runtimes ?? {}).length > 0);
     const execution = executionContext.set(createExecutionState());
 

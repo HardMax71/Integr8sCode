@@ -25,7 +25,6 @@
     "imports": {
         "#lib/*": "./src/lib/*",
         "#components/*": "./src/components/*",
-        "#stores/*": "./src/stores/*",
         "#routes/*": "./src/routes/*",
         "#test/*": "./src/__tests__/*"
     },

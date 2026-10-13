@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
 import { match } from '$app/paths';
 import { mockApi, renderWithQueryClient, user, type UserEventInstance } from '#test/test-utils.ts';
-import { fakeNotificationResponse, fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
+import { fakeNotificationResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import {
     getNotificationsApiV1NotificationsGet,
     markAllReadApiV1NotificationsMarkAllReadPost,
@@ -12,20 +12,12 @@ import {
 } from '#lib/api/index.ts';
 
 const mocks = vi.hoisted(() => ({
-    mockAuthStore: {
-        session: { status: 'signed-out' } as Session,
-    },
     mockGoto: vi.fn(),
     mockStreamConnect: vi.fn(),
     mockStreamDisconnect: vi.fn(),
 }));
 
 vi.mock('$app/navigation', () => ({ goto: mocks.mockGoto }));
-vi.mock('#stores/auth.svelte.ts', () => ({
-    get authStore() {
-        return mocks.mockAuthStore;
-    },
-}));
 vi.mock('#lib/notifications/stream.svelte.ts', () => ({
     notificationStream: {
         connect: mocks.mockStreamConnect,
@@ -43,7 +35,6 @@ vi.stubGlobal('Notification', {
 });
 
 import NotificationCenter from '#components/NotificationCenter.svelte';
-import type { Session } from '#stores/auth.svelte.ts';
 
 const createNotification = (overrides: Partial<NotificationResponse> = {}): NotificationResponse => ({
     ...fakeNotificationResponse(),
@@ -157,7 +148,6 @@ describe('NotificationCenter', () => {
     };
 
     beforeEach(() => {
-        mocks.mockAuthStore.session = { status: 'signed-in', user: fakeUserResponse(), csrfToken: 'csrf' };
         setNotifications([]);
         mocks.mockGoto.mockReset();
         vi.mocked(getNotificationsApiV1NotificationsGet).mockClear();
@@ -391,14 +381,6 @@ describe('NotificationCenter', () => {
             onNotification(createNotification({ notification_id: 'pushed' }));
 
             await waitFor(() => expect(vi.mocked(getNotificationsApiV1NotificationsGet)).toHaveBeenCalledTimes(2));
-        });
-
-        it('neither loads nor connects when signed out', async () => {
-            mocks.mockAuthStore.session = { status: 'signed-out' };
-            renderWithQueryClient(NotificationCenter);
-            await vi.advanceTimersByTimeAsync(100);
-            expect(vi.mocked(getNotificationsApiV1NotificationsGet)).not.toHaveBeenCalled();
-            expect(mocks.mockStreamConnect).not.toHaveBeenCalled();
         });
     });
 

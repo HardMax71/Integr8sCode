@@ -49,9 +49,7 @@ frontend/
     ├── lib/admin/           # Admin utilities: events/, rate-limits/, sagas/
     ├── lib/editor/          # Execution state, the open script (draft), CodeMirror languages
     ├── lib/notifications/   # Notification SSE stream
-    ├── lib/auth-guard.ts    # requireAuth and requireAdmin for the layout guards
     ├── lib/query-client.ts  # the one TanStack Query client, provided by the root layout
-    ├── stores/              # auth; server data lives in the query cache, the theme in mode-watcher
     └── styles/              # Global CSS
 ```
 
@@ -596,19 +594,11 @@ The API process consumes too: `sse-bridge-pool` and `notification-service` are r
 ```
 
 ### Shared / Global State
-Use `.svelte.ts` files with ES6 classes (not plain objects):
+Shared state comes from whatever already holds it, never from a wrapper or a copy: who is signed in is `page.data.user` (the root layout's load), server data is the TanStack Query cache, and the theme is mode-watcher's `userPrefersMode`, `mode` and `setMode`. What's left is client state, which goes in a `.svelte.ts` module on a library primitive, such as the editor's open script on runed's `PersistedState`:
 
 ```typescript
-// stores/auth.svelte.ts: one union instead of nullable fields, so a signed-in session always has its user
-type Session = { status: 'signed-out' } | { status: 'signed-in'; user: UserResponse; csrfToken: string };
-
-class AuthStore {
-    session = $state<Session>({ status: 'signed-out' });
-
-    async startSession(login: LoginResponse): Promise<void> { ... }
-    clearAuth(): void { ... }
-}
-export const authStore = new AuthStore();
+// lib/editor/draft.svelte.ts: kept in localStorage, not synced across tabs, so two tabs can edit two scripts
+export const draft = new PersistedState<Draft>('editorDraft', { script_id: null, name: '', script: '', ...langDefaults }, { syncTabs: false });
 ```
 
 ## Frontend: TypeScript
@@ -624,7 +614,6 @@ Imports go through the package.json subpath imports (SvelteKit 3 dropped `$lib`)
 ```text
 #lib/*        = src/lib/*         e.g. #lib/api/index.ts, #lib/formatters.ts
 #components/* = src/components/*  e.g. #components/Header.svelte
-#stores/*     = src/stores/*      e.g. #stores/auth.svelte.ts
 #routes/*     = src/routes/*      e.g. #routes/admin/users/+page.svelte (tests)
 #test/*       = src/__tests__/*   e.g. #test/test-utils.ts
 ```
@@ -667,7 +656,7 @@ UI-only maps keyed by a generated enum (`Record<ExecutionStatus, string>` for ba
 - ESLint runs eslint-plugin-svelte's recommended rules: keyed `{#each}` blocks, `resolve()` on every link and `goto()`, no `{@html}` (ANSI output renders as spans from anser's tokens). Fix a finding in the code; the repo has no `eslint-disable` comments
 - ESLint rejects literal text inside `<label>`, formsnap's `Label`, `<dt>` and `<th>`, and a `header` on a column. A UI-only label (one that names no API field) goes outside those elements or on the control's `aria-label`
 
-Server state goes through TanStack Query with the options the `@tanstack/svelte-query` plugin generates, never a hand-rolled loading flag, polling loop, cache or retry. A component calls the query or mutation for the data it renders; a page doesn't fetch on behalf of its children, since the query cache already shares one request between them. Every page does this; only the three SSE streams call the SDK directly. `docs/frontend/server-state.md` has the details.
+Server state goes through TanStack Query with the options the `@tanstack/svelte-query` plugin generates, never a hand-rolled loading flag, polling loop, cache or retry. A component calls the query or mutation for the data it renders; a page doesn't fetch on behalf of its children, since the query cache already shares one request between them. Every page does this; only the three SSE streams and the root layout's session check call the SDK directly. `docs/frontend/server-state.md` has the details.
 
 ```typescript
 import { createMutation, createQuery, keepPreviousData, useQueryClient } from '@tanstack/svelte-query';
@@ -688,7 +677,7 @@ const cancel = createMutation(() => ({
 }));
 ```
 
-`src/lib/query-client.ts` holds the one client, provided by the root layout. It retries a query twice on a network error or a 5xx, never a mutation, and shows failures through its cache handlers. Use `isPending` for first-load spinners and `isFetching` for refresh buttons. Outside components (the auth store), use `queryClient.query(options)`; inside, a form starts over from its query data whenever that changes (see the settings pages) and saves through a mutation that calls `setQueryData`.
+`src/lib/query-client.ts` holds the one client, provided by the root layout. It retries a query twice on a network error or a 5xx, never a mutation, and shows failures through its cache handlers. Use `isPending` for first-load spinners and `isFetching` for refresh buttons. Outside components, use `queryClient.query(options)`; inside, a form starts over from its query data whenever that changes (see the settings pages) and saves through a mutation that calls `setQueryData`.
 
 ## Frontend: Error Handling & API Interceptors
 
@@ -696,7 +685,7 @@ The generated client throws the API's error body, the generated `ErrorResponse`,
 
 | Status | Action |
 |--------|--------|
-| 401 | Clears auth. If the user was signed in: warning toast "Session expired. Please log in again.", saves the path to `redirectAfterLogin`, goes to `/login` |
+| 401 | If someone was signed in: warning toast "Session expired. Please log in again.", empties the query cache and calls `refreshAll()`, so a protected page's guard goes to `/login?redirect=<path>`. A visitor's 401 does nothing |
 | 403 | Toast error "Access denied." |
 | 422 | Toast error "Validation error: ..." with the formatted field errors |
 | 423 | Toast warning (account locked) |
@@ -705,9 +694,9 @@ The generated client throws the API's error body, the generated `ErrorResponse`,
 | Other 4xx | Toast error with the response `detail` |
 | 0 (no response) | Toast error "Network error. Check your connection." |
 
-A 401 also empties the query cache, as `authStore.clearAuth()` does. Mutations with `meta: { inlineErrors: true }` (the login and register forms) skip only the 401, network and other-4xx handling and show `mutation.error.detail` under the form; 403, 422, 423, 429 and 5xx still toast. The CSRF token (`X-CSRF-Token`) is attached to every non-GET request from the signed-in session.
+Mutations with `meta: { inlineErrors: true }` (the login and register forms) skip only the 401, network and other-4xx handling and show `mutation.error.detail` under the form; 403, 422, 423, 429 and 5xx still toast. The request interceptor copies the readable `csrf_token` cookie into `X-CSRF-Token` on every non-GET request.
 
-**Do not add try/catch around API calls**; the cache handlers do the display. To react to one specific failure, pass `onError` to `mutate` (the editor turns a 404 on update into a create). Two kinds of catch are fine: the auth store's `verifyAuth`, which tells a 401 from a network error, and `.catch(() => null)` on an awaited `queryClient.query()` or `mutateAsync()` that only needs to know whether it worked (the admin detail modals, the editor's execution start), since the cache handler has already shown the error.
+**Do not add try/catch around API calls**; the cache handlers do the display. To react to one specific failure, pass `onError` to `mutate` (the editor turns a 404 on update into a create). One kind of catch is fine: `.catch(() => null)` on an awaited `queryClient.query()` or `mutateAsync()` that only needs to know whether it worked (the admin detail modals, the editor's execution start), since the cache handler has already shown the error.
 
 ## Frontend: Logging
 
@@ -725,28 +714,29 @@ log.warning('Notification stream lost its connection: {error}', { error });
 - `error` is for something broken (a 5xx, no response, a stream handler that threw), `warning` for a degraded state the app recovers from (a dropped SSE connection), `debug` for what the user already sees in a toast or a form (a 4xx)
 - Unit tests leave LogTape unconfigured, so it drops every record and no test silences the console. A test that checks a log line calls `captureLogs()` from `#test/test-utils.ts` and asserts on the records
 
-## Frontend: Auth Store
+## Frontend: Session
 
-- Auth state lives in `#stores/auth.svelte.ts` as one `session`: `{ status: 'signed-out' }` or `{ status: 'signed-in', user, csrfToken }`, with `user` the generated `UserResponse`. Check `authStore.session.status === 'signed-in'`; inside that `{#if}`, take `{@const user = authStore.session.user}` when the markup reads it in snippets, since TypeScript doesn't carry the narrowing into them. A signed-in session persists to `sessionStorage` under one key, `authState`, as a JSON blob with a `timestamp`, checked against `zUserResponse` when it's read back
-- The login page's mutation passes the response to `authStore.startSession(login)`, which signs in once the full profile has loaded, with the CSRF token from the response; the header's logout mutation calls `authStore.clearAuth()`, which also empties the query cache
-- `verifyAuth()` reads the profile through `queryClient.query()` with a 30-second stale time, so checks share one answer and one request; on a network or server error it returns the last answer (offline-first)
-- `authStore.waitForInit()` awaits one-time initialization before checking auth
+There's no auth store. The root `+layout.ts` load asks `/api/v1/auth/me` before any page renders and returns `{ user }`, the generated `UserResponse` or `null`; `App.PageData` in `src/app.d.ts` types it. It calls the generated SDK function without `throwOnError`, so a 401 comes back as "nobody is signed in" instead of reaching the query client's 401 handler.
+
+- Components read `page.data.user` from `$app/state`; a layout reads its `data` prop. In markup, `{#if page.data.user}{@const user = page.data.user}` keeps the narrowing inside snippets
+- The `(auth)` and admin layout loads get the user from `await parent()` and `redirect()` a visitor to `/login?redirect=<path>`; they return the user, so pages under them read it as non-null. Components under them don't check for a signed-in user again
+- Login calls `goto(target, { refreshAll: true })`, which reruns the root load; the target comes from `?redirect` through `match()`. Logout and an expired session call `queryClient.clear()` first, so nothing the previous user loaded shows to the next one
+- The CSRF header comes from the `csrf_token` cookie at request time, so nothing stores the token
 
 ## Frontend: Routing
 
 SvelteKit's filesystem router: a page is `src/routes/<path>/+page.svelte`, and the root `+layout.ts` sets `ssr = false`, so it's a client-rendered SPA served through adapter-static's `200.html` fallback. Guards are `load` functions, which run before the page mounts:
 
 ```typescript
-// src/routes/(auth)/+layout.ts guards /editor, /settings, /notifications; admin/+layout.ts uses requireAdmin
-import { requireAuth } from '#lib/auth-guard.ts';
-import type { LayoutLoad } from './$types';
-
-export const load: LayoutLoad = async ({ url }) => {
-    await requireAuth(url);
+// src/routes/(auth)/+layout.ts guards /editor, /settings, /notifications; admin/+layout.ts also checks the role
+export const load: LayoutLoad = async ({ parent, url }) => {
+    const { user } = await parent();
+    if (!user) redirect(307, `${resolve('/login')}?${new URLSearchParams({ redirect: url.pathname + url.search })}`);
+    return { user };
 };
 ```
 
-Navigation: links and `goto()` take a path from `resolve()` in `$app/paths` (`<a href={resolve('/admin/users')}>`, `goto(resolve('/login'))`), which checks it against the routes. A route in a group goes by its route ID, so the editor is `resolve('/(auth)/editor')`. A path known only at runtime, like a notification's `action_url` or the page saved before login, goes through `match()` first, which returns null for an API path or another site. A link nginx serves, like `/grafana`, carries `rel="external"`. `page` from `$app/state` gives the current URL. Page titles go in `<svelte:head>` as `<title>Page - Integr8sCode</title>`. Errors while loading or rendering show `src/routes/+error.svelte`.
+Navigation: links and `goto()` take a path from `resolve()` in `$app/paths` (`<a href={resolve('/admin/users')}>`, `goto(resolve('/login'))`), which checks it against the routes. A route in a group goes by its route ID, so the editor is `resolve('/(auth)/editor')`. A path known only at runtime, like a notification's `action_url` or the login page's `?redirect`, goes through `match()` first, which returns null for an API path or another site. A link nginx serves, like `/grafana`, carries `rel="external"`. `page` from `$app/state` gives the current URL. Page titles go in `<svelte:head>` as `<title>Page - Integr8sCode</title>`. Errors while loading or rendering show `src/routes/+error.svelte`.
 
 ## Frontend: Overlays
 
@@ -819,7 +809,7 @@ vi.mock('#lib/api/index.ts', async (importOriginal) => ({
 ```
 
 - Tests sit next to the source in `__tests__/` directories
-- `vitest.setup.ts` already mocks `#lib/api/sdk.gen.ts` (SDK functions only; enums, Zod schemas, the client and the TanStack options stay real, and the options call the mocks), `initializeApiInterceptors` (so no toast handler is set), `svelte-sonner`, `$app/navigation` and `match` from `$app/paths` (a test sets the route it returns), stubs storage, and runs `cleanup()`, clears the query cache and seeds faker before every test; override a mock per file with `vi.mock`, spread `importOriginal()` into a `#lib/api/index.ts` or `#lib/formatters.ts` factory so the real exports stay available, and mock `$app/state` in the file when a component reads `page`
+- `vitest.setup.ts` already mocks `#lib/api/sdk.gen.ts` (SDK functions only; enums, Zod schemas, the client and the TanStack options stay real, and the options call the mocks), `initializeApiInterceptors` (so no toast handler is set), `svelte-sonner`, `$app/navigation`, `match` from `$app/paths` (a test sets the route it returns) and `page` from `$app/state`, which is the `$state` stand-in in `#test/page.svelte.ts`. Before every test it clears `localStorage`, runs `cleanup()`, resets that stand-in (signed out, on `/`), clears the query cache and seeds faker. A test signs in with `page.data.user = fakeUserResponse()`; override a mock per file with `vi.mock`, and spread `importOriginal()` into a `#lib/api/index.ts` or `#lib/formatters.ts` factory so the real exports stay available
 - bits-ui content renders in a portal, so query it through `screen` or `document.body`, not the render container. happy-dom gives every element a 0x0 box, so outside clicks can't be tested there; cover them in Playwright
 - Fixtures come from the generated Faker factories in `#lib/api/@faker-js/faker.gen.ts` (`fakeUserResponse()` and one per schema), with the values a test depends on spread over them, never a local copy of an API type or an `as any`. The setup seeds faker before every test, so fakes repeat from run to run but shift when the spec changes: set every field the test asserts on. API calls are mocked at the SDK functions, so the MSW plugin isn't used; `mockApi(fn).ok(data)` takes the data type from `fn`'s generated return type, and `mockStreamEvents(fn, ...events)` feeds an SSE function
 - Components that run queries render with `renderWithQueryClient(Component, props)`; state that builds queries outside a component (the editor's execution state) is created with `createInQueryContext(factory)`. Both come from `#test/test-utils.ts`. `mockApi(fn).err()` rejects when the call passes `throwOnError`, as the generated options do, so check SDK calls with `expect.objectContaining`. `err()` takes an `ErrorResponse`, so give it the status the test is about; the query client retries 0 and 5xx, so a failed-load test that shouldn't wait uses a 4xx

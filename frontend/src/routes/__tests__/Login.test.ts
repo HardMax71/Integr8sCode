@@ -6,25 +6,15 @@ import * as navigation from '$app/navigation';
 import { match } from '$app/paths';
 import { loginApiV1AuthLoginPost, UserRole, type LoginResponse } from '#lib/api/index.ts';
 import { queryClient } from '#lib/query-client.ts';
+import { page } from '#test/page.svelte.ts';
 import Login from '#routes/login/+page.svelte';
-import type { Session } from '#stores/auth.svelte.ts';
-
-const mocks = vi.hoisted(() => ({
-    mockAuthStore: {
-        startSession: vi.fn(),
-        session: { status: 'signed-out' } as Session,
-        verifyAuth: vi.fn(),
-    },
-}));
-
-vi.mock('#stores/auth.svelte.ts', () => ({ authStore: mocks.mockAuthStore }));
 
 const loginResponse: LoginResponse = { message: 'ok', username: 'testuser', role: UserRole.USER, csrf_token: 'csrf' };
 
 describe('Login', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mocks.mockAuthStore.startSession.mockResolvedValue(undefined);
+        page.url = new URL('https://localhost/login');
         mockApi(loginApiV1AuthLoginPost).ok(loginResponse);
     });
 
@@ -44,15 +34,6 @@ describe('Login', () => {
         expect(screen.getByRole('link', { name: /create a new account/i })).toHaveAttribute('href', '/register');
     });
 
-    it('shows auth message from sessionStorage and removes it', async () => {
-        sessionStorage.setItem('authMessage', 'Please log in to continue');
-        renderWithQueryClient(Login);
-        await waitFor(() => {
-            expect(toast.info).toHaveBeenCalledWith('Please log in to continue');
-        });
-        expect(sessionStorage.getItem('authMessage')).toBeNull();
-    });
-
     it('marks both fields as required when submitted empty, and sends nothing', async () => {
         renderWithQueryClient(Login);
         await user.click(screen.getByRole('button', { name: /sign in/i }));
@@ -65,44 +46,42 @@ describe('Login', () => {
         expect(vi.mocked(loginApiV1AuthLoginPost)).not.toHaveBeenCalled();
     });
 
-    it('posts the credentials, starts the session, shows toast, redirects to /editor', async () => {
+    it('posts the credentials, shows a toast and goes to /editor with the layout data reloaded', async () => {
         await submit();
 
-        await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/editor'));
+        await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/editor', { refreshAll: true }));
         expect(vi.mocked(loginApiV1AuthLoginPost)).toHaveBeenCalledWith(
             expect.objectContaining({ body: { username: 'testuser', password: 'pass1234' } }),
         );
-        expect(mocks.mockAuthStore.startSession).toHaveBeenCalledWith(loginResponse);
         expect(toast.success).toHaveBeenCalledWith('Login successful! Welcome back.');
     });
 
     it.each([
         { saved: '/settings', route: { id: '/(auth)/settings', params: {} }, goesTo: '/settings' },
         { saved: '/admin/users', route: { id: '/admin/users', params: {} }, goesTo: '/admin/users' },
-    ] as const)('goes back to $saved, a page of the app', async ({ saved, route, goesTo }) => {
-        sessionStorage.setItem('redirectAfterLogin', saved);
+    ] as const)('goes back to $saved, a page of the app named in ?redirect', async ({ saved, route, goesTo }) => {
+        page.url = new URL(`https://localhost/login?${new URLSearchParams({ redirect: saved })}`);
         vi.mocked(match).mockResolvedValue(route);
         await submit('u', 'p');
 
-        await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith(goesTo));
+        await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith(goesTo, { refreshAll: true }));
         expect(match).toHaveBeenCalledWith(saved);
-        expect(sessionStorage.getItem('redirectAfterLogin')).toBeNull();
     });
 
-    it('goes to the editor when the saved path is no page of the app', async () => {
-        sessionStorage.setItem('redirectAfterLogin', '//evil.com');
+    it('goes to the editor when ?redirect names no page of the app', async () => {
+        page.url = new URL(`https://localhost/login?${new URLSearchParams({ redirect: '//evil.com' })}`);
         vi.mocked(match).mockResolvedValue(null);
         await submit('u', 'p');
 
-        await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/editor'));
+        await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/editor', { refreshAll: true }));
         expect(match).toHaveBeenCalledWith('//evil.com');
     });
 
-    it('goes to the editor when nothing is saved', async () => {
+    it('goes to the editor without a ?redirect', async () => {
         vi.mocked(match).mockResolvedValue({ id: '/(auth)/editor', params: {} });
         await submit('u', 'p');
 
-        await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/editor'));
+        await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/editor', { refreshAll: true }));
         expect(match).toHaveBeenCalledWith('/editor');
     });
 
@@ -115,14 +94,13 @@ describe('Login', () => {
             expect(screen.getByTestId('error-message')).toHaveTextContent('Invalid credentials');
         });
         expect(queryClient.getMutationCache().getAll()[0]?.meta).toEqual({ inlineErrors: true });
-        expect(mocks.mockAuthStore.startSession).not.toHaveBeenCalled();
         expect(toast.error).not.toHaveBeenCalled();
         expect(navigation.goto).not.toHaveBeenCalled();
     });
 
-    it('disables button and shows "Logging in..." until the session has started', async () => {
+    it('disables button and shows "Logging in..." until the signed-in page has loaded', async () => {
         let finishSession: () => void;
-        mocks.mockAuthStore.startSession.mockImplementation(
+        vi.mocked(navigation.goto).mockImplementation(
             () =>
                 new Promise<void>((r) => {
                     finishSession = r;
@@ -131,9 +109,8 @@ describe('Login', () => {
 
         await submit('u', 'p');
 
-        await waitFor(() => {
-            expect(screen.getByText('Logging in...')).toBeInTheDocument();
-        });
+        await waitFor(() => expect(navigation.goto).toHaveBeenCalled());
+        expect(screen.getByText('Logging in...')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /logging in/i })).toBeDisabled();
 
         finishSession!();

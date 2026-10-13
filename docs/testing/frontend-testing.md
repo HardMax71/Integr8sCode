@@ -12,9 +12,9 @@ npm run test:e2e         # playwright, needs the stack on https://localhost:5001
 
 ## Layout
 
-Unit tests sit in `__tests__/` directories next to the code they cover, under `src/`: `components/`, `routes/` and `routes/admin/`, `stores/`, `lib/` and its `admin/`, `editor/` and `notifications/` subfolders, and `utils/`. Vitest picks up `src/**/*.{test,spec}.{js,ts}`.
+Unit tests sit in `__tests__/` directories next to the code they cover, under `src/`: `components/`, `routes/` and `routes/admin/`, `lib/` and its `admin/`, `editor/` and `notifications/` subfolders, and `utils/`. Vitest picks up `src/**/*.{test,spec}.{js,ts}`.
 
-The auth store is a Svelte 5 rune class in auth.svelte.ts, so tests import the store instance and read its fields directly. To get a fresh instance, call `vi.resetModules()` and import the module again. The auth store's tests do that, so they also import the query client after the reset: the fresh store reads its failures from the fresh client's cache.
+Who is signed in comes from `page.data.user`. The setup mocks `$app/state` with the stand-in in `#test/page.svelte.ts`, signed out on `https://localhost/` before every test, so a test signs in with `page.data.user = fakeUserResponse()` and sets `page.url` for the page it renders. The stand-in is `$state`, so a component rerenders when a test changes it. A layout component gets its user through the `data` prop instead, as SvelteKit passes it. The guards are plain `load` functions, tested by calling them with a `parent` that resolves to the user (`src/routes/__tests__/route-files.test.ts`).
 
 Theme tests use mode-watcher as it is, with no mock: `setMode()` before rendering, then `userPrefersMode.current` or `mode.current`.
 
@@ -28,7 +28,7 @@ A component that runs queries needs the query client from context, so render it 
 
 Dialogs, menus, popovers and selects come from bits-ui and render their content in a portal at the end of `document.body`, outside the container `render` returns. Query them through `screen`, which searches the whole body. bits-ui decides whether a click landed outside by comparing its coordinates with the content's box, and happy-dom lays nothing out, so a click outside can't be simulated; the Playwright suite covers it. Escape, focus and keyboard navigation work in happy-dom.
 
-Forms run on superforms, which submits asynchronously, so assert their results with `waitFor`, and check a field's error with `toHaveAccessibleDescription`, since formsnap ties it to the input through `aria-describedby`. superforms also finishes a submit a moment after it shows the errors and writes the submitted values back, so wait for the errors before typing again. The setup mocks the `beforeNavigate`, `afterNavigate` and `invalidateAll` it imports. Forms say `method="post"` in lowercase: SvelteKit's `enhance` compares `form.method` with `"post"`, and happy-dom returns the attribute as written.
+Forms run on superforms, which submits asynchronously, so assert their results with `waitFor`, and check a field's error with `toHaveAccessibleDescription`, since formsnap ties it to the input through `aria-describedby`. superforms also finishes a submit a moment after it shows the errors and writes the submitted values back, so wait for the errors before typing again. The setup mocks the `beforeNavigate`, `afterNavigate` and `refreshAll` it imports. Forms say `method="post"` in lowercase: SvelteKit's `enhance` compares `form.method` with `"post"`, and happy-dom returns the attribute as written.
 
 E2E specs live in `frontend/e2e/`, not under `src/`.
 
@@ -45,11 +45,11 @@ Coverage excludes the generated client in `src/lib/api/` and fails below the thr
 - fake timers with `shouldAdvanceTime: true`
 - `#lib/api/sdk.gen.ts` with every generated API function replaced by a `vi.fn()`, while enums, Zod schemas, the client and the TanStack options stay real; mocking sdk.gen rather than the index means the generated query options, which import it directly, call the mocks too. A test that overrides `#lib/api/index.ts` spreads `importOriginal()` into its factory so the rest stays available
 - `#lib/api-interceptors.ts` with a no-op `initializeApiInterceptors`, so no test gets the toast handler unless it sets one; `showApiError` stays real
-- `svelte-sonner`'s `toast`, `goto` from `$app/navigation`, and `match` from `$app/paths`, which needs the router of a started app; a test sets the route it returns with `vi.mocked(match).mockResolvedValue(...)`, and `resolve` stays real. A test that needs `page` from `$app/state` mocks it in its own file
-- `localStorage`, `sessionStorage` and `matchMedia`, plus `ResizeObserver` and `IntersectionObserver` as classes, since floating-ui (behind the bits-ui menus and popovers) constructs them with `new`
+- `svelte-sonner`'s `toast`, `goto` from `$app/navigation`, and `match` from `$app/paths`, which needs the router of a started app; a test sets the route it returns with `vi.mocked(match).mockResolvedValue(...)`, and `resolve` stays real. `page` from `$app/state`, replaced by the stand-in above while the module's other exports stay real
+- `matchMedia`, plus `ResizeObserver` and `IntersectionObserver` as classes, since floating-ui (behind the bits-ui menus and popovers) constructs them with `new`
 - `Element.prototype.animate`, which Svelte transitions call
 - a `:checked` polyfill for `<select>`, since happy-dom lacks it and `bind:value` depends on it
-- storage cleared, `cleanup()` run, the query cache cleared and faker seeded before each test
+- `localStorage` cleared, `cleanup()` run, the `page` stand-in reset, the query cache cleared and faker seeded before each test
 
 ## Writing a test
 

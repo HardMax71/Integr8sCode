@@ -3,6 +3,7 @@ import { vi, beforeEach } from 'vitest';
 import { cleanup } from '@testing-library/svelte';
 import { faker } from '@faker-js/faker';
 import { queryClient } from '#lib/query-client.ts';
+import { page } from '#test/page.svelte.ts';
 
 vi.useFakeTimers({ shouldAdvanceTime: true });
 
@@ -26,11 +27,17 @@ vi.mock('$app/paths', async (importOriginal) => ({
     match: vi.fn(),
 }));
 
+// page needs a running app, so it's the stand-in a test sets: signed out on the home page by default
+vi.mock('$app/state', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('$app/state')>()),
+    page: (await import('#test/page.svelte.ts')).page,
+}));
+
 vi.mock('$app/navigation', () => ({
     goto: vi.fn(),
     beforeNavigate: vi.fn(),
     afterNavigate: vi.fn(),
-    invalidateAll: vi.fn(),
+    refreshAll: vi.fn(),
 }));
 
 // The interceptors and the query client's error handler are wired up by hooks.client.ts, which tests don't run
@@ -38,48 +45,6 @@ vi.mock('#lib/api-interceptors.ts', async (importOriginal) => ({
     ...(await importOriginal<typeof import('#lib/api-interceptors.ts')>()),
     initializeApiInterceptors: vi.fn(),
 }));
-
-// Global handler for promise rejections (mirrors main.ts behavior)
-// API errors are handled by interceptor - just silence the rejection in tests
-process.on('unhandledRejection', () => {});
-
-const localStorageStore: Record<string, string> = {};
-const localStorageMock = {
-    getItem: vi.fn((key: string) => localStorageStore[key] ?? null),
-    setItem: vi.fn((key: string, value: string) => {
-        localStorageStore[key] = value;
-    }),
-    removeItem: vi.fn((key: string) => {
-        delete localStorageStore[key];
-    }),
-    clear: vi.fn(() => {
-        Object.keys(localStorageStore).forEach((key) => delete localStorageStore[key]);
-    }),
-    get length() {
-        return Object.keys(localStorageStore).length;
-    },
-    key: vi.fn((index: number) => Object.keys(localStorageStore)[index] ?? null),
-};
-vi.stubGlobal('localStorage', localStorageMock);
-
-const sessionStorageStore: Record<string, string> = {};
-const sessionStorageMock = {
-    getItem: vi.fn((key: string) => sessionStorageStore[key] ?? null),
-    setItem: vi.fn((key: string, value: string) => {
-        sessionStorageStore[key] = value;
-    }),
-    removeItem: vi.fn((key: string) => {
-        delete sessionStorageStore[key];
-    }),
-    clear: vi.fn(() => {
-        Object.keys(sessionStorageStore).forEach((key) => delete sessionStorageStore[key]);
-    }),
-    get length() {
-        return Object.keys(sessionStorageStore).length;
-    },
-    key: vi.fn((index: number) => Object.keys(sessionStorageStore)[index] ?? null),
-};
-vi.stubGlobal('sessionStorage', sessionStorageMock);
 
 vi.stubGlobal(
     'matchMedia',
@@ -186,9 +151,10 @@ faker.seed(1);
 
 // Reset storage, DOM, the query cache and the fakes between every test
 beforeEach(() => {
-    Object.keys(localStorageStore).forEach((key) => delete localStorageStore[key]);
-    Object.keys(sessionStorageStore).forEach((key) => delete sessionStorageStore[key]);
+    localStorage.clear();
     cleanup();
+    page.url = new URL('https://localhost/');
+    page.data = { user: null };
     queryClient.clear();
     faker.seed(1);
 });

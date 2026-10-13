@@ -1,6 +1,6 @@
 <script lang="ts">
     import '../app.css';
-    import { onMount, untrack, type Snippet } from 'svelte';
+    import { untrack } from 'svelte';
     import { Toaster } from 'svelte-sonner';
     import { Tooltip } from 'bits-ui';
     import { ModeWatcher, setMode } from 'mode-watcher';
@@ -8,22 +8,16 @@
     import { getUserSettingsApiV1UserSettingsGetOptions } from '#lib/api/index.ts';
     import Header from '#components/Header.svelte';
     import Footer from '#components/Footer.svelte';
-    import Spinner from '#components/Spinner.svelte';
-    import { authStore } from '#stores/auth.svelte.ts';
-    import { getLogger } from '@logtape/logtape';
     import { queryClient } from '#lib/query-client.ts';
+    import type { LayoutProps } from './$types';
 
-    let { children }: { children: Snippet } = $props();
-
-    const log = getLogger(['integr8scode', 'app']);
-
-    let authInitialized = $state(false);
+    let { data, children }: LayoutProps = $props();
 
     // This component provides the client, so it can't read it from context yet
     const settings = createQuery(
         () => ({
             ...getUserSettingsApiV1UserSettingsGetOptions(),
-            enabled: authStore.session.status === 'signed-in',
+            enabled: data.user !== null,
         }),
         () => queryClient,
     );
@@ -36,17 +30,6 @@
             setMode(theme);
         });
     });
-
-    onMount(async () => {
-        try {
-            await authStore.initialize();
-            log.debug('Session check finished, the user is {status}', { status: authStore.session.status });
-        } catch (err) {
-            log.error('Session check failed: {error}', { error: err });
-        } finally {
-            authInitialized = true;
-        }
-    });
 </script>
 
 <!-- The CSP would block its inline head script and its transition-blocking style tag; with no SSR the script would run no earlier anyway -->
@@ -57,13 +40,7 @@
             <Header />
             <Toaster richColors position="top-right" />
             <main class="flex-grow">
-                {#if !authInitialized}
-                    <div class="flex items-center justify-center min-h-[50vh]">
-                        <Spinner size="large" />
-                    </div>
-                {:else}
-                    {@render children()}
-                {/if}
+                {@render children()}
             </main>
             <Footer />
         </div>

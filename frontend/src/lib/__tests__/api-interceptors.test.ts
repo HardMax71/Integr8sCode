@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ErrorResponse } from '#lib/api/index.ts';
-import type { Session } from '#stores/auth.svelte.ts';
 import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { captureLogs } from '#test/test-utils.ts';
+import { page } from '#test/page.svelte.ts';
 
 describe('initializeApiInterceptors and showApiError', () => {
     let mockErrorUse: ReturnType<typeof vi.fn>;
@@ -10,8 +10,8 @@ describe('initializeApiInterceptors and showApiError', () => {
     let mockSetConfig: ReturnType<typeof vi.fn>;
     let mockSetQueryErrorHandler: ReturnType<typeof vi.fn>;
     let mockToast: Record<string, ReturnType<typeof vi.fn>>;
-    let mockGoto: ReturnType<typeof vi.fn>;
-    let mockAuthStore: { session: Session; clearAuth: ReturnType<typeof vi.fn> };
+    let mockRefreshAll: ReturnType<typeof vi.fn>;
+    let mockClear: ReturnType<typeof vi.fn>;
     let errorInterceptor: (
         error: unknown,
         response: Response | undefined,
@@ -29,11 +29,9 @@ describe('initializeApiInterceptors and showApiError', () => {
         mockSetConfig = vi.fn();
         mockSetQueryErrorHandler = vi.fn();
         mockToast = { error: vi.fn(), warning: vi.fn() };
-        mockGoto = vi.fn();
-        mockAuthStore = {
-            session: { status: 'signed-in', user: fakeUserResponse(), csrfToken: 'csrf-123' },
-            clearAuth: vi.fn(),
-        };
+        mockRefreshAll = vi.fn();
+        mockClear = vi.fn();
+        page.data.user = fakeUserResponse();
 
         vi.doMock('#lib/api/index.ts', async (importOriginal) => ({
             ...(await importOriginal<typeof import('#lib/api/index.ts')>()),
@@ -45,10 +43,14 @@ describe('initializeApiInterceptors and showApiError', () => {
                 },
             },
         }));
-        vi.doMock('#lib/query-client.ts', () => ({ setQueryErrorHandler: mockSetQueryErrorHandler }));
+        vi.doMock('#lib/query-client.ts', () => ({
+            setQueryErrorHandler: mockSetQueryErrorHandler,
+            queryClient: { clear: mockClear },
+        }));
         vi.doMock('svelte-sonner', () => ({ toast: mockToast }));
-        vi.doMock('$app/navigation', () => ({ goto: mockGoto }));
-        vi.doMock('#stores/auth.svelte.ts', () => ({ authStore: mockAuthStore }));
+        vi.doMock('$app/navigation', () => ({ refreshAll: mockRefreshAll }));
+        // resetModules would otherwise hand the module a fresh stand-in, not the one this test sets
+        vi.doMock('$app/state', () => ({ page }));
         vi.doUnmock('#lib/api-interceptors.ts');
 
         mod = await import('#lib/api-interceptors.ts');
@@ -57,14 +59,6 @@ describe('initializeApiInterceptors and showApiError', () => {
         errorInterceptor = mockErrorUse.mock.calls[0]![0];
         requestInterceptor = mockRequestUse.mock.calls[0]![0];
     });
-
-    function at(pathname: string, search = '') {
-        Object.defineProperty(window, 'location', {
-            value: { pathname, search },
-            writable: true,
-            configurable: true,
-        });
-    }
 
     it('configures the client and hands the query client its error handler', () => {
         expect(mockSetConfig).toHaveBeenCalledWith({ baseUrl: '', credentials: 'include' });
@@ -128,32 +122,22 @@ describe('initializeApiInterceptors and showApiError', () => {
             expect(mockToast.error).toHaveBeenCalledWith('Network error. Check your connection.');
         });
 
-        it('ends the session on a 401: clears auth, remembers the page and goes to /login', async () => {
-            await vi.advanceTimersByTimeAsync(1500);
-            at('/editor', '?tab=1');
+        it('ends an expired session: one toast, an empty cache, and the layout data loaded again', () => {
             mod.showApiError(failure(401), false);
 
-            expect(mockAuthStore.clearAuth).toHaveBeenCalled();
-            expect(mockToast.warning).toHaveBeenCalledWith('Session expired. Please log in again.');
-            expect(sessionStorage.setItem).toHaveBeenCalledWith('redirectAfterLogin', '/editor?tab=1');
-            expect(mockGoto).toHaveBeenCalledWith('/login');
+            expect(mockToast.warning).toHaveBeenCalledWith('Session expired. Please log in again.', {
+                id: 'session-expired',
+            });
+            expect(mockClear).toHaveBeenCalled();
+            expect(mockRefreshAll).toHaveBeenCalled();
         });
 
-        it('does not remember /login as the page to return to', async () => {
-            await vi.advanceTimersByTimeAsync(1500);
-            vi.mocked(sessionStorage.setItem).mockClear();
-            at('/login');
+        it("leaves a visitor's 401 alone, since there's no session to end", () => {
+            page.data.user = null;
             mod.showApiError(failure(401), false);
-            expect(sessionStorage.setItem).not.toHaveBeenCalledWith('redirectAfterLogin', expect.anything());
-        });
-
-        it('just clears auth on a 401 when nobody was signed in', () => {
-            mockAuthStore.session = { status: 'signed-out' };
-            at('/editor');
-            mod.showApiError(failure(401), false);
-            expect(mockAuthStore.clearAuth).toHaveBeenCalled();
-            expect(mockGoto).not.toHaveBeenCalled();
             expect(mockToast.warning).not.toHaveBeenCalled();
+            expect(mockClear).not.toHaveBeenCalled();
+            expect(mockRefreshAll).not.toHaveBeenCalled();
         });
 
         it.each([
@@ -187,19 +171,22 @@ describe('initializeApiInterceptors and showApiError', () => {
         });
 
         it('leaves network errors, 401s and other 4xx to an inline form', () => {
-            at('/login');
             mod.showApiError(network, true);
             mod.showApiError(failure(401), true);
             mod.showApiError(failure(409, 'Username already exists'), true);
 
             expect(mockToast.error).not.toHaveBeenCalled();
             expect(mockToast.warning).not.toHaveBeenCalled();
-            expect(mockAuthStore.clearAuth).not.toHaveBeenCalled();
-            expect(mockGoto).not.toHaveBeenCalled();
+            expect(mockClear).not.toHaveBeenCalled();
+            expect(mockRefreshAll).not.toHaveBeenCalled();
         });
     });
 
     describe('CSRF request interceptor', () => {
+        beforeEach(() => {
+            document.cookie = 'csrf_token=csrf-123';
+        });
+
         it.each(['POST', 'PUT', 'DELETE'])('adds X-CSRF-Token header for %s requests', (method) => {
             const request = new Request('https://test/api', { method });
             const result = requestInterceptor(request, {});
@@ -212,8 +199,8 @@ describe('initializeApiInterceptors and showApiError', () => {
             expect(result.headers.get('X-CSRF-Token')).toBeNull();
         });
 
-        it('skips header when signed out', () => {
-            mockAuthStore.session = { status: 'signed-out' };
+        it('skips header without a csrf_token cookie, as when signed out', () => {
+            document.cookie = 'csrf_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
             const request = new Request('https://test/api', { method: 'POST' });
             const result = requestInterceptor(request, {});
             expect(result.headers.get('X-CSRF-Token')).toBeNull();

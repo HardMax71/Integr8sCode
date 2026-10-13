@@ -1,12 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
 import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
-import {
-    fakeResourceLimits,
-    fakeSavedScriptResponse,
-    fakeUserSettings,
-    fakeUserResponse,
-} from '#lib/api/@faker-js/faker.gen.ts';
+import { fakeResourceLimits, fakeSavedScriptResponse, fakeUserSettings } from '#lib/api/@faker-js/faker.gen.ts';
 import { toast } from 'svelte-sonner';
 import Editor from '#routes/(auth)/editor/+page.svelte';
 import { draft } from '#lib/editor/draft.svelte.ts';
@@ -20,7 +15,6 @@ import {
     deleteSavedScriptApiV1ScriptsScriptIdDelete,
     getUserSettingsApiV1UserSettingsGet,
 } from '#lib/api/index.ts';
-import type { Session } from '#stores/auth.svelte.ts';
 
 const mocks = vi.hoisted(() => ({
     mockConfirm: vi.fn(),
@@ -33,12 +27,7 @@ const mocks = vi.hoisted(() => ({
         abort: vi.fn(),
         reset: vi.fn(),
     },
-    mockAuthStore: {
-        session: { status: 'signed-out' } as Session,
-    },
 }));
-
-vi.mock('#stores/auth.svelte.ts', () => ({ authStore: mocks.mockAuthStore }));
 
 vi.mock('#lib/editor/index.ts', async (importOriginal) => ({
     ...(await importOriginal<typeof import('#lib/editor/index.ts')>()),
@@ -71,7 +60,6 @@ describe('Editor', () => {
         localStorage.clear();
         draft.current = { script_id: null, name: '', script: '', lang: 'python', lang_version: '3.14' };
         vi.stubGlobal('confirm', mocks.mockConfirm);
-        mocks.mockAuthStore.session = { status: 'signed-in', user: fakeUserResponse(), csrfToken: 'csrf' };
         mocks.mockExecutionState.phase = 'idle';
         mocks.mockExecutionState.isExecuting = false;
         mocks.mockExecutionState.result = null;
@@ -112,14 +100,6 @@ describe('Editor', () => {
             await waitFor(() => expect(vi.mocked(listSavedScriptsApiV1ScriptsGet)).toHaveBeenCalled());
         });
 
-        it('loads neither saved scripts nor user settings when unauthenticated', async () => {
-            mocks.mockAuthStore.session = { status: 'signed-out' };
-            renderEditor();
-            await waitForRuntimes();
-            expect(vi.mocked(listSavedScriptsApiV1ScriptsGet)).not.toHaveBeenCalled();
-            expect(vi.mocked(getUserSettingsApiV1UserSettingsGet)).not.toHaveBeenCalled();
-        });
-
         it('renders page heading "Code Editor"', async () => {
             await renderEditor();
             await waitFor(() => {
@@ -134,14 +114,6 @@ describe('Editor', () => {
     });
 
     describe('Save script', () => {
-        it('hides Save button when not authenticated', async () => {
-            mocks.mockAuthStore.session = { status: 'signed-out' };
-            await renderEditor();
-            await waitForRuntimes();
-            await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
-            expect(screen.queryByTitle('Save current script')).not.toBeInTheDocument();
-        });
-
         it('creates new script via POST API when Save is clicked', async () => {
             await renderEditor();
             await waitForRuntimes();
@@ -268,13 +240,6 @@ describe('Editor', () => {
             await waitForRuntimes();
             await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
         }
-
-        it('asks the user to log in when signed out', async () => {
-            mocks.mockAuthStore.session = { status: 'signed-out' };
-            await openSavedScripts();
-            expect(screen.getByRole('link', { name: 'Log in' })).toHaveAttribute('href', '/login');
-            expect(screen.queryByRole('button', { name: 'Show Saved Scripts' })).not.toBeInTheDocument();
-        });
 
         it('says so when there are none, and reloads the list each time it opens', async () => {
             await openSavedScripts();

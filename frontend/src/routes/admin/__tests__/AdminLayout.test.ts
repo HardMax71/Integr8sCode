@@ -4,33 +4,18 @@ import { createRawSnippet } from 'svelte';
 import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { UserRole } from '#lib/api/index.ts';
 import AdminLayout from '#routes/admin/+layout.svelte';
-import type { Session } from '#stores/auth.svelte.ts';
-
-const mocks = vi.hoisted(() => ({
-    page: { url: new URL('https://localhost/admin/events') },
-    mockAuthStore: {
-        session: { status: 'signed-out' } as Session,
-        verifyAuth: vi.fn(),
-    },
-}));
-
-vi.mock('#stores/auth.svelte.ts', () => ({ authStore: mocks.mockAuthStore }));
-vi.mock('$app/state', () => ({ page: mocks.page }));
+import { page } from '#test/page.svelte.ts';
 
 describe('AdminLayout', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mocks.mockAuthStore.session = {
-            status: 'signed-in',
-            user: { ...fakeUserResponse(), username: 'adminuser', role: UserRole.ADMIN },
-            csrfToken: 'csrf',
-        };
     });
 
     function renderLayout(path = '/admin/events') {
-        mocks.page.url = new URL(`https://localhost${path}`);
+        page.url = new URL(`https://localhost${path}`);
         const children = createRawSnippet(() => ({ render: () => '<p>page content</p>' }));
-        return render(AdminLayout, { props: { children } });
+        const user = { ...fakeUserResponse(), username: 'adminuser', role: UserRole.ADMIN };
+        return render(AdminLayout, { props: { data: { user }, params: {}, children } });
     }
 
     it('renders the page inside the layout', async () => {

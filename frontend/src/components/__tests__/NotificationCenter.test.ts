@@ -28,7 +28,6 @@ vi.mock('#lib/notifications/stream.svelte.ts', () => ({
 }));
 
 const mockRequestPermission = vi.fn(async () => 'granted');
-let mockNotificationPermission = 'default';
 
 import NotificationCenter from '#components/NotificationCenter.svelte';
 
@@ -104,23 +103,17 @@ const interactionTestCases = [
     { method: 'keyboard', url: '', route: null, goesTo: null },
 ] as const;
 
-describe('NotificationCenter', () => {
-    const openDropdown = async () => {
-        renderWithQueryClient(NotificationCenter);
-        await user.click(screen.getByRole('button', { name: /Notifications/i }));
-    };
+async function openDropdown(): Promise<void> {
+    renderWithQueryClient(NotificationCenter);
+    await user.click(screen.getByRole('button', { name: /Notifications/i }));
+}
 
+describe('NotificationCenter', () => {
     beforeEach(() => {
         setNotifications([]);
         mockApi(markNotificationReadApiV1NotificationsNotificationIdReadPut).ok();
         mockApi(markAllReadApiV1NotificationsMarkAllReadPost).ok();
-        mockNotificationPermission = 'default';
-        vi.stubGlobal('Notification', {
-            get permission() {
-                return mockNotificationPermission;
-            },
-            requestPermission: mockRequestPermission,
-        });
+        vi.stubGlobal('Notification', { permission: 'default', requestPermission: mockRequestPermission });
     });
 
     describe('bell icon and badge', () => {
@@ -350,7 +343,7 @@ describe('NotificationCenter', () => {
             { permission: 'granted', shown: false },
             { permission: 'denied', shown: false },
         ])('enable button shown=$shown when permission is $permission', async ({ permission, shown }) => {
-            mockNotificationPermission = permission;
+            vi.stubGlobal('Notification', { permission, requestPermission: mockRequestPermission });
             await openDropdown();
             await screen.findByText('View all notifications');
             expect(!!screen.queryByText('Enable desktop notifications')).toBe(shown);

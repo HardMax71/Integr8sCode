@@ -18,42 +18,22 @@ import Header from '#components/Header.svelte';
 import { page } from '#test/page.svelte.ts';
 import { queryClient } from '#lib/query-client.ts';
 
-/** A matchMedia whose answer the test can flip, firing the change listeners the way a resize would */
-function controllableDesktopQuery(initial: boolean): (matches: boolean) => void {
-    let matches = initial;
-    const listeners = new Set<EventListener>();
-    vi.mocked(window.matchMedia).mockImplementation(
-        (query: string) =>
-            ({
-                get matches() {
-                    return matches;
-                },
-                media: query,
-                onchange: null,
-                addEventListener: (_type: string, listener: EventListener) => listeners.add(listener),
-                removeEventListener: (_type: string, listener: EventListener) => listeners.delete(listener),
-                addListener: vi.fn(),
-                removeListener: vi.fn(),
-                dispatchEvent: vi.fn(),
-            }) as unknown as MediaQueryList,
-    );
-    return (next) => {
-        matches = next;
-        listeners.forEach((listener) => listener(new Event('change')));
-    };
+/** What matchMedia answers for the desktop query, so a test can resize the window by flipping it */
+class DesktopQuery extends EventTarget {
+    matches = false;
+}
+
+async function openUserDropdown(): Promise<void> {
+    renderWithQueryClient(Header);
+    await user.click(screen.getByRole('button', { name: 'User menu' }));
+}
+
+async function openMobileMenu(): Promise<void> {
+    renderWithQueryClient(Header);
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
 }
 
 describe('Header', () => {
-    const openUserDropdown = async () => {
-        renderWithQueryClient(Header);
-        await user.click(screen.getByRole('button', { name: 'User menu' }));
-    };
-
-    const openMobileMenu = async () => {
-        renderWithQueryClient(Header);
-        await user.click(screen.getByRole('button', { name: 'Open menu' }));
-    };
-
     beforeEach(() => {
         mockApi(logoutApiV1AuthLogoutPost).ok({ message: 'Logged out' });
         mockApi(updateThemeApiV1UserSettingsThemePut).ok(fakeUserSettings());
@@ -220,13 +200,15 @@ describe('Header', () => {
 
     describe('resize behavior', () => {
         it('closes mobile menu when resizing to desktop width', async () => {
-            const resizeTo = controllableDesktopQuery(false);
+            const desktop = new DesktopQuery();
+            vi.mocked(window.matchMedia).mockReturnValue(desktop as unknown as MediaQueryList);
             await openMobileMenu();
             await waitFor(() => {
                 expect(screen.getByTestId('mobile-menu')).toBeInTheDocument();
             });
 
-            resizeTo(true);
+            desktop.matches = true;
+            desktop.dispatchEvent(new Event('change'));
 
             await waitFor(() => {
                 expect(screen.queryByTestId('mobile-menu')).not.toBeInTheDocument();

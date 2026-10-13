@@ -19,13 +19,13 @@ const payload = (): NotificationResponse => ({
     tags: ['tag1'],
 });
 
+/** A stream that never sends anything and never ends, like an open connection */
+async function* openStream(): AsyncGenerator<NotificationResponse> {
+    await new Promise<never>(() => {});
+}
+
 function mockOpenStream(): void {
-    mockSseFn.mockImplementation(async () => ({
-        // stays open until aborted
-        stream: (async function* () {
-            await new Promise<never>(() => {});
-        })(),
-    }));
+    mockSseFn.mockImplementation(async () => ({ stream: openStream() }));
 }
 
 const options = (call: number): StreamOptions => mockSseFn.mock.calls[call]![0]!;

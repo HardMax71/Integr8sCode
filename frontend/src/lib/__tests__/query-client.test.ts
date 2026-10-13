@@ -3,6 +3,17 @@ import { QueryObserver } from '@tanstack/svelte-query';
 import type { ErrorResponse } from '#lib/api/index.ts';
 import { queryClient, setQueryErrorHandler } from '#lib/query-client.ts';
 
+// An observer, like createQuery, so the client's default retry applies
+async function failingQuery(error: ErrorResponse): Promise<number> {
+    const queryFn = vi.fn().mockRejectedValue(error);
+    const unsubscribe = new QueryObserver(queryClient, { queryKey: ['failing', error.status], queryFn }).subscribe(
+        () => {},
+    );
+    await vi.advanceTimersByTimeAsync(5000);
+    unsubscribe();
+    return queryFn.mock.calls.length;
+}
+
 describe('queryClient', () => {
     const handler = vi.fn();
 
@@ -13,17 +24,6 @@ describe('queryClient', () => {
     afterEach(() => {
         setQueryErrorHandler(() => {});
     });
-
-    // An observer, like createQuery, so the client's default retry applies
-    async function failingQuery(error: ErrorResponse): Promise<number> {
-        const queryFn = vi.fn().mockRejectedValue(error);
-        const unsubscribe = new QueryObserver(queryClient, { queryKey: ['failing', error.status], queryFn }).subscribe(
-            () => {},
-        );
-        await vi.advanceTimersByTimeAsync(5000);
-        unsubscribe();
-        return queryFn.mock.calls.length;
-    }
 
     it.each([
         ['a network error', { status: 0, detail: 'Network error. Check your connection.' }],

@@ -10,18 +10,18 @@ import { queryClient } from '#lib/query-client.ts';
 import { page } from '#test/page.svelte.ts';
 import Login from '#routes/login/+page.svelte';
 
+async function submit(username = 'testuser', password = 'pass1234'): Promise<void> {
+    renderWithQueryClient(Login);
+    await user.type(screen.getByLabelText('Username'), username);
+    await user.type(screen.getByLabelText('Password'), password);
+    await user.click(screen.getByRole('button', { name: /sign in/i }));
+}
+
 describe('Login', () => {
     beforeEach(() => {
         page.url = new URL('https://localhost/login');
         mockApi(loginApiV1AuthLoginPost).ok(fakeLoginResponse());
     });
-
-    async function submit(username = 'testuser', password = 'pass1234') {
-        renderWithQueryClient(Login);
-        await user.type(screen.getByLabelText('Username'), username);
-        await user.type(screen.getByLabelText('Password'), password);
-        await user.click(screen.getByRole('button', { name: /sign in/i }));
-    }
 
     it('renders sign-in form with heading, inputs, button, and register link', () => {
         renderWithQueryClient(Login);

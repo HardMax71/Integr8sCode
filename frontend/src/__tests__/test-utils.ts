@@ -28,47 +28,52 @@ type ApiData<F> = F extends (...args: any[]) => Promise<infer R>
  * Hides the `request`/`response` fields that `RequestResult` requires. Like the real client, `err` rejects with an
  * ErrorResponse when the call passes `throwOnError`, which the generated query and mutation options always do.
  */
-export function mockApi<F extends (...args: any[]) => any>(fn: F) {
-    const mock = vi.mocked(fn) as ReturnType<typeof vi.fn>;
-    return {
-        ok(data: ApiData<F>) {
-            mock.mockResolvedValue({ data, error: undefined, request: _r, response: _s });
-        },
-        /** Answers each call from its options, such as a list filtered by the query */
-        respond(handler: (...args: Parameters<F>) => ApiData<F>) {
-            mock.mockImplementation(async (...args: Parameters<F>) => ({
-                data: handler(...args),
-                error: undefined,
-                request: _r,
-                response: _s,
-            }));
-        },
-        err(error: ErrorResponse) {
-            mock.mockImplementation((options?: { throwOnError?: boolean }) =>
-                options?.throwOnError
-                    ? Promise.reject(error)
-                    : Promise.resolve({ data: undefined, error, request: _r, response: _s }),
-            );
-        },
-        mock,
-    };
+class ApiMock<F extends (...args: any[]) => any> {
+    readonly mock: ReturnType<typeof vi.fn>;
+
+    constructor(fn: F) {
+        this.mock = vi.mocked(fn) as ReturnType<typeof vi.fn>;
+    }
+
+    ok(data: ApiData<F>): void {
+        this.mock.mockResolvedValue({ data, error: undefined, request: _r, response: _s });
+    }
+
+    /** Answers each call from its options, such as a list filtered by the query */
+    respond(handler: (...args: Parameters<F>) => ApiData<F>): void {
+        this.mock.mockImplementation(async (...args: Parameters<F>) => ({
+            data: handler(...args),
+            error: undefined,
+            request: _r,
+            response: _s,
+        }));
+    }
+
+    err(error: ErrorResponse): void {
+        this.mock.mockImplementation((options?: { throwOnError?: boolean }) =>
+            options?.throwOnError
+                ? Promise.reject(error)
+                : Promise.resolve({ data: undefined, error, request: _r, response: _s }),
+        );
+    }
+}
+
+export function mockApi<F extends (...args: any[]) => any>(fn: F): ApiMock<F> {
+    return new ApiMock(fn);
 }
 
 type StreamEvent<F> = F extends (...args: any[]) => Promise<{ stream: AsyncGenerator<infer E, any, any> }> ? E : never;
+
+async function* streamOf<E>(events: E[]): AsyncGenerator<E> {
+    yield* events;
+}
 
 /** Makes a generated SSE function yield these events, then end the stream, on every call. */
 export function mockStreamEvents<F extends (...args: any[]) => Promise<{ stream: AsyncGenerator<any, any, any> }>>(
     fn: F,
     ...events: StreamEvent<F>[]
 ): void {
-    vi.mocked(fn).mockImplementation(
-        () =>
-            Promise.resolve({
-                stream: (async function* () {
-                    yield* events;
-                })(),
-            }) as ReturnType<F>,
-    );
+    vi.mocked(fn).mockImplementation(() => Promise.resolve({ stream: streamOf(events) }) as ReturnType<F>);
 }
 
 /**

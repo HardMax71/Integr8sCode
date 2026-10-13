@@ -36,13 +36,9 @@ describe('AdminSettings', () => {
         mockApi(resetSystemSettingsApiV1AdminSettingsResetPost).ok(createMockSystemSettings());
     });
 
-    function renderAdminSettings() {
-        return renderWithQueryClient(AdminSettings);
-    }
-
     describe('Loading', () => {
         it('calls API on mount and shows page heading', async () => {
-            await renderAdminSettings();
+            renderWithQueryClient(AdminSettings);
             await waitFor(() => {
                 expect(vi.mocked(getSystemSettingsApiV1AdminSettingsGet)).toHaveBeenCalledOnce();
             });
@@ -52,7 +48,7 @@ describe('AdminSettings', () => {
 
     describe('Form population', () => {
         it.each(Object.entries(createMockSystemSettings()))('field %s is populated with %s', async (key, value) => {
-            await renderAdminSettings();
+            renderWithQueryClient(AdminSettings);
             await waitFor(() => {
                 const input = screen.getByLabelText(fieldTitle(key)) as HTMLInputElement | HTMLSelectElement;
                 expect(input.value).toBe(String(value));
@@ -61,7 +57,7 @@ describe('AdminSettings', () => {
 
         it('takes min and max for a number from the spec', async () => {
             const { minimum, maximum } = z.toJSONSchema(zSystemSettingsSchemaInput.shape.max_login_attempts);
-            await renderAdminSettings();
+            renderWithQueryClient(AdminSettings);
             const input = await screen.findByLabelText('Max Login Attempts');
             expect(input).toHaveAttribute('min', String(minimum));
             expect(input).toHaveAttribute('max', String(maximum));
@@ -70,7 +66,7 @@ describe('AdminSettings', () => {
 
     describe('Save', () => {
         it('calls update API with current settings and shows success toast', async () => {
-            await renderAdminSettings();
+            renderWithQueryClient(AdminSettings);
             await waitFor(() => {
                 expect(screen.getByRole('button', { name: /save settings/i })).toBeInTheDocument();
             });
@@ -87,7 +83,7 @@ describe('AdminSettings', () => {
 
         it('shows the broken rule under the field and does not save', async () => {
             const { maximum } = z.toJSONSchema(zSystemSettingsSchemaInput.shape.max_login_attempts);
-            await renderAdminSettings();
+            renderWithQueryClient(AdminSettings);
             const input = await screen.findByLabelText('Max Login Attempts');
             await user.clear(input);
             await user.type(input, String(maximum! + 1));
@@ -99,7 +95,7 @@ describe('AdminSettings', () => {
 
         it('handles save error without crashing', async () => {
             mockApi(updateSystemSettingsApiV1AdminSettingsPut).err({ status: 500, detail: 'Save failed' });
-            await renderAdminSettings();
+            renderWithQueryClient(AdminSettings);
             await waitFor(() => {
                 expect(screen.getByRole('button', { name: /save settings/i })).toBeInTheDocument();
             });
@@ -129,7 +125,7 @@ describe('AdminSettings', () => {
             });
             mockApi(resetSystemSettingsApiV1AdminSettingsResetPost).ok(resetData);
 
-            await renderAdminSettings();
+            renderWithQueryClient(AdminSettings);
             await waitFor(() => {
                 expect(screen.getByRole('button', { name: /reset to defaults/i })).toBeInTheDocument();
             });
@@ -144,7 +140,7 @@ describe('AdminSettings', () => {
 
         it('does not call API when confirm returns false', async () => {
             mocks.mockConfirm.mockReturnValue(false);
-            await renderAdminSettings();
+            renderWithQueryClient(AdminSettings);
             await waitFor(() => {
                 expect(screen.getByRole('button', { name: /reset to defaults/i })).toBeInTheDocument();
             });
@@ -164,7 +160,7 @@ describe('AdminSettings', () => {
                     }),
             );
 
-            await renderAdminSettings();
+            renderWithQueryClient(AdminSettings);
             await waitFor(() => {
                 expect(screen.getByRole('button', { name: /save settings/i })).toBeInTheDocument();
             });
@@ -192,7 +188,7 @@ describe('AdminSettings', () => {
                     }),
             );
 
-            await renderAdminSettings();
+            renderWithQueryClient(AdminSettings);
             await waitFor(() => {
                 expect(screen.getByRole('button', { name: /reset to defaults/i })).toBeInTheDocument();
             });

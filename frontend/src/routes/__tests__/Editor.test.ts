@@ -37,6 +37,37 @@ vi.mock('#lib/editor/index.ts', async (importOriginal) => ({
     createExecutionState: () => mocks.mockExecutionState,
 }));
 
+// Run Script stays disabled until the runtimes have loaded
+async function waitForRuntimes(): Promise<void> {
+    await waitFor(() => expect(screen.getByRole('button', { name: /Run Script/i })).toBeEnabled());
+}
+
+async function openSavedScripts(): Promise<void> {
+    renderWithQueryClient(Editor);
+    await waitForRuntimes();
+    await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
+}
+
+async function runAndExpect(lang: string, version: string, notice?: string): Promise<void> {
+    renderWithQueryClient(Editor);
+    await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Select language and version' })).toHaveTextContent(
+            `${lang} ${version}`,
+        );
+    });
+    await user.click(screen.getByRole('button', { name: /Run Script/i }));
+    expect(mocks.mockExecutionState.execute).toHaveBeenCalledWith(expect.any(String), lang, version);
+    if (notice) expect(toast.info).toHaveBeenCalledWith(notice);
+    else expect(toast.info).not.toHaveBeenCalled();
+}
+
+async function openFileInput(): Promise<HTMLInputElement> {
+    const { container } = renderWithQueryClient(Editor);
+    await waitForRuntimes();
+    await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
+    return container.querySelector('input[type="file"]') as HTMLInputElement;
+}
+
 describe('Editor', () => {
     beforeEach(() => {
         // While storage is empty, the page's field writes change PersistedState's initial value in place
@@ -59,18 +90,9 @@ describe('Editor', () => {
         mockApi(deleteSavedScriptApiV1ScriptsScriptIdDelete).ok();
     });
 
-    function renderEditor() {
-        return renderWithQueryClient(Editor);
-    }
-
-    // Run Script stays disabled until the runtimes have loaded
-    async function waitForRuntimes() {
-        await waitFor(() => expect(screen.getByRole('button', { name: /Run Script/i })).toBeEnabled());
-    }
-
     describe('Mount', () => {
         it('loads the limits, the examples and the user settings, and the saved scripts once the options open', async () => {
-            renderEditor();
+            renderWithQueryClient(Editor);
             await waitFor(() => {
                 expect(vi.mocked(getK8sResourceLimitsApiV1K8sLimitsGet)).toHaveBeenCalled();
                 expect(vi.mocked(getExampleScriptsApiV1ExampleScriptsGet)).toHaveBeenCalled();
@@ -83,21 +105,21 @@ describe('Editor', () => {
         });
 
         it('renders page heading "Code Editor"', async () => {
-            await renderEditor();
+            renderWithQueryClient(Editor);
             await waitFor(() => {
                 expect(screen.getByRole('heading', { name: 'Code Editor' })).toBeInTheDocument();
             });
         });
 
         it('sets the page title', async () => {
-            await renderEditor();
+            renderWithQueryClient(Editor);
             await waitFor(() => expect(document.title).toBe('Code Editor - Integr8sCode'));
         });
     });
 
     describe('Save script', () => {
         it('creates new script via POST API when Save is clicked', async () => {
-            await renderEditor();
+            renderWithQueryClient(Editor);
             await waitForRuntimes();
 
             await user.type(screen.getByLabelText('Name'), 'My New Script');
@@ -133,7 +155,7 @@ describe('Editor', () => {
             vi.mocked(updateSavedScriptApiV1ScriptsScriptIdPut).mockRejectedValue({ status: 404, detail: 'Not found' });
             mockApi(createSavedScriptApiV1ScriptsPost).ok({ ...fakeSavedScriptResponse(), script_id: 'fallback-1' });
 
-            await renderEditor();
+            renderWithQueryClient(Editor);
             await waitForRuntimes();
 
             await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
@@ -180,7 +202,7 @@ describe('Editor', () => {
                 scripts: [{ ...fakeSavedScriptResponse(), script_id: 'script-99', name: 'My Script' }],
             });
 
-            await renderEditor();
+            renderWithQueryClient(Editor);
             await waitForRuntimes();
 
             await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
@@ -203,12 +225,6 @@ describe('Editor', () => {
     });
 
     describe('Saved scripts list', () => {
-        async function openSavedScripts() {
-            await renderEditor();
-            await waitForRuntimes();
-            await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
-        }
-
         it('says so when there are none, and reloads the list each time it opens', async () => {
             await openSavedScripts();
             await waitFor(() => expect(vi.mocked(listSavedScriptsApiV1ScriptsGet)).toHaveBeenCalledTimes(1));
@@ -231,7 +247,7 @@ describe('Editor', () => {
 
     describe('Execution', () => {
         it('calls execution.execute with script, lang, and version when Run Script is clicked', async () => {
-            await renderEditor();
+            renderWithQueryClient(Editor);
             await waitForRuntimes();
 
             await user.click(screen.getByRole('button', { name: /Run Script/i }));
@@ -240,23 +256,6 @@ describe('Editor', () => {
     });
 
     describe('Initial language and version', () => {
-        function storeSelection(lang: string, version: string) {
-            draft.current = { ...draft.current, lang, lang_version: version };
-        }
-
-        async function runAndExpect(lang: string, version: string, notice?: string) {
-            await renderEditor();
-            await waitFor(() => {
-                expect(screen.getByRole('button', { name: 'Select language and version' })).toHaveTextContent(
-                    `${lang} ${version}`,
-                );
-            });
-            await user.click(screen.getByRole('button', { name: /Run Script/i }));
-            expect(mocks.mockExecutionState.execute).toHaveBeenCalledWith(expect.any(String), lang, version);
-            if (notice) expect(toast.info).toHaveBeenCalledWith(notice);
-            else expect(toast.info).not.toHaveBeenCalled();
-        }
-
         it('defaults to the first version the runtimes endpoint lists, which is the newest', async () => {
             mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok({
                 ...fakeResourceLimits(),
@@ -266,7 +265,7 @@ describe('Editor', () => {
         });
 
         it('keeps a stored version that is still offered', async () => {
-            storeSelection('python', '3.12');
+            draft.current = { ...draft.current, lang: 'python', lang_version: '3.12' };
             await runAndExpect('python', '3.12');
         });
 
@@ -278,7 +277,7 @@ describe('Editor', () => {
                     go: { versions: ['1.27', '1.26'], file_ext: 'go' },
                 },
             });
-            storeSelection('go', '1.22');
+            draft.current = { ...draft.current, lang: 'go', lang_version: '1.22' };
             await runAndExpect('go', '1.27', 'Version 1.22 of go is no longer available, switched to 1.27.');
         });
 
@@ -288,7 +287,7 @@ describe('Editor', () => {
         ])(
             'falls back to the first language and its newest version when the stored language is gone (%s, %s)',
             async (version) => {
-                storeSelection('cobol', version);
+                draft.current = { ...draft.current, lang: 'cobol', lang_version: version };
                 await runAndExpect('python', '3.14');
             },
         );
@@ -309,7 +308,7 @@ describe('Editor', () => {
                 ],
             });
 
-            await renderEditor();
+            renderWithQueryClient(Editor);
             await waitForRuntimes();
 
             await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
@@ -340,7 +339,7 @@ describe('Editor', () => {
 
     describe('New script', () => {
         it('calls execution.reset and shows toast when New is clicked', async () => {
-            await renderEditor();
+            renderWithQueryClient(Editor);
             await waitForRuntimes();
 
             await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
@@ -351,13 +350,6 @@ describe('Editor', () => {
     });
 
     describe('File upload', () => {
-        async function openFileInput(): Promise<HTMLInputElement> {
-            const { container } = renderEditor();
-            await waitForRuntimes();
-            await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
-            return container.querySelector('input[type="file"]') as HTMLInputElement;
-        }
-
         it('rejects a script longer than the API allows, with the spec rule in the toast', async () => {
             const { maxLength } = z.toJSONSchema(zExecutionRequest.shape.script);
             const input = await openFileInput();
@@ -390,7 +382,7 @@ describe('Editor', () => {
 
     describe('Example script loading', () => {
         it('loads example for selected language', async () => {
-            await renderEditor();
+            renderWithQueryClient(Editor);
             await waitForRuntimes();
             const exampleBtn = screen.getByRole('button', { name: 'Example' });
             await user.click(exampleBtn);
@@ -401,7 +393,7 @@ describe('Editor', () => {
 
         it('shows warning when no example available', async () => {
             mockApi(getExampleScriptsApiV1ExampleScriptsGet).ok({ scripts: {} });
-            await renderEditor();
+            renderWithQueryClient(Editor);
             await waitForRuntimes();
             const exampleBtn = screen.getByRole('button', { name: 'Example' });
             await user.click(exampleBtn);
@@ -411,7 +403,7 @@ describe('Editor', () => {
 
     describe('Export script', () => {
         it('creates download with correct filename and extension', async () => {
-            await renderEditor();
+            renderWithQueryClient(Editor);
             await waitForRuntimes();
 
             const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
@@ -430,7 +422,7 @@ describe('Editor', () => {
 
     describe('localStorage persistence', () => {
         it('keeps the open script in localStorage', async () => {
-            await renderEditor();
+            renderWithQueryClient(Editor);
             await waitForRuntimes();
 
             await user.type(screen.getByLabelText('Name'), 'Persisted');

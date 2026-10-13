@@ -52,13 +52,9 @@ describe('Settings', () => {
         mockApi(updateUserSettingsApiV1UserSettingsPut).ok(createMockSettings());
     });
 
-    function renderSettings() {
-        return renderWithQueryClient(Settings);
-    }
-
     describe('Loading', () => {
         it('calls API on mount and populates form', async () => {
-            await renderSettings();
+            renderWithQueryClient(Settings);
             await waitFor(() => {
                 expect(vi.mocked(getUserSettingsApiV1UserSettingsGet)).toHaveBeenCalled();
             });
@@ -74,7 +70,7 @@ describe('Settings', () => {
             ['Editor', 'Editor'],
             ['Notifications', 'Notifications'],
         ])('clicking "%s" tab shows "%s" heading', async (tabName, headingText) => {
-            await renderSettings();
+            renderWithQueryClient(Settings);
             await waitFor(() => {
                 expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
             });
@@ -89,7 +85,7 @@ describe('Settings', () => {
         it('picks "dark" from the theme list, previews it and shows it as the choice', async () => {
             setMode('light');
             mockApi(getUserSettingsApiV1UserSettingsGet).ok({ ...createMockSettings(), theme: 'light' });
-            await renderSettings();
+            renderWithQueryClient(Settings);
             await waitFor(() => {
                 expect(screen.getByRole('heading', { name: 'General' })).toBeInTheDocument();
             });
@@ -106,7 +102,7 @@ describe('Settings', () => {
 
     describe('Save settings', () => {
         it('shows toast.info when no changes made', async () => {
-            await renderSettings();
+            renderWithQueryClient(Settings);
             await waitFor(() => {
                 expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
             });
@@ -122,7 +118,7 @@ describe('Settings', () => {
             const updatedSettings = { ...settings, editor: { ...settings.editor, font_size: 18 } };
             mockApi(updateUserSettingsApiV1UserSettingsPut).ok(updatedSettings);
 
-            await renderSettings();
+            renderWithQueryClient(Settings);
             await waitFor(() => {
                 expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
             });
@@ -151,7 +147,7 @@ describe('Settings', () => {
             expect(queryClient.getQueryData(getUserSettingsApiV1UserSettingsGetQueryKey())).toEqual(updatedSettings);
         });
         it('counts a value changed back as no change', async () => {
-            await renderSettings();
+            renderWithQueryClient(Settings);
             await user.click(await screen.findByRole('button', { name: 'Editor' }));
             const fontInput = screen.getByLabelText(/font size/i);
             await user.clear(fontInput);
@@ -166,7 +162,7 @@ describe('Settings', () => {
 
         it('takes the font size range from the spec', async () => {
             const { minimum, maximum } = z.toJSONSchema(zEditorSettingsInput.shape.font_size);
-            await renderSettings();
+            renderWithQueryClient(Settings);
             await user.click(await screen.findByRole('button', { name: 'Editor' }));
             const fontInput = screen.getByLabelText(/font size/i);
             expect(fontInput).toHaveAttribute('min', String(minimum));
@@ -175,7 +171,7 @@ describe('Settings', () => {
 
         it('opens the tab with the broken rule instead of saving', async () => {
             const { maximum } = z.toJSONSchema(zEditorSettingsInput.shape.font_size);
-            await renderSettings();
+            renderWithQueryClient(Settings);
             await user.click(await screen.findByRole('button', { name: 'Editor' }));
             const fontInput = screen.getByLabelText(/font size/i);
             await user.clear(fontInput);
@@ -197,7 +193,7 @@ describe('Settings', () => {
                 limit: 10,
             });
 
-            await renderSettings();
+            renderWithQueryClient(Settings);
             await waitFor(() => {
                 expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
             });
@@ -214,7 +210,7 @@ describe('Settings', () => {
         it('uses cache on second open within 30s', async () => {
             mockApi(getSettingsHistoryApiV1UserSettingsHistoryGet).ok({ history: [], limit: 10 });
 
-            await renderSettings();
+            renderWithQueryClient(Settings);
             await waitFor(() => {
                 expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
             });
@@ -233,19 +229,15 @@ describe('Settings', () => {
     });
 
     describe('Restore', () => {
-        function setupHistoryMock() {
+        it('restores settings on confirm', async () => {
+            mocks.mockConfirm.mockReturnValue(true);
+            mockApi(restoreSettingsApiV1UserSettingsRestorePost).ok({ ...createMockSettings(), theme: 'light' });
             mockApi(getSettingsHistoryApiV1UserSettingsHistoryGet).ok({
                 history: [{ ...fakeSettingsHistoryEntry(), timestamp: '2025-01-15T10:00:00Z' }],
                 limit: 10,
             });
-        }
 
-        it('restores settings on confirm', async () => {
-            mocks.mockConfirm.mockReturnValue(true);
-            mockApi(restoreSettingsApiV1UserSettingsRestorePost).ok({ ...createMockSettings(), theme: 'light' });
-            setupHistoryMock();
-
-            await renderSettings();
+            renderWithQueryClient(Settings);
             await waitFor(() => {
                 expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
             });
@@ -272,9 +264,12 @@ describe('Settings', () => {
 
         it('does not call API when confirm is cancelled', async () => {
             mocks.mockConfirm.mockReturnValue(false);
-            setupHistoryMock();
+            mockApi(getSettingsHistoryApiV1UserSettingsHistoryGet).ok({
+                history: [{ ...fakeSettingsHistoryEntry(), timestamp: '2025-01-15T10:00:00Z' }],
+                limit: 10,
+            });
 
-            await renderSettings();
+            renderWithQueryClient(Settings);
             await waitFor(() => {
                 expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
             });

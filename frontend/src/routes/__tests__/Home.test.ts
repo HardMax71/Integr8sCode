@@ -3,12 +3,8 @@ import { render, screen, waitFor } from '@testing-library/svelte';
 import Home from '#routes/+page.svelte';
 
 describe('Home', () => {
-    function renderHome() {
-        return render(Home);
-    }
-
     it('renders hero heading with "Code, Run,", "Integrate", and "Instantly."', async () => {
-        await renderHome();
+        render(Home);
         await waitFor(() => {
             expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
         });
@@ -19,7 +15,7 @@ describe('Home', () => {
     });
 
     it('renders CTA link "Start Coding Now" with href="/editor"', async () => {
-        await renderHome();
+        render(Home);
         await waitFor(() => {
             expect(screen.getByRole('link', { name: /start coding now/i })).toBeInTheDocument();
         });
@@ -37,7 +33,7 @@ describe('Home', () => {
             'Get immediate feedback with live execution status updates and detailed output upon completion.',
         ],
     ])('renders feature "%s" with description', async (title, content) => {
-        await renderHome();
+        render(Home);
         await waitFor(() => {
             expect(screen.getByText(title)).toBeInTheDocument();
         });
@@ -45,7 +41,7 @@ describe('Home', () => {
     });
 
     it('sets the page title', async () => {
-        await renderHome();
+        render(Home);
         await waitFor(() => expect(document.title).toBe('Home - Integr8sCode'));
     });
 });

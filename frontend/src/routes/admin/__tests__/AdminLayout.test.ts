@@ -6,14 +6,14 @@ import { UserRole } from '#lib/api/index.ts';
 import AdminLayout from '#routes/admin/+layout.svelte';
 import { page } from '#test/page.svelte.ts';
 
-describe('AdminLayout', () => {
-    function renderLayout(path = '/admin/events') {
-        page.url = new URL(`https://localhost${path}`);
-        const children = createRawSnippet(() => ({ render: () => '<p>page content</p>' }));
-        const user = { ...fakeUserResponse(), username: 'adminuser', role: UserRole.ADMIN };
-        return render(AdminLayout, { props: { data: { user }, params: {}, children } });
-    }
+function renderLayout(path = '/admin/events') {
+    page.url = new URL(`https://localhost${path}`);
+    const children = createRawSnippet(() => ({ render: () => '<p>page content</p>' }));
+    const user = { ...fakeUserResponse(), username: 'adminuser', role: UserRole.ADMIN };
+    return render(AdminLayout, { props: { data: { user }, params: {}, children } });
+}
 
+describe('AdminLayout', () => {
     it('renders the page inside the layout', async () => {
         await renderLayout();
         await waitFor(() => expect(screen.getByText('page content')).toBeInTheDocument());

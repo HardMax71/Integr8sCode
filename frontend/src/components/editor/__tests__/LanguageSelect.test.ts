@@ -21,14 +21,29 @@ function renderSelect({ runtimes = RUNTIMES, lang = 'python', version = '3.14' }
 
 const selection = () => [draft.current.lang, draft.current.lang_version];
 
-describe('LanguageSelect', () => {
-    async function openMenu() {
-        renderSelect();
-        const trigger = screen.getByRole('button', { name: /Select language/i });
-        await waitFor(() => expect(trigger).toBeEnabled());
-        await user.click(trigger);
-    }
+function trigger(): HTMLElement {
+    return screen.getByRole('button', { name: /Select language/i });
+}
 
+function mainMenu(): HTMLElement | null {
+    return screen.queryByRole('menu', { name: 'Select language and version' });
+}
+
+async function openMenu(): Promise<void> {
+    renderSelect();
+    await waitFor(() => expect(trigger()).toBeEnabled());
+    await user.click(trigger());
+}
+
+async function openWithKeyboard(): Promise<void> {
+    renderSelect();
+    await waitFor(() => expect(trigger()).toBeEnabled());
+    trigger().focus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: 'python' })).toHaveFocus());
+}
+
+describe('LanguageSelect', () => {
     describe('trigger button', () => {
         it('shows current language and version with aria-haspopup', () => {
             renderSelect();
@@ -46,8 +61,6 @@ describe('LanguageSelect', () => {
     });
 
     describe('runtimes the API no longer offers', () => {
-        const trigger = () => screen.getByRole('button', { name: /Select language/i });
-
         it.each([
             {
                 name: "its language's newest version for a dropped version",
@@ -70,8 +83,6 @@ describe('LanguageSelect', () => {
     });
 
     describe('menu', () => {
-        const mainMenu = () => screen.queryByRole('menu', { name: 'Select language and version' });
-
         it('lists every language, each opening its versions', async () => {
             await openMenu();
             expect(mainMenu()).toBeInTheDocument();
@@ -103,15 +114,6 @@ describe('LanguageSelect', () => {
             expect(selection()).toEqual(['node', '24']);
             await waitFor(() => expect(mainMenu()).not.toBeInTheDocument());
         });
-
-        async function openWithKeyboard() {
-            renderSelect();
-            const trigger = screen.getByRole('button', { name: /Select language/i });
-            await waitFor(() => expect(trigger).toBeEnabled());
-            trigger.focus();
-            await user.keyboard('{Enter}');
-            await waitFor(() => expect(screen.getByRole('menuitem', { name: 'python' })).toHaveFocus());
-        }
 
         it('selects a version with the keyboard alone', async () => {
             await openWithKeyboard();

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { user, mockApi, mockStreamEvents, renderWithQueryClient } from '#test/test-utils.ts';
 import {
     browseEventsApiV1AdminEventsBrowsePost,
     getEventStatsApiV1AdminEventsStatsGet,
@@ -13,7 +13,6 @@ import {
     EventType,
     ReplayStatus,
     type EventBrowseResponse,
-    type EventReplayStatusResponse,
 } from '#lib/api/index.ts';
 import {
     fakeAdminUserOverview,
@@ -39,15 +38,6 @@ const mocks = vi.hoisted(() => ({
 
 import AdminEvents from '#routes/admin/events/+page.svelte';
 
-// The replay status stream sends these statuses, then the server closes it
-function mockReplayStream(...statuses: EventReplayStatusResponse[]): void {
-    vi.mocked(streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet).mockImplementation(async () => ({
-        stream: (async function* () {
-            yield* statuses;
-        })(),
-    }));
-}
-
 async function renderWithEvents(
     events: EventBrowseResponse['events'] = Array.from({ length: 5 }, () => fakeExecutionCompletedEvent()),
     stats = fakeEventStatsResponse(),
@@ -66,7 +56,7 @@ describe('AdminEvents', () => {
         vi.stubGlobal('confirm', mocks.windowConfirm);
         mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({ events: [], total: 0, skip: 0, limit: 10 });
         mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(fakeEventStatsResponse());
-        mockReplayStream();
+        mockStreamEvents(streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet);
         mocks.windowConfirm.mockReturnValue(true);
     });
 
@@ -470,7 +460,7 @@ describe('AdminEvents', () => {
                 ...fakeEventReplayResponse(),
                 session_id: 'session-progress',
             });
-            mockReplayStream({
+            mockStreamEvents(streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet, {
                 ...fakeEventReplayStatusResponse(),
                 session_id: 'session-progress',
                 status: ReplayStatus.RUNNING,

@@ -11,18 +11,14 @@ beforeEach(() => {
 });
 
 describe('Privacy', () => {
-    function renderPrivacy() {
-        return render(Privacy);
-    }
-
     it('renders heading "Privacy Policy" and last updated date', async () => {
-        await renderPrivacy();
+        render(Privacy);
         expect(screen.getByRole('heading', { name: /privacy policy/i, level: 1 })).toBeInTheDocument();
         expect(screen.getByText(/last updated: august 30, 2025/i)).toBeInTheDocument();
     });
 
     it('renders operator info: name, email, and location', async () => {
-        await renderPrivacy();
+        render(Privacy);
         expect(screen.getAllByText(/Max Azatian/).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/max\.azatian@gmail\.com/).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/Germany/).length).toBeGreaterThan(0);
@@ -44,12 +40,12 @@ describe('Privacy', () => {
         'Changes to this policy',
         'Get in touch',
     ])('renders section heading "%s"', async (heading) => {
-        await renderPrivacy();
+        render(Privacy);
         expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument();
     });
 
     it('calls window.scrollTo(0, 0) on mount', async () => {
-        await renderPrivacy();
+        render(Privacy);
         expect(mocks.scrollTo).toHaveBeenCalledWith(0, 0);
     });
 
@@ -60,7 +56,7 @@ describe('Privacy', () => {
         'mailto:max.azatian@gmail.com?subject=Privacy%20Question',
         'mailto:max.azatian@gmail.com?subject=Privacy%20Concern',
     ])('contains mailto link %s', async (href) => {
-        await renderPrivacy();
+        render(Privacy);
         const links = screen.getAllByRole('link');
         const matchingLink = links.find((l) => l.getAttribute('href') === href);
         expect(matchingLink).toBeTruthy();

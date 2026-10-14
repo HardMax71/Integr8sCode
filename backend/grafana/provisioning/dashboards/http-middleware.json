@@ -64,7 +64,7 @@
       "id": 1,
       "targets": [
         {
-          "expr": "rate(http_requests_total[5m]) or vector(0)",
+          "expr": "sum(rate(http_server_request_duration_seconds_count[5m])) or vector(0)",
           "legendFormat": "Requests",
           "refId": "A",
           "datasource": "Victoria Metrics"
@@ -89,7 +89,7 @@
       "id": 2,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) or vector(0)",
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "p95",
           "refId": "A",
           "datasource": "Victoria Metrics"
@@ -114,7 +114,7 @@
       "id": 3,
       "targets": [
         {
-          "expr": "sum(http_requests_active) or vector(0)",
+          "expr": "sum(http_server_active_requests) or vector(0)",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -138,13 +138,13 @@
       "id": 4,
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(http_request_size_bytes_bucket[5m])) by (le)) or vector(0)",
+          "expr": "histogram_quantile(0.50, sum(rate(http_server_request_body_size_bytes_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "Request p50",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "histogram_quantile(0.50, sum(rate(http_response_size_bytes_bucket[5m])) by (le)) or vector(0)",
+          "expr": "histogram_quantile(0.50, sum(rate(http_server_response_body_size_bytes_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "Response p50",
           "refId": "B",
           "datasource": "Victoria Metrics"
@@ -261,7 +261,7 @@
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
-          "unit": "percent"
+          "unit": "percentunit"
         }
       },
       "gridPos": {
@@ -273,7 +273,7 @@
       "id": 11,
       "targets": [
         {
-          "expr": "system_cpu_percent or vector(0)",
+          "expr": "1 - avg(system_cpu_utilization_ratio{state=\"idle\"}) or vector(0)",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -297,7 +297,7 @@
       "id": 104,
       "targets": [
         {
-          "expr": "max(system_memory_bytes{type=\"used\"}) or vector(0)",
+          "expr": "max(system_memory_usage_bytes{state=\"used\"}) or vector(0)",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -309,7 +309,7 @@
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "bytes"
         }
       },
       "gridPos": {
@@ -321,12 +321,13 @@
       "id": 12,
       "targets": [
         {
-          "expr": "process_metrics_mixed or vector(0)",
+          "expr": "max by (job) (process_memory_usage_bytes) or vector(0)",
           "refId": "A",
-          "datasource": "Victoria Metrics"
+          "datasource": "Victoria Metrics",
+          "legendFormat": "{{job}}"
         }
       ],
-      "title": "Process Metrics",
+      "title": "Process Memory",
       "type": "stat"
     }
   ],

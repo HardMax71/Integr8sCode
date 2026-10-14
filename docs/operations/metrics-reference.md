@@ -13,7 +13,7 @@ flowchart LR
     VM --> Grafana
 ```
 
-`create_app` and the worker's `main()` each call `setup_metrics` (`app/core/middlewares/metrics.py`) once. It installs a global `MeterProvider` whose `PeriodicExportingMetricReader` exports every 60 000 ms through an OTLP gRPC exporter. The exporter targets `OTEL_EXPORTER_OTLP_ENDPOINT`, which `config.toml` sets to `http://otel-collector:4317`. Without an endpoint it returns early and the no-op provider stays. Each metrics class takes its meter from the global provider when DI builds it, so `setup_metrics` has to run before the container resolves anything:
+`create_app` and the worker's `main()` each call `setup_metrics` (`app/core/metrics/base.py`) once. It installs a global `MeterProvider` whose `PeriodicExportingMetricReader` exports every 60 000 ms through an OTLP gRPC exporter. The exporter targets `OTEL_EXPORTER_OTLP_ENDPOINT`, which `config.toml` sets to `http://otel-collector:4317`. It also starts the system metrics instrumentation for the process's own CPU and memory. Without an endpoint it returns early and the no-op provider stays. Each metrics class takes its meter from the global provider when DI builds it, so `setup_metrics` has to run before the container resolves anything:
 
 ```python
 --8<-- "backend/app/core/metrics/base.py:init"
@@ -25,7 +25,7 @@ The collector's metrics pipeline (`backend/otel-collector-config.yaml`) reads th
 
 Code names instruments with dots, and they arrive with underscores. The collector's Prometheus translator also changes three things:
 
-- It appends the unit: `s` becomes `_seconds`, `%` becomes `_percent`, `event/s` becomes `_event_per_second`, and `MiB` and `x` go on unchanged. Unit `1` and `{key}` add nothing. A unit that is already a word of the name isn't repeated, so `http_requests_active` keeps its name.
+- It appends the unit: `s` becomes `_seconds`, `%` becomes `_percent`, `event/s` becomes `_event_per_second`, and `MiB` and `x` go on unchanged. Unit `1` and `{key}` add nothing. A unit that is already a word of the name isn't repeated.
 - Counters end in exactly one `_total`, so `sse.messages.sent.total` becomes `sse_messages_sent_total`.
 - Histograms split into `_bucket`, `_sum` and `_count`. The tables list the name before those suffixes.
 
@@ -37,20 +37,18 @@ Gauges listed as "in process" are up-down counters the process keeps itself. The
 
 ## Application metrics
 
-### HTTP and host (backend)
+### HTTP and process
 
-`MetricsMiddleware` and `create_system_metrics` in `app/core/middlewares/metrics.py`. `path` is the request path with UUIDs, numeric IDs and ObjectIds replaced by `{id}`.
+The OpenTelemetry FastAPI instrumentation records HTTP in the backend, with the stable semantic convention names since the image sets `OTEL_SEMCONV_STABILITY_OPT_IN=http`. It skips health, metrics, docs and `openapi.json`. `http_route` is FastAPI's route template, such as `/api/v1/executions/{execution_id}`.
 
 | Metric | Type | Labels | Notes |
 |--------|------|--------|-------|
-| `http_requests_total` | counter | method, path, status | |
-| `http_request_duration_seconds` | histogram | method, path, status | |
-| `http_request_size_bytes` | histogram | method, path | requests that send Content-Length |
-| `http_response_size_bytes` | histogram | method, path, status | responses that send Content-Length |
-| `http_requests_active` | gauge, in process | method, path | |
-| `system_memory_bytes` | gauge | type: used, available, percent | psutil, host memory as the container sees it |
-| `system_cpu_percent` | gauge | none | psutil |
-| `process_metrics_mixed` | gauge | type: rss, vms, cpu, threads | the API process itself |
+| `http_server_request_duration_seconds` | histogram | http_request_method, http_route, http_response_status_code, url_scheme, network_protocol_version | its `_count` is the request rate |
+| `http_server_request_body_size_bytes` | histogram | as above | requests with a body |
+| `http_server_response_body_size_bytes` | histogram | as above | |
+| `http_server_active_requests` | gauge, in process | http_request_method, url_scheme | no route, so open SSE streams can't be told apart |
+
+The system metrics instrumentation records each backend and worker process's own `process_memory_usage_bytes`, `process_memory_virtual_bytes`, `process_cpu_time_seconds_total` (type: user, system), `process_cpu_utilization`, `process_thread_count` and `process_open_file_descriptor_count`. `PROCESS_METRICS` in `app/core/metrics/base.py` picks them; the host's own figures come from the collector.
 
 ### Executions and queue
 
@@ -213,7 +211,7 @@ The status snapshot a stream sends first comes from the database, not Redis, and
 
 Collector receivers write these, not Python, so the contract test accepts them by prefix (`COLLECTOR_PREFIXES`).
 
-`system_memory_utilization_ratio{state}` comes from the `host_metrics` memory scraper with `system.memory.utilization` turned on. The overview's "Memory Saturation" gauge and both host memory alert rules read it. Don't confuse it with the API's own psutil gauges above, which the HTTP dashboard's "CPU" and "Host Memory Used" panels read.
+`system_memory_utilization_ratio{state}` comes from the `host_metrics` memory scraper with `system.memory.utilization` turned on. The overview's "Memory Saturation" gauge and both host memory alert rules read it. The HTTP dashboard's "CPU" panel reads `system_cpu_utilization_ratio{state}`, from the cpu scraper with `system.cpu.utilization` turned on, and "Host Memory Used" reads `system_memory_usage_bytes{state="used"}`.
 
 The `mongodb` receiver polls `mongo:27017` every 15 seconds as `MONGO_MONITOR_USER`. Several of these are optional receiver metrics that `otel-collector-config.yaml` turns on. The MongoDB dashboard reads:
 
@@ -236,7 +234,7 @@ These work against what backend exports today.
 histogram_quantile(0.95, sum by (le, lang_and_version) (rate(script_submission_duration_seconds_bucket[5m])))
 
 # share of API requests answered with a 5xx
-sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))
+sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m])) / sum(rate(http_server_request_duration_seconds_count[5m]))
 
 # share of rate limit checks rejected
 sum(rate(rate_limit_rejected_total[5m])) / sum(rate(rate_limit_requests_total[5m]))

@@ -157,7 +157,7 @@ from collections.abc import Callable, Mapping, Sequence, Iterable, Iterator, Awa
 - Docstrings: Google style (Args/Returns/Raises)
 - **Never** use banner/separator comments (`# ---`, `# ===`, `# ***`)
 - Use classes, blank lines, and docstrings to organize code
-- No function or class defined inside a function, in app code or tests. A callback is a module-level function or a bound method; one that must carry per-call state (an ASGI `send` wrapper, a gauge holding a `psutil.Process`) is a small module-level class. A tenacity callback reads the retried call's arguments from `RetryCallState.args` instead of closing over them
+- No function or class defined inside a function, in app code or tests. A callback is a module-level function or a bound method; one that must carry per-call state (an ASGI `send` wrapper holding one request's headers) is a small module-level class. A tenacity callback reads the retried call's arguments from `RetryCallState.args` instead of closing over them
 
 ### Enums
 Always inherit from `StringEnum` (`app.core.utils`):

@@ -53,3 +53,5 @@ COPY pyproject.toml uv.lock ./
 ENV PYTHONPATH=/app
 ENV PATH="/app/.venv/bin:$PATH"
 ENV KUBECONFIG=/app/kubeconfig.yaml
+# OpenTelemetry instrumentations emit the stable HTTP semantic conventions (http.server.request.duration)
+ENV OTEL_SEMCONV_STABILITY_OPT_IN=http

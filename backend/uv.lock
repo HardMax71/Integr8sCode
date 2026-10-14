@@ -1070,6 +1070,7 @@ dependencies = [
     { name = "opentelemetry-instrumentation-httpx" },
     { name = "opentelemetry-instrumentation-logging" },
     { name = "opentelemetry-instrumentation-pymongo" },
+    { name = "opentelemetry-instrumentation-system-metrics" },
     { name = "opentelemetry-proto" },
     { name = "opentelemetry-sdk" },
     { name = "opentelemetry-semantic-conventions" },
@@ -1079,7 +1080,6 @@ dependencies = [
     { name = "prometheus-client" },
     { name = "propcache" },
     { name = "protobuf" },
-    { name = "psutil" },
     { name = "pwdlib", extra = ["bcrypt"] },
     { name = "pyasn1" },
     { name = "pyasn1-modules" },
@@ -1202,6 +1202,7 @@ requires-dist = [
     { name = "opentelemetry-instrumentation-httpx", specifier = "==0.66b1" },
     { name = "opentelemetry-instrumentation-logging", specifier = "==0.66b1" },
     { name = "opentelemetry-instrumentation-pymongo", specifier = "==0.66b1" },
+    { name = "opentelemetry-instrumentation-system-metrics", specifier = "==0.66b1" },
     { name = "opentelemetry-proto", specifier = "==1.45.1" },
     { name = "opentelemetry-sdk", specifier = "==1.45.1" },
     { name = "opentelemetry-semantic-conventions", specifier = "==0.66b1" },
@@ -1211,7 +1212,6 @@ requires-dist = [
     { name = "prometheus-client", specifier = "==0.26.0" },
     { name = "propcache", specifier = "==0.5.4" },
     { name = "protobuf", specifier = "==7.36.2" },
-    { name = "psutil", specifier = "==7.2.2" },
     { name = "pwdlib", extras = ["bcrypt"], specifier = "==0.3.1" },
     { name = "pyasn1", specifier = "==0.6.4" },
     { name = "pyasn1-modules", specifier = "==0.4.2" },
@@ -2131,6 +2131,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/59/6e/eb061804cbc160251ca234494529e4ef41ad4c4cdb8c12f9e262af8b2e3b/opentelemetry_instrumentation_pymongo-0.66b1.tar.gz", hash = "sha256:3317c1cf5e68e0896e361f3ed2eeddba3388836f2c64191257ec0e5e69b16a09", size = 11274, upload-time = "2026-10-06T17:36:33.78Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0c/86/fd19f36e78a65d10e4f9f2dd29137c7eb7f493eaabc198720b39326f67f1/opentelemetry_instrumentation_pymongo-0.66b1-py3-none-any.whl", hash = "sha256:a1b8ee770f769226b4b98c972d2ebfa770dbf81a230e7bbaa662c85e4a122ee0", size = 10626, upload-time = "2026-10-06T17:35:46.453Z" },
+]
+
+[[package]]
+name = "opentelemetry-instrumentation-system-metrics"
+version = "0.66b1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-instrumentation" },
+    { name = "opentelemetry-semantic-conventions" },
+    { name = "psutil" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d6/81/ab8cabaf45c5248fa88a0d0d3acea4483c105d76cd6c849654ebdab16f92/opentelemetry_instrumentation_system_metrics-0.66b1.tar.gz", hash = "sha256:b0fccbc1aecf35c182431a035ec4809b8f9607eec692243cf70f23b3bda51231", size = 17207, upload-time = "2026-10-06T17:36:40.518Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/fd/ea072c512d65ba4054b02c8b7080cf1b362761d4727ee6c1f36dce53328d/opentelemetry_instrumentation_system_metrics-0.66b1-py3-none-any.whl", hash = "sha256:0654b41eb6db3c2f9ad9979487afcc6f461e5b35df282f0a11d0f465e906d967", size = 13913, upload-time = "2026-10-06T17:35:57.01Z" },
 ]
 
 [[package]]

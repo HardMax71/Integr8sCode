@@ -1,0 +1,7 @@
+scrape_configs:
+  - job_name: otel-collector-span-metrics
+    scrape_interval: 15s
+    # Keep the job and instance labels the collector takes from each service's resource
+    honor_labels: true
+    static_configs:
+      - targets: ["otel-collector:8889"]

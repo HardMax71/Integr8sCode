@@ -168,8 +168,21 @@ processors:
         probabilistic:
           sampling_percentage: 10
   
-  # signaltometrics emits deltas, and Prometheus remote write only takes cumulative series
+  # signaltometrics emits deltas; keep each total for a day so an idle counter doesn't restart from zero
   deltatocumulative:
+    max_stale: 24h
+
+  # Split signaltometrics output: counters and histograms are scraped, gauges go by remote write
+  filter/no_gauges:
+    error_mode: ignore
+    metrics:
+      metric:
+        - type == METRIC_DATA_TYPE_GAUGE
+  filter/gauges_only:
+    error_mode: ignore
+    metrics:
+      metric:
+        - type != METRIC_DATA_TYPE_GAUGE
 
   resource:
     attributes:
@@ -194,6 +207,13 @@ exporters:
     resource_constant_labels:
       included: ["*"]
   
+  # Serves the last value on every scrape, so a counter with no new spans still gets points
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    metric_expiration: 24h
+    resource_to_telemetry_conversion:
+      enabled: true
+
   # Export logs to Loki via OTLP
   otlp_http/loki:
     endpoint: http://loki:3100/otlp
@@ -232,9 +252,20 @@ service:
       exporters: [otlp_grpc/jaeger, debug]
     
     metrics:
-      receivers: [otlp, host_metrics, kafka_metrics, mongodb, signaltometrics]
-      processors: [memory_limiter, deltatocumulative, batch, resource]
+      receivers: [otlp, host_metrics, kafka_metrics, mongodb]
+      processors: [memory_limiter, batch, resource]
       exporters: [prometheus_remote_write, debug]
+
+    # VictoriaMetrics scrapes these every 15 s, see backend/victoria-metrics/scrape.yaml
+    metrics/span_counts:
+      receivers: [signaltometrics]
+      processors: [memory_limiter, filter/no_gauges, deltatocumulative, batch, resource]
+      exporters: [prometheus]
+
+    metrics/span_gauges:
+      receivers: [signaltometrics]
+      processors: [memory_limiter, filter/gauges_only, batch, resource]
+      exporters: [prometheus_remote_write]
     
     logs:
       receivers: [otlp]

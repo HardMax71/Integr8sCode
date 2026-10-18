@@ -1,6 +1,7 @@
 import asyncio
 import json
 import time
+from collections import Counter
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
@@ -8,12 +9,13 @@ from uuid import uuid4
 import aiofiles
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from opentelemetry import trace
+from opentelemetry.util.types import AttributeValue
 from pydantic import ValidationError
 from pymongo.errors import PyMongoError
 from redis.exceptions import RedisError
 from tenacity import AsyncRetrying, RetryCallState, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from app.core.metrics import ReplayMetrics
 from app.db import ReplayRepository
 from app.domain.admin import ReplaySessionUpdate
 from app.domain.enums import ReplayStatus, ReplayTarget
@@ -39,7 +41,7 @@ class EventReplayService:
         self,
         repository: ReplayRepository,
         producer: UnifiedProducer,
-        replay_metrics: ReplayMetrics,
+        tracer: trace.Tracer,
         logger: structlog.stdlib.BoundLogger,
         sse_bus: SSERedisBus,
     ) -> None:
@@ -52,7 +54,7 @@ class EventReplayService:
         self._producer = producer
         self.logger = logger
         self._file_locks: dict[str, asyncio.Lock] = {}
-        self._metrics = replay_metrics
+        self._tracer = tracer
         self._sse_bus = sse_bus
 
     async def create_session_from_config(self, config: ReplayConfig) -> ReplayOperationResult:
@@ -60,7 +62,8 @@ class EventReplayService:
             state = ReplaySessionState(session_id=str(uuid4()), config=config)
             self._sessions[state.session_id] = state
             await self._repository.save_session(state)
-            self._metrics.record_session_created(config.replay_type, config.target)
+            attributes = {"replay.type": config.replay_type, "replay.target": config.target}
+            self._tracer.start_span("replay.session_created", attributes=attributes).end()
             return ReplayOperationResult(
                 session_id=state.session_id,
                 status=ReplayStatus.CREATED,
@@ -84,7 +87,7 @@ class EventReplayService:
         if not await self._load_next_batch(session_id):
             session.status = ReplayStatus.COMPLETED
             session.completed_at = datetime.now(timezone.utc)
-            self._metrics.record_status_change(session_id, ReplayStatus.CREATED, ReplayStatus.COMPLETED)
+            self._report_status_change(ReplayStatus.CREATED, ReplayStatus.COMPLETED)
             await self._update_session_in_db(session)
             return ReplayOperationResult(
                 session_id=session_id, status=ReplayStatus.COMPLETED, message="No events to replay"
@@ -105,9 +108,12 @@ class EventReplayService:
         previous_status = session.status
         session.status = ReplayStatus.RUNNING
         session.started_at = datetime.now(timezone.utc)
-        self._metrics.increment_active_replays()
-        self._metrics.record_status_change(session_id, previous_status, ReplayStatus.RUNNING)
-        self._metrics.record_speed_multiplier(session.config.speed_multiplier, session.config.replay_type)
+        self._report_status_change(previous_status, ReplayStatus.RUNNING)
+        attributes: dict[str, AttributeValue] = {
+            "replay.type": session.config.replay_type,
+            "replay.speed_multiplier": session.config.speed_multiplier,
+        }
+        self._tracer.start_span("replay.session_started", attributes=attributes).end()
         await self._repository.update_session_status(session_id, ReplayStatus.RUNNING)
         await self._publish_replay_status(session)
         return ReplayOperationResult(
@@ -120,7 +126,7 @@ class EventReplayService:
             raise ReplayOperationError(session_id, "pause", "Session is not running")
         previous_status = session.status
         session.status = ReplayStatus.PAUSED
-        self._metrics.record_status_change(session_id, previous_status, ReplayStatus.PAUSED)
+        self._report_status_change(previous_status, ReplayStatus.PAUSED)
         scheduler = self._schedulers.get(session_id)
         if scheduler:
             scheduler.remove_all_jobs()
@@ -133,7 +139,7 @@ class EventReplayService:
             raise ReplayOperationError(session_id, "resume", "Session is not paused")
         previous_status = session.status
         session.status = ReplayStatus.RUNNING
-        self._metrics.record_status_change(session_id, previous_status, ReplayStatus.RUNNING)
+        self._report_status_change(previous_status, ReplayStatus.RUNNING)
         scheduler = self._schedulers.get(session_id)
         if scheduler:
             scheduler.add_job(
@@ -178,7 +184,6 @@ class EventReplayService:
             session = self._sessions[session_id]
             if session.status.is_terminal and session.created_at < cutoff_time:
                 del self._sessions[session_id]
-                self._metrics.update_sessions_by_status(session.status, -1)
                 removed_memory += 1
 
         removed_db = await self._repository.delete_old_sessions(cutoff_time)
@@ -186,6 +191,33 @@ class EventReplayService:
 
         self.logger.info("Cleaned up old replay sessions", removed_count=total_removed)
         return CleanupResult(removed_sessions=total_removed, message=f"Removed {total_removed} old sessions")
+
+    async def report_sessions(self) -> None:
+        """Report the sessions per status and the loaded events still to send, for the collector's gauges."""
+        with self._tracer.start_as_current_span("replay.report") as span:
+            queued = sum(len(buf) - self._buffer_indices.get(sid, 0) for sid, buf in self._event_buffers.items())
+            span.set_attribute("replay.queued_events", queued)
+            counts = Counter(session.status for session in self._sessions.values())
+            for status in ReplayStatus:
+                attributes: dict[str, AttributeValue] = {"replay.status": status, "replay.sessions": counts[status]}
+                self._tracer.start_span("replay.sessions", attributes=attributes).end()
+
+    def _report_status_change(self, from_status: ReplayStatus, to_status: ReplayStatus) -> None:
+        attributes = {"replay.from_status": from_status, "replay.to_status": to_status}
+        self._tracer.start_span("replay.status_change", attributes=attributes).end()
+
+    def _report_event(
+        self, session: ReplaySessionState, event: DomainEvent, replayed: bool, seconds: float, delay: float
+    ) -> None:
+        attributes: dict[str, AttributeValue] = {
+            "replay.type": session.config.replay_type,
+            "replay.event_type": event.event_type,
+            "replay.result": "replayed" if replayed else "failed",
+            "replay.processing_seconds": seconds,
+        }
+        if delay > 0:
+            attributes["replay.delay_seconds"] = delay
+        self._tracer.start_span("replay.event", attributes=attributes).end()
 
     async def _dispatch_next(self, session: ReplaySessionState) -> None:
         if session.status != ReplayStatus.RUNNING:
@@ -201,34 +233,27 @@ class EventReplayService:
                 await self._finalize_session(session, ReplayStatus.COMPLETED)
                 return
 
-        buf = self._event_buffers.get(session.session_id, [])
-        idx = self._buffer_indices.get(session.session_id, 0)
-        self._metrics.update_replay_queue_size(session.session_id, len(buf) - idx)
-
         success = False
         t0 = time.monotonic()
         try:
             success = await self._replay_event(session, event)
         except Exception as e:
             processing_time = time.monotonic() - t0
-            self._metrics.record_event_processing_time(processing_time, event.event_type)
             session.errors.append(
                 ReplayError(timestamp=datetime.now(timezone.utc), event_id=str(event.event_id), error=str(e))
             )
             if not session.config.skip_errors:
                 session.failed_events += 1
-                self._metrics.record_event_replayed(session.config.replay_type, event.event_type, False)
+                self._report_event(session, event, False, processing_time, 0.0)
                 await self._finalize_session(session, ReplayStatus.FAILED)
                 return
         else:
             processing_time = time.monotonic() - t0
-            self._metrics.record_event_processing_time(processing_time, event.event_type)
 
         if success:
             session.replayed_events += 1
         else:
             session.failed_events += 1
-        self._metrics.record_event_replayed(session.config.replay_type, event.event_type, success)
         session.last_event_at = event.timestamp
         await self._update_session_in_db(session)
 
@@ -238,8 +263,7 @@ class EventReplayService:
             time_diff = (next_event.timestamp - session.last_event_at).total_seconds()
             delay = max(time_diff / session.config.speed_multiplier, 0)
 
-        if delay > 0:
-            self._metrics.record_delay_applied(delay)
+        self._report_event(session, event, success, processing_time, delay)
 
         scheduler = self._schedulers.get(session.session_id)
         if scheduler and scheduler.running and session.status == ReplayStatus.RUNNING:
@@ -278,8 +302,11 @@ class EventReplayService:
             self._buffer_indices[session_id] = 0
             session = self._sessions.get(session_id)
             if session:
-                self._metrics.record_batch_size(len(batch), session.config.replay_type)
-            self._metrics.update_replay_queue_size(session_id, len(batch))
+                attributes: dict[str, AttributeValue] = {
+                    "replay.type": session.config.replay_type,
+                    "replay.batch_size": len(batch),
+                }
+                self._tracer.start_span("replay.batch", attributes=attributes).end()
             return True
         except StopAsyncIteration:
             return False
@@ -291,11 +318,14 @@ class EventReplayService:
         if final_status == ReplayStatus.COMPLETED and session.started_at:
             duration = (session.completed_at - session.started_at).total_seconds()
             total_events = session.replayed_events + session.failed_events
-            self._metrics.record_replay_duration(duration, session.config.replay_type, total_events=total_events)
-        self._metrics.record_status_change(session.session_id, previous_status, final_status)
-        if previous_status in (ReplayStatus.RUNNING, ReplayStatus.PAUSED):
-            self._metrics.decrement_active_replays()
-        self._metrics.update_replay_queue_size(session.session_id, 0)
+            attributes: dict[str, AttributeValue] = {
+                "replay.type": session.config.replay_type,
+                "replay.duration_seconds": duration,
+            }
+            if total_events > 0 and duration > 0:
+                attributes["replay.throughput"] = total_events / duration
+            self._tracer.start_span("replay.session_completed", attributes=attributes).end()
+        self._report_status_change(previous_status, final_status)
         await self._update_session_in_db(session)
         scheduler = self._schedulers.pop(session.session_id, None)
         if scheduler:
@@ -365,7 +395,8 @@ class EventReplayService:
             return False
         finally:
             # Unexpected errors still propagate to _dispatch_next, but count against the target first
-            self._metrics.record_replay_by_target(config.target, success=success)
+            attributes: dict[str, AttributeValue] = {"replay.target": config.target, "replay.target_success": success}
+            self._tracer.start_span("replay.target", attributes=attributes).end()
         return True
 
     def _log_replay_retry(self, state: RetryCallState) -> None:

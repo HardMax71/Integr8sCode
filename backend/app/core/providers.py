@@ -17,7 +17,6 @@ from app.core.metrics import (
     EventMetrics,
     IdempotencyMetrics,
     RateLimitMetrics,
-    ReplayMetrics,
     SecurityMetrics,
 )
 from app.core.security import SecurityService
@@ -265,10 +264,6 @@ class MetricsProvider(Provider):
     @provide
     def get_idempotency_metrics(self, settings: Settings) -> IdempotencyMetrics:
         return IdempotencyMetrics(settings)
-
-    @provide
-    def get_replay_metrics(self, settings: Settings) -> ReplayMetrics:
-        return ReplayMetrics(settings)
 
     @provide
     def get_security_metrics(self, settings: Settings) -> SecurityMetrics:
@@ -708,14 +703,14 @@ class EventReplayProvider(Provider):
         self,
         replay_repository: ReplayRepository,
         kafka_producer: UnifiedProducer,
-        replay_metrics: ReplayMetrics,
+        tracer: trace.Tracer,
         logger: structlog.stdlib.BoundLogger,
         sse_bus: SSERedisBus,
     ) -> EventReplayService:
         return EventReplayService(
             repository=replay_repository,
             producer=kafka_producer,
-            replay_metrics=replay_metrics,
+            tracer=tracer,
             logger=logger,
             sse_bus=sse_bus,
         )

@@ -27,7 +27,6 @@ from app.core.metrics import (
     EventMetrics,
     IdempotencyMetrics,
     RateLimitMetrics,
-    ReplayMetrics,
     SecurityMetrics,
 )
 from app.domain.enums import ExecutionStatus, QueuePriority
@@ -241,11 +240,6 @@ def event_metrics(test_settings: Settings) -> EventMetrics:
 @pytest.fixture
 def rate_limit_metrics(test_settings: Settings) -> RateLimitMetrics:
     return RateLimitMetrics(test_settings)
-
-
-@pytest.fixture
-def replay_metrics(test_settings: Settings) -> ReplayMetrics:
-    return ReplayMetrics(test_settings)
 
 
 @pytest.fixture

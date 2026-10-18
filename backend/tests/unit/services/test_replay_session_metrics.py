@@ -6,8 +6,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 import structlog
 from aiokafka.errors import KafkaError
+from opentelemetry import trace
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from app.core.metrics import ReplayMetrics
 from app.db import ReplayRepository
 from app.domain.enums import ReplayStatus, ReplayTarget, ReplayType
 from app.domain.replay import ReplayConfig, ReplaySessionState
@@ -25,51 +26,56 @@ async def _no_batches(*_: Any, **__: Any) -> AsyncIterator[list[dict[str, Any]]]
         yield batch
 
 
-def _service(metrics: ReplayMetrics, producer: AsyncMock | None = None) -> tuple[EventReplayService, AsyncMock]:
+def _service(tracer: trace.Tracer, producer: AsyncMock | None = None) -> EventReplayService:
     repo = AsyncMock(spec=ReplayRepository)
     repo.count_events.return_value = 0
     repo.fetch_events = MagicMock(side_effect=_no_batches)
     repo.delete_old_sessions.return_value = 0
-    service = EventReplayService(
+    return EventReplayService(
         repository=repo,
         producer=producer or AsyncMock(spec=UnifiedProducer),
-        replay_metrics=metrics,
+        tracer=tracer,
         logger=structlog.get_logger("test.replay_session_metrics"),
         sse_bus=AsyncMock(spec=SSERedisBus),
     )
-    return service, repo
 
 
-async def test_cancelling_a_session_that_never_started_leaves_active_alone() -> None:
-    metrics = MagicMock(spec=ReplayMetrics)
-    service, _ = _service(metrics)
+def _spans(exporter: InMemorySpanExporter) -> list[tuple[str, dict[str, Any]]]:
+    return [(span.name, dict(span.attributes or {})) for span in exporter.get_finished_spans()]
+
+
+async def test_cancelling_a_session_that_never_started_reports_one_status_change(
+    tracer: trace.Tracer, span_exporter: InMemorySpanExporter
+) -> None:
+    service = _service(tracer)
     created = await service.create_session_from_config(ReplayConfig(replay_type=ReplayType.EXECUTION))
 
     await service.cancel_session(created.session_id)
 
-    metrics.decrement_active_replays.assert_not_called()
-    metrics.record_status_change.assert_called_once_with(
-        created.session_id, ReplayStatus.CREATED, ReplayStatus.CANCELLED
-    )
+    assert _spans(span_exporter) == [
+        ("replay.session_created", {"replay.type": "execution", "replay.target": "kafka"}),
+        ("replay.status_change", {"replay.from_status": "created", "replay.to_status": "cancelled"}),
+    ]
 
 
-async def test_starting_with_nothing_to_replay_records_the_completion() -> None:
-    metrics = MagicMock(spec=ReplayMetrics)
-    service, _ = _service(metrics)
+async def test_starting_with_nothing_to_replay_reports_the_completion(
+    tracer: trace.Tracer, span_exporter: InMemorySpanExporter
+) -> None:
+    service = _service(tracer)
     created = await service.create_session_from_config(ReplayConfig(replay_type=ReplayType.EXECUTION))
 
     result = await service.start_session(created.session_id)
 
     assert result.status == ReplayStatus.COMPLETED
-    metrics.record_status_change.assert_called_once_with(
-        created.session_id, ReplayStatus.CREATED, ReplayStatus.COMPLETED
-    )
-    metrics.increment_active_replays.assert_not_called()
+    assert [name for name, _ in _spans(span_exporter)] == ["replay.session_created", "replay.status_change"]
+    assert _spans(span_exporter)[1][1] == {"replay.from_status": "created", "replay.to_status": "completed"}
 
 
-async def test_cleanup_takes_removed_sessions_out_of_the_status_gauge() -> None:
-    metrics = MagicMock(spec=ReplayMetrics)
-    service, _ = _service(metrics)
+async def test_report_counts_held_sessions_by_status_and_events_still_to_send(
+    tracer: trace.Tracer, span_exporter: InMemorySpanExporter
+) -> None:
+    service = _service(tracer)
+    created = await service.create_session_from_config(ReplayConfig(replay_type=ReplayType.EXECUTION))
     old = ReplaySessionState(
         session_id="old",
         config=ReplayConfig(replay_type=ReplayType.EXECUTION),
@@ -77,35 +83,29 @@ async def test_cleanup_takes_removed_sessions_out_of_the_status_gauge() -> None:
         created_at=datetime.now(timezone.utc) - timedelta(hours=72),
     )
     service._sessions[old.session_id] = old
+    service._event_buffers[created.session_id] = [make_execution_requested_event() for _ in range(5)]
+    service._buffer_indices[created.session_id] = 2
+    await service.cleanup_old_sessions(older_than_hours=48)
+    span_exporter.clear()
 
-    result = await service.cleanup_old_sessions(older_than_hours=48)
+    await service.report_sessions()
 
-    assert result.removed_sessions == 1
-    metrics.update_sessions_by_status.assert_called_once_with(ReplayStatus.COMPLETED, -1)
-
-
-def test_session_created_counts_towards_created_status() -> None:
-    metrics = ReplayMetrics(MagicMock())
-    metrics.replay_sessions_by_status = MagicMock()
-
-    metrics.record_session_created(ReplayType.EXECUTION, "kafka")
-    metrics.record_status_change("s1", ReplayStatus.CREATED, ReplayStatus.RUNNING)
-
-    calls = [
-        (c.args[0], c.kwargs["attributes"]["status"]) for c in metrics.replay_sessions_by_status.add.call_args_list
-    ]
-    assert calls == [(1, ReplayStatus.CREATED), (-1, ReplayStatus.CREATED), (1, ReplayStatus.RUNNING)]
+    *sessions, (report_name, report) = _spans(span_exporter)
+    assert (report_name, report) == ("replay.report", {"replay.queued_events": 3})
+    counts = {attributes["replay.status"]: attributes["replay.sessions"] for _, attributes in sessions}
+    assert counts == {status: 1 if status == ReplayStatus.CREATED else 0 for status in ReplayStatus}
 
 
 @pytest.mark.parametrize(
     ("produce_error", "success"),
     [(None, True), (KafkaError(), False), (TypeError("bug"), False)],
 )
-async def test_every_dispatch_outcome_counts_against_the_target(produce_error: Exception | None, success: bool) -> None:
-    metrics = MagicMock(spec=ReplayMetrics)
+async def test_every_dispatch_outcome_counts_against_the_target(
+    tracer: trace.Tracer, span_exporter: InMemorySpanExporter, produce_error: Exception | None, success: bool
+) -> None:
     producer = AsyncMock(spec=UnifiedProducer)
     producer.produce.side_effect = produce_error
-    service, _ = _service(metrics, producer)
+    service = _service(tracer, producer)
     session = ReplaySessionState(session_id="s1", config=ReplayConfig(replay_type=ReplayType.EXECUTION))
 
     if isinstance(produce_error, TypeError):
@@ -114,4 +114,35 @@ async def test_every_dispatch_outcome_counts_against_the_target(produce_error: E
     else:
         assert await service._replay_event(session, make_execution_requested_event()) is success
 
-    metrics.record_replay_by_target.assert_called_once_with(ReplayTarget.KAFKA, success=success)
+    assert _spans(span_exporter) == [("replay.target", {"replay.target": "kafka", "replay.target_success": success})]
+
+
+async def test_dispatch_reports_each_event_and_the_completed_session(
+    tracer: trace.Tracer, span_exporter: InMemorySpanExporter
+) -> None:
+    service = _service(tracer)
+    config = ReplayConfig(replay_type=ReplayType.EXECUTION, target=ReplayTarget.TEST, speed_multiplier=2.0)
+    session = ReplaySessionState(
+        session_id="s1",
+        config=config,
+        status=ReplayStatus.RUNNING,
+        started_at=datetime.now(timezone.utc) - timedelta(seconds=4),
+    )
+    first, second = make_execution_requested_event(), make_execution_requested_event()
+    second.timestamp = first.timestamp + timedelta(seconds=2)
+    service._sessions[session.session_id] = session
+    service._event_buffers[session.session_id] = [first, second]
+
+    for _ in range(3):
+        await service._dispatch_next(session)
+
+    spans = _spans(span_exporter)
+    events = [attributes for name, attributes in spans if name == "replay.event"]
+    assert [(e["replay.result"], e.get("replay.delay_seconds")) for e in events] == [
+        ("replayed", 1.0),
+        ("replayed", None),
+    ]
+    [completed] = [attributes for name, attributes in spans if name == "replay.session_completed"]
+    assert completed["replay.duration_seconds"] >= 4
+    assert completed["replay.throughput"] == pytest.approx(2 / completed["replay.duration_seconds"])
+    assert spans[-1] == ("replay.status_change", {"replay.from_status": "running", "replay.to_status": "completed"})

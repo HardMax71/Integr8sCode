@@ -24,7 +24,7 @@ The collector's metrics pipeline (`backend/otel-collector-config.yaml`) reads th
 
 ## Metrics made from spans
 
-Some metrics have no instrument in the code. A service puts the facts on a span, and the collector's `signaltometrics` connector (alpha in collector v0.162.0) turns them into counters, histograms and gauges, defined under `connectors` in `backend/otel-collector-config.yaml`. The SDK sends every span (`TRACING_SAMPLING_RATE = 1.0`), and the traces pipeline gives each span to the connector before `tail_sampling` decides what Jaeger keeps, so the counts don't depend on sampling. The connector emits a point only when a matching span arrives. Sent straight to VictoriaMetrics, a counter that sees one event every half hour would get one point every half hour, and `increase` and `rate` stop finding the previous point once two points are more than about 8 to 10 minutes apart (measured on v1.153.0): `increase` then counts the whole total again, and `rate` returns nothing. So counters and histograms go another way. `deltatocumulative` adds up the connector's deltas and keeps each total through 24 hours without spans (its default is 5 minutes, after which an idle counter would start again from zero). The collector's `prometheus` exporter serves the totals on `otel-collector:8889`, and VictoriaMetrics scrapes it every 15 seconds (`backend/victoria-metrics/scrape.yaml`, with `honor_labels` so each service's `job` and `instance` stay). A series the exporter hasn't updated for 24 hours drops out until its next span. Gauges still go by remote write, so a gauge goes stale when the job that reports it on a timer stops. Panels wrap counter rates in `or vector(0)` so a series that hasn't started yet reads 0. The queue metrics are the first moved this way ([#389](https://github.com/HardMax71/Integr8sCode/issues/389)).
+Some metrics have no instrument in the code. A service puts the facts on a span, and the collector's `signaltometrics` connector (alpha in collector v0.162.0) turns them into counters, histograms and gauges, defined under `connectors` in `backend/otel-collector-config.yaml`. The SDK sends every span (`TRACING_SAMPLING_RATE = 1.0`), and the traces pipeline gives each span to the connector before `tail_sampling` decides what Jaeger keeps, so the counts don't depend on sampling. The connector emits a point only when a matching span arrives. Sent straight to VictoriaMetrics, a counter that sees one event every half hour would get one point every half hour, and `increase` and `rate` stop finding the previous point once two points are more than about 8 to 10 minutes apart (measured on v1.153.0): `increase` then counts the whole total again, and `rate` returns nothing. So counters and histograms go another way. `deltatocumulative` adds up the connector's deltas and keeps each total through 24 hours without spans (its default is 5 minutes, after which an idle counter would start again from zero). The collector's `prometheus` exporter serves the totals on `otel-collector:8889`, and VictoriaMetrics scrapes it every 15 seconds (`backend/victoria-metrics/scrape.yaml`, with `honor_labels` so each service's `job` and `instance` stay). A series the exporter hasn't updated for 24 hours drops out until its next span. Gauges still go by remote write, so a gauge goes stale when the job that reports it on a timer stops. Panels wrap counter rates in `or vector(0)` so a series that hasn't started yet reads 0. The queue and dead letter queue metrics work this way so far ([#389](https://github.com/HardMax71/Integr8sCode/issues/389)).
 
 ## Names and labels in VictoriaMetrics
 
@@ -183,21 +183,21 @@ The status snapshot a stream sends first comes from the database, not Redis, and
 | `rate_limit_rejected_total` | counter | endpoint, group | |
 | `rate_limit_bypass_total` | counter | endpoint | users with `bypass_rate_limit` |
 
-### Dead letter queue (worker)
+### Dead letter queue
 
-`DLQManager`, driven by APScheduler every 10 seconds.
+`DLQManager` puts each step on a span. `handle_message` runs wherever a router's `DeadLetterMiddleware` catches a failure: the backend for notifications, and the k8s worker, result processor and saga orchestrator groups in the worker. Scheduled retries and the size report run from the worker's APScheduler job every 10 seconds.
 
-| Metric | Type | Labels | Notes |
-|--------|------|--------|-------|
-| `dlq_queue_size` | gauge | original_topic | message count per topic, read from MongoDB each cycle |
-| `dlq_messages_retried_total` | counter | original_topic, event_type, result | |
-| `dlq_messages_discarded_total` | counter | original_topic, event_type, reason | |
-| `dlq_processing_duration_seconds` | histogram | operation: handle, retry, discard | |
-| `dlq_messages_received_total` | counter | original_topic, event_type | `handle_message` |
-| `dlq_message_age_seconds` | histogram | none | `handle_message` |
-| `dlq_processing_errors_total` | counter | original_topic, event_type, error_type | nothing records it |
+| Metric | Type | Labels | Recorded from |
+|--------|------|--------|---------------|
+| `dlq_messages_received_total` | counter | dlq_original_topic, dlq_event_type | span `dlq.handle` with `dlq.outcome` `stored` |
+| `dlq_message_age_seconds` | histogram | none | `dlq.message_age_seconds` on those spans: from the failure to the save |
+| `dlq_messages_retried_total` | counter | dlq_original_topic, dlq_event_type, dlq_retry_result: success, failed | span `dlq.retry` |
+| `dlq_processing_errors_total` | counter | dlq_original_topic, dlq_event_type, dlq_error_type | span `dlq.retry` with `dlq.retry_result` `failed`; the error type is the publish exception's class |
+| `dlq_messages_discarded_total` | counter | dlq_original_topic, dlq_event_type, dlq_discard_reason | span `dlq.discard` |
+| `dlq_processing_duration_seconds` | histogram | dlq_operation: handle, retry, discard | the length of those three spans |
+| `dlq_queue_size` | gauge | dlq_original_topic | span `dlq.queue_size` from the scheduled job, one per topic with pending or scheduled rows |
 
-`handle_message` runs wherever a router's `DeadLetterMiddleware` catches a failure: backend for notifications, and the k8s worker, result processor and saga orchestrator groups in the worker. `dlq_processing_errors_total` was only recorded by a batch retry method that had no callers and is gone, so it stays empty.
+A `handle` span contains the discard or immediate retry it starts, so its duration includes them. A topic with no pending or scheduled rows gets no `dlq.queue_size` span, so its gauge stops getting points.
 
 ## FastStream messaging families
 

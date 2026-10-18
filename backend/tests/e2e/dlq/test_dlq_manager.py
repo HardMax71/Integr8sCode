@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock
 import pytest
 import structlog
 from faststream.kafka import KafkaBroker
+from opentelemetry import trace
 
-from app.core.metrics import DLQMetrics
 from app.db.docs import DLQMessageDocument
 from app.db.repositories import DLQRepository
 from app.dlq.manager import DLQManager
@@ -30,7 +30,6 @@ async def failed_event() -> AsyncIterator[ExecutionRequestedEvent]:
 
 async def test_dlq_manager_stores_the_message_and_announces_it(
     test_settings: Settings,
-    dlq_metrics: DLQMetrics,
     dlq_repository: DLQRepository,
     failed_event: ExecutionRequestedEvent,
 ) -> None:
@@ -39,7 +38,7 @@ async def test_dlq_manager_stores_the_message_and_announces_it(
         settings=test_settings,
         broker=broker,
         logger=structlog.get_logger("test.dlq.manager"),
-        dlq_metrics=dlq_metrics,
+        tracer=trace.NoOpTracer(),
         repository=dlq_repository,
     )
 

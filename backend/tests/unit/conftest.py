@@ -24,7 +24,6 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from app.core.metrics import (
     ConnectionMetrics,
-    DLQMetrics,
     EventMetrics,
     ExecutionMetrics,
     IdempotencyMetrics,
@@ -235,11 +234,6 @@ def tracer(span_exporter: InMemorySpanExporter) -> trace.Tracer:
 @pytest.fixture
 def idempotency_metrics(test_settings: Settings) -> IdempotencyMetrics:
     return IdempotencyMetrics(test_settings)
-
-
-@pytest.fixture
-def dlq_metrics(test_settings: Settings) -> DLQMetrics:
-    return DLQMetrics(test_settings)
 
 
 @pytest.fixture

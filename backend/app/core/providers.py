@@ -14,7 +14,6 @@ from opentelemetry import trace
 from app.core.logging import setup_logger
 from app.core.metrics import (
     ConnectionMetrics,
-    DLQMetrics,
     EventMetrics,
     ExecutionMetrics,
     IdempotencyMetrics,
@@ -220,14 +219,14 @@ class DLQProvider(Provider):
         broker: KafkaBroker,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
-        dlq_metrics: DLQMetrics,
+        tracer: trace.Tracer,
         repository: DLQRepository,
     ) -> DLQManager:
         return DLQManager(
             settings=settings,
             broker=broker,
             logger=logger,
-            dlq_metrics=dlq_metrics,
+            tracer=tracer,
             repository=repository,
         )
 
@@ -277,10 +276,6 @@ class MetricsProvider(Provider):
     @provide
     def get_kubernetes_metrics(self, settings: Settings) -> KubernetesMetrics:
         return KubernetesMetrics(settings)
-
-    @provide
-    def get_dlq_metrics(self, settings: Settings) -> DLQMetrics:
-        return DLQMetrics(settings)
 
     @provide
     def get_notification_metrics(self, settings: Settings) -> NotificationMetrics:

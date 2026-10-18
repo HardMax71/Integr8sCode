@@ -5,8 +5,8 @@ from aiokafka.errors import KafkaError
 from dishka import Provider, Scope, make_async_container
 from dishka_faststream import setup_dishka
 from faststream.kafka import KafkaBroker, KafkaRouter, TestKafkaBroker
+from opentelemetry import trace
 
-from app.core.metrics import DLQMetrics
 from app.db import DLQRepository
 from app.dlq import DLQ_GROUP_HEADER, DLQ_RETRY_HEADER, DLQMessage, DLQMessageStatus
 from app.dlq.manager import DLQManager
@@ -98,7 +98,7 @@ async def test_retry_runs_only_in_the_group_it_names(headers: dict[str, str] | N
 async def test_retry_publishes_to_the_original_topic_for_the_failed_group(test_settings: Settings) -> None:
     broker = AsyncMock(spec=KafkaBroker)
     repository = AsyncMock(spec=DLQRepository)
-    manager = DLQManager(test_settings, broker, MagicMock(), MagicMock(spec=DLQMetrics), repository)
+    manager = DLQManager(test_settings, broker, MagicMock(), trace.NoOpTracer(), repository)
     message = DLQMessage(event=_event(), original_topic="user_registered", consumer_group="group-a", retry_count=1)
 
     await manager.retry_message(message)
@@ -116,7 +116,7 @@ async def test_failed_retry_publish_puts_the_row_back(test_settings: Settings) -
     broker = AsyncMock(spec=KafkaBroker)
     broker.publish.side_effect = KafkaError("broker down")
     repository = AsyncMock(spec=DLQRepository)
-    manager = DLQManager(test_settings, broker, MagicMock(), MagicMock(spec=DLQMetrics), repository)
+    manager = DLQManager(test_settings, broker, MagicMock(), trace.NoOpTracer(), repository)
     message = DLQMessage(event=_event(), original_topic="user_registered", consumer_group="group-a", retry_count=1)
 
     with pytest.raises(KafkaError):

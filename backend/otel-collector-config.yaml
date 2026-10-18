@@ -140,6 +140,81 @@ connectors:
           - span.name == "queue.schedule_pending"
         gauge:
           value: Int(span.attributes["queue.active"])
+      - name: dlq.messages.received
+        description: Failed events saved to the DLQ
+        unit: "{message}"
+        attributes:
+          - key: dlq.original_topic
+          - key: dlq.event_type
+        conditions:
+          - span.name == "dlq.handle" and span.attributes["dlq.outcome"] == "stored"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: dlq.message.age
+        description: How old a failed event was when the DLQ saved it
+        unit: s
+        conditions:
+          - span.name == "dlq.handle" and span.attributes["dlq.outcome"] == "stored"
+        histogram:
+          buckets: [1, 10, 60, 300, 900, 3600, 21600, 86400, 604800]
+          value: Double(span.attributes["dlq.message_age_seconds"])
+      - name: dlq.messages.retried
+        description: DLQ messages republished to their topic, by result
+        unit: "{message}"
+        attributes:
+          - key: dlq.original_topic
+          - key: dlq.event_type
+          - key: dlq.retry_result
+        conditions:
+          - span.name == "dlq.retry"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: dlq.processing.errors
+        description: DLQ retries whose publish failed, by error type
+        unit: "{message}"
+        attributes:
+          - key: dlq.original_topic
+          - key: dlq.event_type
+          - key: dlq.error_type
+        conditions:
+          - span.name == "dlq.retry" and span.attributes["dlq.retry_result"] == "failed"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: dlq.messages.discarded
+        description: DLQ messages given up on, by reason
+        unit: "{message}"
+        attributes:
+          - key: dlq.original_topic
+          - key: dlq.event_type
+          - key: dlq.discard_reason
+        conditions:
+          - span.name == "dlq.discard"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: dlq.processing.duration
+        description: Time to handle, retry or discard one DLQ message
+        unit: s
+        attributes:
+          - key: dlq.operation
+        conditions:
+          - span.attributes["dlq.operation"] != nil
+        histogram:
+          buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5]
+          value: Seconds(span.end_time - span.start_time)
+      # The monitoring job reports every topic that still has messages every 10 s; a drained topic stops reporting
+      - name: dlq.queue.size
+        description: Messages waiting in the DLQ, by topic
+        unit: "{message}"
+        attributes:
+          - key: dlq.original_topic
+        conditions:
+          - span.name == "dlq.queue_size"
+        gauge:
+          value: Int(span.attributes["dlq.size"])
 
 processors:
   batch:

@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from httpx2 import AsyncClient
 from starlette.types import ASGIApp, Message, Scope
 
-from app.core.metrics import DLQMetrics, ExecutionMetrics, RateLimitMetrics
+from app.core.metrics import ExecutionMetrics, RateLimitMetrics
 from app.core.security import SecurityService
 from app.db.docs import EventDocument, NotificationDocument
 from app.db.docs.saga import SagaDocument
@@ -268,11 +268,6 @@ async def admin_events_repository(scope: AsyncContainer) -> AdminEventsRepositor
 @pytest.fixture
 async def execution_metrics(scope: AsyncContainer) -> ExecutionMetrics:
     return await scope.get(ExecutionMetrics)
-
-
-@pytest.fixture
-async def dlq_metrics(scope: AsyncContainer) -> DLQMetrics:
-    return await scope.get(DLQMetrics)
 
 
 @pytest.fixture

@@ -248,7 +248,7 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "((sum(rate(dlq_messages_retried_total{result=\"success\"}[5m])) or vector(0)) / ((sum(rate(dlq_messages_retried_total[5m])) or vector(0)) + 0.001)) * 100",
+          "expr": "((sum(rate(dlq_messages_retried_total{dlq_retry_result=\"success\"}[5m])) or vector(0)) / ((sum(rate(dlq_messages_retried_total[5m])) or vector(0)) + 0.001)) * 100",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -378,8 +378,8 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum by (original_topic) (dlq_queue_size)",
-          "legendFormat": "{{original_topic}}",
+          "expr": "sum by (dlq_original_topic) (dlq_queue_size)",
+          "legendFormat": "{{dlq_original_topic}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -533,8 +533,8 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum by (reason) (increase(dlq_messages_discarded_total[24h]))",
-          "legendFormat": "{{reason}}",
+          "expr": "sum by (dlq_discard_reason) (increase(dlq_messages_discarded_total[24h]))",
+          "legendFormat": "{{dlq_discard_reason}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -729,14 +729,14 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(dlq_processing_duration_seconds_bucket[5m])) by (le, operation))",
-          "legendFormat": "p50 {{operation}}",
+          "expr": "histogram_quantile(0.50, sum(rate(dlq_processing_duration_seconds_bucket[5m])) by (le, dlq_operation))",
+          "legendFormat": "p50 {{dlq_operation}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(dlq_processing_duration_seconds_bucket[5m])) by (le, operation))",
-          "legendFormat": "p95 {{operation}}",
+          "expr": "histogram_quantile(0.95, sum(rate(dlq_processing_duration_seconds_bucket[5m])) by (le, dlq_operation))",
+          "legendFormat": "p95 {{dlq_operation}}",
           "refId": "B",
           "datasource": "Victoria Metrics"
         }
@@ -829,8 +829,8 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum by (result) (increase(dlq_messages_retried_total[1h]))",
-          "legendFormat": "{{result}}",
+          "expr": "sum by (dlq_retry_result) (increase(dlq_messages_retried_total[1h]))",
+          "legendFormat": "{{dlq_retry_result}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -926,8 +926,8 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum by (error_type) (rate(dlq_processing_errors_total[5m]))",
-          "legendFormat": "{{error_type}}",
+          "expr": "sum by (dlq_error_type) (rate(dlq_processing_errors_total[5m]))",
+          "legendFormat": "{{dlq_error_type}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -987,7 +987,7 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "topk(10, sum by (original_topic, event_type, error_type) (increase(dlq_processing_errors_total[1h])))",
+          "expr": "topk(10, sum by (dlq_original_topic, dlq_event_type, dlq_error_type) (increase(dlq_processing_errors_total[1h])))",
           "format": "table",
           "instant": true,
           "refId": "A",
@@ -1005,9 +1005,9 @@
             "indexByName": {},
             "renameByName": {
               "Value": "Errors",
-              "error_type": "Error Type",
-              "event_type": "Event Type",
-              "original_topic": "Topic"
+              "dlq_error_type": "Error Type",
+              "dlq_event_type": "Event Type",
+              "dlq_original_topic": "Topic"
             }
           }
         }
@@ -1072,7 +1072,7 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum by (original_topic, event_type) (increase(dlq_messages_received_total[24h]))",
+          "expr": "sum by (dlq_original_topic, dlq_event_type) (increase(dlq_messages_received_total[24h]))",
           "format": "table",
           "instant": true,
           "refId": "A",
@@ -1090,8 +1090,8 @@
             "indexByName": {},
             "renameByName": {
               "Value": "Total",
-              "event_type": "Event Type",
-              "original_topic": "Original Topic"
+              "dlq_event_type": "Event Type",
+              "dlq_original_topic": "Original Topic"
             }
           }
         }
@@ -1169,8 +1169,8 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum by (original_topic) (dlq_queue_size)",
-          "legendFormat": "{{original_topic}}",
+          "expr": "sum by (dlq_original_topic) (dlq_queue_size)",
+          "legendFormat": "{{dlq_original_topic}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -1320,7 +1320,7 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "((sum(rate(dlq_messages_retried_total{result=\"success\"}[5m])) or vector(0)) / ((sum(rate(dlq_messages_retried_total[5m])) or vector(0)) + 0.001)) * 100",
+          "expr": "((sum(rate(dlq_messages_retried_total{dlq_retry_result=\"success\"}[5m])) or vector(0)) / ((sum(rate(dlq_messages_retried_total[5m])) or vector(0)) + 0.001)) * 100",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }

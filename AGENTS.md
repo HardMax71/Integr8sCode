@@ -433,7 +433,7 @@ class ExecutionService:
         producer: UnifiedProducer,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
-        execution_metrics: ExecutionMetrics,
+        tracer: trace.Tracer,
         idempotency_manager: IdempotencyManager,
         runtime_settings: RuntimeSettingsLoader,
     ) -> None:
@@ -441,7 +441,7 @@ class ExecutionService:
         self.producer = producer
         self.settings = settings
         self.logger = logger
-        self.metrics = execution_metrics
+        self._tracer = tracer
         self.idempotency_manager = idempotency_manager
         self._runtime_settings = runtime_settings
 ```

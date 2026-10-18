@@ -175,7 +175,7 @@
       "targets": [
         {
           "datasource": "Victoria Metrics",
-          "expr": "((sum(rate(script_executions_total{status=~\"failed|error|timeout\"}[1m])) or vector(0)) / (sum(rate(script_executions_total[1m])) or vector(1))) * 100",
+          "expr": "((sum(rate(script_executions_total{execution_status=~\"failed|error|timeout\"}[1m])) or vector(0)) / (sum(rate(script_executions_total[1m])) or vector(1))) * 100",
           "refId": "A"
         }
       ],
@@ -381,8 +381,8 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum by (lang_and_version) (rate(script_executions_total[1m]))",
-          "legendFormat": "{{lang_and_version}}",
+          "expr": "sum by (execution_lang_and_version) (rate(script_executions_total[1m]))",
+          "legendFormat": "{{execution_lang_and_version}}",
           "refId": "A"
         }
       ],
@@ -644,8 +644,8 @@
       "targets": [
         {
           "datasource": "Victoria Metrics",
-          "expr": "sum by (error_type) (rate(script_errors_total[5m])) * 60",
-          "legendFormat": "{{error_type}}",
+          "expr": "sum by (execution_error_type) (rate(script_errors_total[5m])) * 60",
+          "legendFormat": "{{execution_error_type}}",
           "refId": "A"
         }
       ],
@@ -902,7 +902,7 @@
       "targets": [
         {
           "datasource": "Victoria Metrics",
-          "expr": "(sum(rate(pod_creations_total{status=\"failed\"}[5m])) or vector(0)) * 300",
+          "expr": "(sum(rate(pod_creations_total{pod_creation_result=\"failed\"}[5m])) or vector(0)) * 300",
           "refId": "A"
         }
       ],

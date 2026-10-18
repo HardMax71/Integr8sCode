@@ -24,7 +24,7 @@ The collector's metrics pipeline (`backend/otel-collector-config.yaml`) reads th
 
 ## Metrics made from spans
 
-Some metrics have no instrument in the code. A service puts the facts on a span, and the collector's `signaltometrics` connector (alpha in collector v0.162.0) turns them into counters, histograms and gauges, defined under `connectors` in `backend/otel-collector-config.yaml`. The SDK sends every span (`TRACING_SAMPLING_RATE = 1.0`), and the traces pipeline gives each span to the connector before `tail_sampling` decides what Jaeger keeps, so the counts don't depend on sampling. The connector emits a point only when a matching span arrives. Sent straight to VictoriaMetrics, a counter that sees one event every half hour would get one point every half hour, and `increase` and `rate` stop finding the previous point once two points are more than about 8 to 10 minutes apart (measured on v1.153.0): `increase` then counts the whole total again, and `rate` returns nothing. So counters and histograms go another way. `deltatocumulative` adds up the connector's deltas and keeps each total through 24 hours without spans (its default is 5 minutes, after which an idle counter would start again from zero). The collector's `prometheus` exporter serves the totals on `otel-collector:8889`, and VictoriaMetrics scrapes it every 15 seconds (`backend/victoria-metrics/scrape.yaml`, with `honor_labels` so each service's `job` and `instance` stay). A series the exporter hasn't updated for 24 hours drops out until its next span. Gauges still go by remote write, so a gauge goes stale when the job that reports it on a timer stops. Panels wrap counter rates in `or vector(0)` so a series that hasn't started yet reads 0. The queue and dead letter queue metrics work this way so far ([#389](https://github.com/HardMax71/Integr8sCode/issues/389)).
+Some metrics have no instrument in the code. A service puts the facts on a span, and the collector's `signaltometrics` connector (alpha in collector v0.162.0) turns them into counters, histograms and gauges, defined under `connectors` in `backend/otel-collector-config.yaml`. The SDK sends every span (`TRACING_SAMPLING_RATE = 1.0`), and the traces pipeline gives each span to the connector before `tail_sampling` decides what Jaeger keeps, so the counts don't depend on sampling. The connector emits a point only when a matching span arrives. Sent straight to VictoriaMetrics, a counter that sees one event every half hour would get one point every half hour, and `increase` and `rate` stop finding the previous point once two points are more than about 8 to 10 minutes apart (measured on v1.153.0): `increase` then counts the whole total again, and `rate` returns nothing. So counters and histograms go another way. `deltatocumulative` adds up the connector's deltas and keeps each total through 24 hours without spans (its default is 5 minutes, after which an idle counter would start again from zero). The collector's `prometheus` exporter serves the totals on `otel-collector:8889`, and VictoriaMetrics scrapes it every 15 seconds (`backend/victoria-metrics/scrape.yaml`, with `honor_labels` so each service's `job` and `instance` stay). A series the exporter hasn't updated for 24 hours drops out until its next span. Gauges still go by remote write, so a gauge goes stale when the job that reports it on a timer stops. Panels wrap counter rates in `or vector(0)` so a series that hasn't started yet reads 0. The execution, pod, queue and dead letter queue metrics work this way so far ([#389](https://github.com/HardMax71/Integr8sCode/issues/389)).
 
 ## Names and labels in VictoriaMetrics
 
@@ -57,14 +57,13 @@ The system metrics instrumentation records each backend and worker process's own
 
 ### Executions and queue
 
-| Metric | Type | Labels | Recorded in |
-|--------|------|--------|-------------|
-| `script_executions_total` | counter | status, lang_and_version | `ExecutionService.execute_script` in backend (queued, error); `ResultProcessor` in worker (completed, failed, timeout) |
-| `script_submission_duration_seconds` | histogram | lang_and_version | `ExecutionService.execute_script` in backend: persisting the execution and publishing the request |
-| `script_errors_total` | counter | error_type | `ExecutionService` in backend when the publish fails; `ResultProcessor` in worker |
-| `script_execution_duration_seconds` | histogram | lang_and_version | `ResultProcessor` in worker: wall time from the pod's resource usage, or the timeout for timed out runs |
-| `script_memory_usage_MiB` | histogram | lang_and_version | `ResultProcessor` in worker: peak memory |
-| `script_memory_utilization_percent` | histogram | lang_and_version | `ResultProcessor` in worker: peak memory over the effective memory limit for the language (admin setting or TOML, raised to the language minimum) |
+| Metric | Type | Labels | Recorded from |
+|--------|------|--------|---------------|
+| `script_executions_total` | counter | execution_status, execution_lang_and_version | span `execution.submit` from `ExecutionService.execute_script` in backend (queued, error), and span `execution.result` from `ResultProcessor` in worker (completed, failed, timeout) |
+| `script_errors_total` | counter | execution_error_type | the same spans when they carry `execution.error_type`: the publish exception's class at submission, the event's error type or `timeout` at the result |
+| `script_execution_duration_seconds` | histogram | execution_lang_and_version | `execution.runtime_seconds` on `execution.result`: wall time from the pod's resource usage, or the timeout for timed out runs |
+| `script_memory_usage_MiB` | histogram | execution_lang_and_version | `execution.memory_mib` on `execution.result` for completed runs: peak memory |
+| `script_memory_utilization_percent` | histogram | execution_lang_and_version | `execution.memory_percent` on the same spans: peak memory over the effective memory limit for the language (admin setting or TOML, raised to the language minimum) |
 | `queue_depth` | gauge | none | span `queue.schedule_pending` from the worker's scheduler job, every 10 s: pending executions in Redis |
 | `queue_active` | gauge | none | the same span: running slots in Redis |
 | `queue_enqueue_total` | counter | none | span `queue.enqueue` from `ExecutionQueueService.enqueue` in worker |
@@ -72,7 +71,7 @@ The system metrics instrumentation records each backend and worker process's own
 | `queue_wait_time_seconds` | histogram | queue_priority | `queue.wait_seconds` on those spans: enqueue to schedule |
 | `queue_event_data_lost_total` | counter | none | span `queue.schedule` with `queue.outcome` `event_data_lost`: the queued event had expired in Redis |
 
-The six queue metrics come from spans (see [Metrics made from spans](#metrics-made-from-spans)). Both gauges read Redis on each run of the job, so they stay right across worker restarts.
+All of these come from spans (see [Metrics made from spans](#metrics-made-from-spans)). Both queue gauges read Redis on each run of the job, so they stay right across worker restarts. The execution dashboard's submission latency reads `http_server_request_duration_seconds` for the execute and retry routes.
 
 ### Events and idempotency
 
@@ -103,19 +102,19 @@ The status snapshot a stream sends first comes from the database, not Redis, and
 
 ### Kubernetes pods
 
-| Metric | Type | Labels | Recorded in |
-|--------|------|--------|-------------|
-| `pod_creations_total` | counter | status: success, failed; language | `KubernetesWorker` in worker |
-| `pod_creation_duration_seconds` | histogram | language | `KubernetesWorker` in worker: ConfigMap, pod and `PodCreated` publish, successful creations only |
-| `pod_creations_active` | gauge, in process | none | `KubernetesWorker` in worker |
-| `configmaps_created_total` | counter | status: success, already_exists, failed | `KubernetesWorker` in worker |
-| `pods_by_phase` | gauge | phase | `PodMonitor` in worker: executor pods seen through LIST and watch; a relist rebuilds it |
-| `pod_lifetime_seconds` | histogram | final_phase, language | `PodMonitor` in worker: pod creation to the terminal event, recorded when the monitor deletes the pod |
-| `pod_monitor_events_total` | counter | event_type, pod_phase | `PodMonitor` in worker: each application event it publishes |
-| `pod_monitor_processing_duration_seconds` | histogram | event_type: ADDED, MODIFIED, DELETED | `PodMonitor` in worker: mapping and publishing one watch event |
-| `pod_monitor_reconciliations_total` | counter | none | `PodMonitor` in worker: each full LIST, on start and after 410 Gone |
-| `pod_monitor_watch_errors_total` | counter | error_type: resource_version_expired, api_error, unexpected, processing_error | `PodMonitor` in worker |
-| `pod_monitor_watch_reconnects_total` | counter | none | `PodMonitor.watch_cycle` in worker, after a failed watch cycle |
+| Metric | Type | Labels | Recorded from |
+|--------|------|--------|---------------|
+| `pod_creations_total` | counter | pod_creation_result: success, failed; pod_language | span `pod.create` from `KubernetesWorker` in worker |
+| `pod_creation_duration_seconds` | histogram | pod_language | the length of `pod.create` for successful creations: ConfigMap, pod and `PodCreated` publish |
+| `pod_creations_active` | gauge | none | `pod.active_creations` on `pod.create`, reported as each creation ends |
+| `configmaps_created_total` | counter | pod_configmap_result: success, already_exists, failed | span `pod.create_configmap` |
+| `pods_by_phase` | gauge | pod_phase | span `pod_monitor.pods`, one per phase with zeros included, at the end of each `PodMonitor.watch_cycle` in worker (at most 35 s apart): executor pods seen through LIST and watch; a relist rebuilds the counts |
+| `pod_lifetime_seconds` | histogram | pod_phase, pod_language | `pod.lifetime_seconds` on `pod_monitor.event` for the event that finished the execution: pod creation to that event |
+| `pod_monitor_events_total` | counter | pod_monitor_watch_event, pod_phase | `pod_monitor.published` on span `pod_monitor.event`: the application events one watch event produced |
+| `pod_monitor_processing_duration_seconds` | histogram | pod_monitor_watch_event: ADDED, MODIFIED, DELETED | the length of `pod_monitor.event`: mapping and publishing one watch event |
+| `pod_monitor_reconciliations_total` | counter | none | span `pod_monitor.list`: each full LIST, on start and after 410 Gone |
+| `pod_monitor_watch_errors_total` | counter | pod_monitor_error_type: resource_version_expired, api_error, unexpected, processing_error | `pod_monitor.watch` and `pod_monitor.event` spans that carry `pod_monitor.error_type` |
+| `pod_monitor_watch_reconnects_total` | counter | none | `pod_monitor.watch` spans that carry `pod_monitor.error_type` |
 
 ### Notifications (backend)
 
@@ -235,8 +234,8 @@ The `kafka_metrics` receiver and the rest of `host_metrics` land in VictoriaMetr
 These work against what backend exports today.
 
 ```promql
-# p95 submission latency by runtime
-histogram_quantile(0.95, sum by (le, lang_and_version) (rate(script_submission_duration_seconds_bucket[5m])))
+# p95 execution time by runtime
+histogram_quantile(0.95, sum by (le, execution_lang_and_version) (rate(script_execution_duration_seconds_bucket[5m])))
 
 # share of API requests answered with a 5xx
 sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m])) / sum(rate(http_server_request_duration_seconds_count[5m]))
@@ -254,4 +253,4 @@ sum by (reason) (rate(token_validation_failures_total[5m]))
 sum(rate(mongodb_cache_operations_total{type="hit"}[5m])) / sum(rate(mongodb_cache_operations_total[5m]))
 ```
 
-`sum(pods_by_phase{phase="Pending"})` shows executor pods waiting for a node or a Kueue slot.
+`sum(pods_by_phase{pod_phase="Pending"})` shows executor pods waiting for a node or a Kueue slot.

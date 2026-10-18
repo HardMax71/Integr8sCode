@@ -6,8 +6,8 @@ import aiohttp
 import structlog
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio.client.rest import ApiException
+from opentelemetry import trace
 
-from app.core.metrics import KubernetesMetrics
 from app.domain.enums import ExecutionErrorType
 from app.domain.events import (
     CreatePodCommandEvent,
@@ -41,10 +41,10 @@ class KubernetesWorker:
         producer: UnifiedProducer,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
-        kubernetes_metrics: KubernetesMetrics,
+        tracer: trace.Tracer,
     ):
         self.logger = logger
-        self.metrics = kubernetes_metrics
+        self._tracer = tracer
         self._settings = settings
 
         # Validate namespace
@@ -103,51 +103,46 @@ class KubernetesWorker:
         """Create pod for execution"""
         execution_id = command.execution_id
         self._active_creations.add(execution_id)
-        self.metrics.update_active_pod_creations(len(self._active_creations))
 
-        start_time = time.time()
+        with self._tracer.start_as_current_span("pod.create", attributes={"pod.language": command.language}) as span:
+            start_time = time.time()
+            try:
+                script_content = command.script
+                entrypoint_content = await self._get_entrypoint_script()
 
-        try:
-            script_content = command.script
-            entrypoint_content = await self._get_entrypoint_script()
+                # Create ConfigMap
+                config_map = self.pod_builder.build_config_map(
+                    command=command, script_content=script_content, entrypoint_content=entrypoint_content
+                )
 
-            # Create ConfigMap
-            config_map = self.pod_builder.build_config_map(
-                command=command, script_content=script_content, entrypoint_content=entrypoint_content
-            )
+                await self._create_config_map(config_map)
 
-            await self._create_config_map(config_map)
+                pod = self.pod_builder.build_pod_manifest(command=command)
+                created_pod = await self._create_pod(pod)
 
-            pod = self.pod_builder.build_pod_manifest(command=command)
-            created_pod = await self._create_pod(pod)
+                # Set ownerReference so K8s garbage-collects the ConfigMap when the pod is deleted
+                if created_pod and created_pod.metadata and created_pod.metadata.uid:
+                    await self._set_configmap_owner(config_map, created_pod)
 
-            # Set ownerReference so K8s garbage-collects the ConfigMap when the pod is deleted
-            if created_pod and created_pod.metadata and created_pod.metadata.uid:
-                await self._set_configmap_owner(config_map, created_pod)
+                # Publish PodCreated event
+                await self._publish_pod_created(command, pod)
 
-            # Publish PodCreated event
-            await self._publish_pod_created(command, pod)
+                span.set_attribute("pod.creation_result", "success")
+                self.logger.info(
+                    "Created pod for execution",
+                    pod_name=pod.metadata.name,
+                    execution_id=execution_id,
+                    duration_seconds=round(time.time() - start_time, 2),
+                )
 
-            # Update metrics
-            duration = time.time() - start_time
-            self.metrics.record_k8s_pod_creation_duration(duration, command.language)
-            self.metrics.record_k8s_pod_created("success", command.language)
+            except Exception as e:
+                self.logger.error("Failed to create pod for execution", execution_id=execution_id, exc_info=True)
+                span.set_attribute("pod.creation_result", "failed")
+                await self._publish_pod_creation_failed(command, str(e))
 
-            self.logger.info(
-                "Created pod for execution",
-                pod_name=pod.metadata.name,
-                execution_id=execution_id,
-                duration_seconds=round(duration, 2),
-            )
-
-        except Exception as e:
-            self.logger.error("Failed to create pod for execution", execution_id=execution_id, exc_info=True)
-            self.metrics.record_k8s_pod_created("failed", command.language)
-            await self._publish_pod_creation_failed(command, str(e))
-
-        finally:
-            self._active_creations.discard(execution_id)
-            self.metrics.update_active_pod_creations(len(self._active_creations))
+            finally:
+                self._active_creations.discard(execution_id)
+                span.set_attribute("pod.active_creations", len(self._active_creations))
 
     async def _get_entrypoint_script(self) -> str:
         """Get entrypoint script content"""
@@ -174,17 +169,18 @@ exec "$@"
 
     async def _create_config_map(self, config_map: k8s_client.V1ConfigMap) -> None:
         """Create ConfigMap in Kubernetes"""
-        try:
-            await self.v1.create_namespaced_config_map(namespace=self._settings.K8S_NAMESPACE, body=config_map)
-            self.metrics.record_k8s_config_map_created("success")
-            self.logger.debug("Created ConfigMap", config_map=config_map.metadata.name)
-        except ApiException as e:
-            if e.status == 409:  # Already exists
-                self.logger.warning("ConfigMap already exists", config_map=config_map.metadata.name)
-                self.metrics.record_k8s_config_map_created("already_exists")
-            else:
-                self.metrics.record_k8s_config_map_created("failed")
-                raise
+        with self._tracer.start_as_current_span("pod.create_configmap") as span:
+            try:
+                await self.v1.create_namespaced_config_map(namespace=self._settings.K8S_NAMESPACE, body=config_map)
+                span.set_attribute("pod.configmap_result", "success")
+                self.logger.debug("Created ConfigMap", config_map=config_map.metadata.name)
+            except ApiException as e:
+                if e.status == 409:  # Already exists
+                    self.logger.warning("ConfigMap already exists", config_map=config_map.metadata.name)
+                    span.set_attribute("pod.configmap_result", "already_exists")
+                else:
+                    span.set_attribute("pod.configmap_result", "failed")
+                    raise
 
     async def _create_pod(self, pod: k8s_client.V1Pod) -> k8s_client.V1Pod | None:
         """Create Pod in Kubernetes. Returns the created pod (with UID) or None if it already existed."""

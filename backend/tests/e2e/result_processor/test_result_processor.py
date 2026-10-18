@@ -1,7 +1,7 @@
 import pytest
 import structlog
+from opentelemetry import trace
 
-from app.core.metrics import ExecutionMetrics
 from app.db.docs import ExecutionDocument
 from app.db.repositories import ExecutionRepository
 from app.domain.enums import ExecutionStatus
@@ -22,7 +22,6 @@ _test_logger = structlog.get_logger("test.result_processor.processor")
 
 async def test_result_processor_persists_and_emits(
     runtime_settings_loader: RuntimeSettingsLoader,
-    execution_metrics: ExecutionMetrics,
     execution_repository: ExecutionRepository,
     unified_producer: UnifiedProducer,
 ) -> None:
@@ -45,7 +44,7 @@ async def test_result_processor_persists_and_emits(
         producer=unified_producer,
         runtime_settings=runtime_settings_loader,
         logger=_test_logger,
-        execution_metrics=execution_metrics,
+        tracer=trace.NoOpTracer(),
     )
 
     # Build the event

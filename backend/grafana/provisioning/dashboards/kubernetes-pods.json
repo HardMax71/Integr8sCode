@@ -51,13 +51,13 @@
       "id": 1,
       "targets": [
         {
-          "expr": "sum(rate(pod_creations_total{status=\"success\"}[5m]))",
+          "expr": "sum(rate(pod_creations_total{pod_creation_result=\"success\"}[5m]))",
           "legendFormat": "Created",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "sum(rate(pod_creations_total{status=\"failed\"}[5m]))",
+          "expr": "sum(rate(pod_creations_total{pod_creation_result=\"failed\"}[5m]))",
           "legendFormat": "Failed",
           "refId": "B",
           "datasource": "Victoria Metrics"
@@ -107,7 +107,7 @@
       "id": 3,
       "targets": [
         {
-          "expr": "pod_creations_active",
+          "expr": "sum(pod_creations_active) or vector(0)",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -199,10 +199,10 @@
       "id": 7,
       "targets": [
         {
-          "expr": "sum by (phase) (pods_by_phase)",
+          "expr": "sum by (pod_phase) (pods_by_phase)",
           "refId": "A",
           "datasource": "Victoria Metrics",
-          "legendFormat": "{{phase}}"
+          "legendFormat": "{{pod_phase}}"
         }
       ],
       "title": "Pods by Phase",

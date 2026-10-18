@@ -25,9 +25,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from app.core.metrics import (
     ConnectionMetrics,
     EventMetrics,
-    ExecutionMetrics,
     IdempotencyMetrics,
-    KubernetesMetrics,
     NotificationMetrics,
     RateLimitMetrics,
     ReplayMetrics,
@@ -239,16 +237,6 @@ def idempotency_metrics(test_settings: Settings) -> IdempotencyMetrics:
 @pytest.fixture
 def event_metrics(test_settings: Settings) -> EventMetrics:
     return EventMetrics(test_settings)
-
-
-@pytest.fixture
-def execution_metrics(test_settings: Settings) -> ExecutionMetrics:
-    return ExecutionMetrics(test_settings)
-
-
-@pytest.fixture
-def kubernetes_metrics(test_settings: Settings) -> KubernetesMetrics:
-    return KubernetesMetrics(test_settings)
 
 
 @pytest.fixture

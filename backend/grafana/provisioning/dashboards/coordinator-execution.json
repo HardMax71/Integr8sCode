@@ -424,13 +424,13 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(script_submission_duration_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket{http_route=~\"/api/v1/execute|/api/v1/executions/.+/retry\"}[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "histogram_quantile(0.50, sum(rate(script_submission_duration_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_server_request_duration_seconds_bucket{http_route=~\"/api/v1/execute|/api/v1/executions/.+/retry\"}[5m])) by (le))",
           "legendFormat": "p50",
           "refId": "B",
           "datasource": "Victoria Metrics"

@@ -1,9 +1,10 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 import structlog
+from opentelemetry import trace
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from app.core.metrics import ExecutionMetrics
 from app.domain.admin import SystemSettings
 from app.domain.enums import ExecutionErrorType, ExecutionStatus
 from app.domain.events import (
@@ -30,7 +31,7 @@ _METADATA = EventMetadata(service_name="tests", service_version="1.0.0", user_id
 
 
 def _make_processor(
-    execution_metrics: ExecutionMetrics,
+    tracer: trace.Tracer,
     exec_repo: AsyncMock | None = None,
     producer: AsyncMock | None = None,
     admin_memory_limit: str = "256Mi",
@@ -45,31 +46,31 @@ def _make_processor(
         producer=producer or AsyncMock(),
         runtime_settings=runtime_settings,
         logger=_test_logger,
-        execution_metrics=execution_metrics,
+        tracer=tracer,
     )
 
 
 class TestHandlerTypeGuards:
     """Handlers must reject wrong event types with TypeError."""
 
-    async def test_completed_rejects_wrong_type(self, execution_metrics: ExecutionMetrics) -> None:
-        processor = _make_processor(execution_metrics)
+    async def test_completed_rejects_wrong_type(self, tracer: trace.Tracer) -> None:
+        processor = _make_processor(tracer)
         wrong = ExecutionFailedEvent(
             execution_id="e1", exit_code=1, error_type=ExecutionErrorType.SCRIPT_ERROR, metadata=_METADATA
         )
         with pytest.raises(TypeError, match="Expected ExecutionCompletedEvent"):
             await processor.handle_execution_completed(wrong)
 
-    async def test_failed_rejects_wrong_type(self, execution_metrics: ExecutionMetrics) -> None:
-        processor = _make_processor(execution_metrics)
+    async def test_failed_rejects_wrong_type(self, tracer: trace.Tracer) -> None:
+        processor = _make_processor(tracer)
         wrong = ExecutionCompletedEvent(
             execution_id="e1", exit_code=0, resource_usage=ResourceUsageDomain(), metadata=_METADATA
         )
         with pytest.raises(TypeError, match="Expected ExecutionFailedEvent"):
             await processor.handle_execution_failed(wrong)
 
-    async def test_timeout_rejects_wrong_type(self, execution_metrics: ExecutionMetrics) -> None:
-        processor = _make_processor(execution_metrics)
+    async def test_timeout_rejects_wrong_type(self, tracer: trace.Tracer) -> None:
+        processor = _make_processor(tracer)
         wrong = ExecutionCompletedEvent(
             execution_id="e1", exit_code=0, resource_usage=ResourceUsageDomain(), metadata=_METADATA
         )
@@ -78,10 +79,10 @@ class TestHandlerTypeGuards:
 
 
 class TestHandleExecutionCompleted:
-    async def test_raises_when_execution_not_found(self, execution_metrics: ExecutionMetrics) -> None:
+    async def test_raises_when_execution_not_found(self, tracer: trace.Tracer) -> None:
         repo = AsyncMock()
         repo.get_execution.return_value = None
-        processor = _make_processor(execution_metrics, exec_repo=repo)
+        processor = _make_processor(tracer, exec_repo=repo)
 
         event = ExecutionCompletedEvent(
             execution_id="missing", exit_code=0, resource_usage=ResourceUsageDomain(), metadata=_METADATA
@@ -89,12 +90,12 @@ class TestHandleExecutionCompleted:
         with pytest.raises(ExecutionNotFoundError):
             await processor.handle_execution_completed(event)
 
-    async def test_stores_result_and_publishes(self, execution_metrics: ExecutionMetrics) -> None:
+    async def test_stores_result_and_publishes(self, tracer: trace.Tracer, span_exporter: InMemorySpanExporter) -> None:
         repo = AsyncMock()
         repo.get_execution.return_value = DomainExecution(execution_id="e1", lang="python", lang_version="3.11")
         repo.write_terminal_result.return_value = True
         producer = AsyncMock()
-        processor = _make_processor(execution_metrics, exec_repo=repo, producer=producer)
+        processor = _make_processor(tracer, exec_repo=repo, producer=producer)
 
         event = ExecutionCompletedEvent(
             execution_id="e1",
@@ -112,6 +113,17 @@ class TestHandleExecutionCompleted:
         assert result_arg.status == ExecutionStatus.COMPLETED
         assert result_arg.exit_code == 0
         producer.produce.assert_awaited_once()
+        [span] = span_exporter.get_finished_spans()
+        assert (span.name, span.attributes) == (
+            "execution.result",
+            {
+                "execution.status": "completed",
+                "execution.lang_and_version": "python-3.11",
+                "execution.runtime_seconds": 1.5,
+                "execution.memory_mib": 50.0,
+                "execution.memory_percent": 50 / 256 * 100,
+            },
+        )
 
     @pytest.mark.parametrize(
         ("lang", "peak_memory_kb", "expected_percent"),
@@ -121,12 +133,16 @@ class TestHandleExecutionCompleted:
         ],
     )
     async def test_memory_percent_uses_effective_language_limit(
-        self, execution_metrics: ExecutionMetrics, lang: str, peak_memory_kb: int, expected_percent: float
+        self,
+        tracer: trace.Tracer,
+        span_exporter: InMemorySpanExporter,
+        lang: str,
+        peak_memory_kb: int,
+        expected_percent: float,
     ) -> None:
         repo = AsyncMock()
         repo.get_execution.return_value = DomainExecution(execution_id="e1", lang=lang, lang_version="1")
-        metrics = MagicMock(spec=execution_metrics)
-        processor = _make_processor(metrics, exec_repo=repo, admin_memory_limit="128Mi")
+        processor = _make_processor(tracer, exec_repo=repo, admin_memory_limit="128Mi")
 
         event = ExecutionCompletedEvent(
             execution_id="e1",
@@ -136,17 +152,18 @@ class TestHandleExecutionCompleted:
         )
         await processor.handle_execution_completed(event)
 
-        recorded_percent = metrics.memory_utilization_percent.record.call_args.args[0]
-        assert recorded_percent == pytest.approx(expected_percent)
+        [span] = span_exporter.get_finished_spans()
+        assert span.attributes is not None
+        assert span.attributes["execution.memory_percent"] == pytest.approx(expected_percent)
 
 
 class TestHandleExecutionFailed:
-    async def test_stores_result_and_publishes(self, execution_metrics: ExecutionMetrics) -> None:
+    async def test_stores_result_and_publishes(self, tracer: trace.Tracer, span_exporter: InMemorySpanExporter) -> None:
         repo = AsyncMock()
         repo.get_execution.return_value = DomainExecution(execution_id="e2", lang="python", lang_version="3.11")
         repo.write_terminal_result.return_value = True
         producer = AsyncMock()
-        processor = _make_processor(execution_metrics, exec_repo=repo, producer=producer)
+        processor = _make_processor(tracer, exec_repo=repo, producer=producer)
 
         event = ExecutionFailedEvent(
             execution_id="e2",
@@ -163,15 +180,21 @@ class TestHandleExecutionFailed:
         assert result_arg.status == ExecutionStatus.FAILED
         assert result_arg.exit_code == 1
         producer.produce.assert_awaited_once()
+        [span] = span_exporter.get_finished_spans()
+        assert span.attributes == {
+            "execution.status": "failed",
+            "execution.lang_and_version": "python-3.11",
+            "execution.error_type": "script_error",
+        }
 
 
 class TestHandleExecutionTimeout:
-    async def test_stores_result_and_publishes(self, execution_metrics: ExecutionMetrics) -> None:
+    async def test_stores_result_and_publishes(self, tracer: trace.Tracer, span_exporter: InMemorySpanExporter) -> None:
         repo = AsyncMock()
         repo.get_execution.return_value = DomainExecution(execution_id="e3", lang="python", lang_version="3.11")
         repo.write_terminal_result.return_value = True
         producer = AsyncMock()
-        processor = _make_processor(execution_metrics, exec_repo=repo, producer=producer)
+        processor = _make_processor(tracer, exec_repo=repo, producer=producer)
 
         event = ExecutionTimeoutEvent(
             execution_id="e3", timeout_seconds=30, resource_usage=ResourceUsageDomain(), metadata=_METADATA
@@ -184,6 +207,13 @@ class TestHandleExecutionTimeout:
         assert result_arg.status == ExecutionStatus.TIMEOUT
         assert result_arg.exit_code == -1
         producer.produce.assert_awaited_once()
+        [span] = span_exporter.get_finished_spans()
+        assert span.attributes == {
+            "execution.status": "timeout",
+            "execution.lang_and_version": "python-3.11",
+            "execution.error_type": "timeout",
+            "execution.runtime_seconds": 30,
+        }
 
 
 class TestPodProgress:
@@ -197,10 +227,10 @@ class TestPodProgress:
         ],
     )
     async def test_advances_status(
-        self, execution_metrics: ExecutionMetrics, event: PodScheduledEvent | PodRunningEvent, status: ExecutionStatus
+        self, tracer: trace.Tracer, event: PodScheduledEvent | PodRunningEvent, status: ExecutionStatus
     ) -> None:
         repo = AsyncMock()
-        processor = _make_processor(execution_metrics, exec_repo=repo)
+        processor = _make_processor(tracer, exec_repo=repo)
 
         await processor.handle_pod_progress(event)
 

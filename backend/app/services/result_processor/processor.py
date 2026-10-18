@@ -1,6 +1,7 @@
 import structlog
+from opentelemetry import trace
+from opentelemetry.util.types import AttributeValue
 
-from app.core.metrics import ExecutionMetrics
 from app.db import ExecutionRepository
 from app.domain.enums import ExecutionErrorType, ExecutionStatus, StorageType
 from app.domain.events import (
@@ -30,12 +31,12 @@ class ResultProcessor:
         producer: UnifiedProducer,
         runtime_settings: RuntimeSettingsLoader,
         logger: structlog.stdlib.BoundLogger,
-        execution_metrics: ExecutionMetrics,
+        tracer: trace.Tracer,
     ) -> None:
         self._execution_repo = execution_repo
         self._producer = producer
         self._runtime_settings = runtime_settings
-        self._metrics = execution_metrics
+        self._tracer = tracer
         self.logger = logger
 
     async def handle_pod_progress(self, event: PodScheduledEvent | PodRunningEvent) -> None:
@@ -53,41 +54,35 @@ class ResultProcessor:
         if exec_obj is None:
             raise ExecutionNotFoundError(event.execution_id)
 
-        lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
-
-        self._metrics.record_script_execution(ExecutionStatus.COMPLETED, lang_and_version)
-
-        runtime_seconds = event.resource_usage.execution_time_wall_seconds
-        self._metrics.record_execution_duration(runtime_seconds, lang_and_version)
-
         memory_mib = event.resource_usage.peak_memory_kb / 1024
-        self._metrics.record_memory_usage(memory_mib, lang_and_version)
-
         limits = await self._runtime_settings.get_language_limits(exec_obj.lang)
         memory_limit_mib = float(parse_quantity(limits.memory_limit)) / 2**20
-        memory_percent = (memory_mib / memory_limit_mib) * 100
-        self._metrics.memory_utilization_percent.record(
-            memory_percent, attributes={"lang_and_version": lang_and_version}
-        )
-
-        result = ExecutionResultDomain(
-            execution_id=event.execution_id,
-            exit_code=event.exit_code,
-            stdout=event.stdout,
-            stderr=event.stderr,
-            resource_usage=event.resource_usage,
-            status=ExecutionStatus.COMPLETED,
-        )
-
-        meta = event.metadata
-        try:
-            await self._execution_repo.write_terminal_result(result)
-            await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
-        except PRODUCE_ERRORS as e:
-            self.logger.error(
-                "Failed to handle ExecutionCompletedEvent", execution_id=event.execution_id, exc_info=True
+        attributes: dict[str, AttributeValue] = {
+            "execution.status": ExecutionStatus.COMPLETED,
+            "execution.lang_and_version": f"{exec_obj.lang}-{exec_obj.lang_version}",
+            "execution.runtime_seconds": event.resource_usage.execution_time_wall_seconds,
+            "execution.memory_mib": memory_mib,
+            "execution.memory_percent": memory_mib / memory_limit_mib * 100,
+        }
+        with self._tracer.start_as_current_span("execution.result", attributes=attributes):
+            result = ExecutionResultDomain(
+                execution_id=event.execution_id,
+                exit_code=event.exit_code,
+                stdout=event.stdout,
+                stderr=event.stderr,
+                resource_usage=event.resource_usage,
+                status=ExecutionStatus.COMPLETED,
             )
-            await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
+
+            meta = event.metadata
+            try:
+                await self._execution_repo.write_terminal_result(result)
+                await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
+            except PRODUCE_ERRORS as e:
+                self.logger.error(
+                    "Failed to handle ExecutionCompletedEvent", execution_id=event.execution_id, exc_info=True
+                )
+                await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
 
     async def handle_execution_failed(self, event: DomainEvent) -> None:
         """Handle execution failed event."""
@@ -98,27 +93,31 @@ class ResultProcessor:
         if exec_obj is None:
             raise ExecutionNotFoundError(event.execution_id)
 
+        attributes = {
+            "execution.status": ExecutionStatus.FAILED,
+            "execution.lang_and_version": f"{exec_obj.lang}-{exec_obj.lang_version}",
+        }
         if event.error_type is not None:
-            self._metrics.record_error(event.error_type)
-        lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
-
-        self._metrics.record_script_execution(ExecutionStatus.FAILED, lang_and_version)
-        result = ExecutionResultDomain(
-            execution_id=event.execution_id,
-            exit_code=event.exit_code,
-            stdout=event.stdout,
-            stderr=event.stderr,
-            resource_usage=event.resource_usage,
-            error_type=event.error_type,
-            status=ExecutionStatus.FAILED,
-        )
-        meta = event.metadata
-        try:
-            await self._execution_repo.write_terminal_result(result)
-            await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
-        except PRODUCE_ERRORS as e:
-            self.logger.error("Failed to handle ExecutionFailedEvent", execution_id=event.execution_id, exc_info=True)
-            await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
+            attributes["execution.error_type"] = event.error_type
+        with self._tracer.start_as_current_span("execution.result", attributes=attributes):
+            result = ExecutionResultDomain(
+                execution_id=event.execution_id,
+                exit_code=event.exit_code,
+                stdout=event.stdout,
+                stderr=event.stderr,
+                resource_usage=event.resource_usage,
+                error_type=event.error_type,
+                status=ExecutionStatus.FAILED,
+            )
+            meta = event.metadata
+            try:
+                await self._execution_repo.write_terminal_result(result)
+                await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
+            except PRODUCE_ERRORS as e:
+                self.logger.error(
+                    "Failed to handle ExecutionFailedEvent", execution_id=event.execution_id, exc_info=True
+                )
+                await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
 
     async def handle_execution_timeout(self, event: DomainEvent) -> None:
         """Handle execution timeout event."""
@@ -129,28 +128,31 @@ class ResultProcessor:
         if exec_obj is None:
             raise ExecutionNotFoundError(event.execution_id)
 
-        self._metrics.record_error(ExecutionErrorType.TIMEOUT)
-        lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
-
-        self._metrics.record_script_execution(ExecutionStatus.TIMEOUT, lang_and_version)
-        self._metrics.record_execution_duration(event.timeout_seconds, lang_and_version)
-
-        result = ExecutionResultDomain(
-            execution_id=event.execution_id,
-            exit_code=-1,
-            stdout=event.stdout,
-            stderr=event.stderr,
-            resource_usage=event.resource_usage,
-            error_type=ExecutionErrorType.TIMEOUT,
-            status=ExecutionStatus.TIMEOUT,
-        )
-        meta = event.metadata
-        try:
-            await self._execution_repo.write_terminal_result(result)
-            await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
-        except PRODUCE_ERRORS as e:
-            self.logger.error("Failed to handle ExecutionTimeoutEvent", execution_id=event.execution_id, exc_info=True)
-            await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
+        attributes: dict[str, AttributeValue] = {
+            "execution.status": ExecutionStatus.TIMEOUT,
+            "execution.lang_and_version": f"{exec_obj.lang}-{exec_obj.lang_version}",
+            "execution.error_type": ExecutionErrorType.TIMEOUT,
+            "execution.runtime_seconds": event.timeout_seconds,
+        }
+        with self._tracer.start_as_current_span("execution.result", attributes=attributes):
+            result = ExecutionResultDomain(
+                execution_id=event.execution_id,
+                exit_code=-1,
+                stdout=event.stdout,
+                stderr=event.stderr,
+                resource_usage=event.resource_usage,
+                error_type=ExecutionErrorType.TIMEOUT,
+                status=ExecutionStatus.TIMEOUT,
+            )
+            meta = event.metadata
+            try:
+                await self._execution_repo.write_terminal_result(result)
+                await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
+            except PRODUCE_ERRORS as e:
+                self.logger.error(
+                    "Failed to handle ExecutionTimeoutEvent", execution_id=event.execution_id, exc_info=True
+                )
+                await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
 
     async def _publish_result_stored(
         self, result: ExecutionResultDomain, user_id: str, aggregate_id: str | None

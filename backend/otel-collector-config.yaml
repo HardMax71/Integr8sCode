@@ -215,6 +215,164 @@ connectors:
           - span.name == "dlq.queue_size"
         gauge:
           value: Int(span.attributes["dlq.size"])
+      - name: script.executions
+        description: Executions by status, counted at submission (queued, error) and at the result (completed, failed, timeout)
+        unit: "{execution}"
+        attributes:
+          - key: execution.status
+          - key: execution.lang_and_version
+        conditions:
+          - span.name == "execution.submit" or span.name == "execution.result"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: script.errors
+        description: Executions that ended in an error, by error type
+        unit: "{execution}"
+        attributes:
+          - key: execution.error_type
+        conditions:
+          - span.attributes["execution.error_type"] != nil
+        sum:
+          value: "1"
+          monotonic: true
+      - name: script.execution.duration
+        description: Wall time of a finished execution, or the timeout of one that timed out
+        unit: s
+        attributes:
+          - key: execution.lang_and_version
+        conditions:
+          - span.name == "execution.result" and span.attributes["execution.runtime_seconds"] != nil
+        histogram:
+          buckets: [0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300]
+          value: Double(span.attributes["execution.runtime_seconds"])
+      - name: script.memory.usage
+        description: Peak memory of a completed execution
+        unit: MiB
+        attributes:
+          - key: execution.lang_and_version
+        conditions:
+          - span.name == "execution.result" and span.attributes["execution.memory_mib"] != nil
+        histogram:
+          buckets: [4, 8, 16, 32, 64, 128, 256, 512, 1024]
+          value: Double(span.attributes["execution.memory_mib"])
+      - name: script.memory.utilization.percent
+        description: Peak memory of a completed execution as a share of its limit
+        unit: "%"
+        attributes:
+          - key: execution.lang_and_version
+        conditions:
+          - span.name == "execution.result" and span.attributes["execution.memory_percent"] != nil
+        histogram:
+          buckets: [1, 5, 10, 25, 50, 75, 90, 100]
+          value: Double(span.attributes["execution.memory_percent"])
+      - name: pod.creations
+        description: Executor pod creation attempts by result
+        unit: "{pod}"
+        attributes:
+          - key: pod.creation_result
+          - key: pod.language
+        conditions:
+          - span.name == "pod.create"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: pod.creation.duration
+        description: Time to create the ConfigMap and pod and publish pod_created
+        unit: s
+        attributes:
+          - key: pod.language
+        conditions:
+          - span.name == "pod.create" and span.attributes["pod.creation_result"] == "success"
+        histogram:
+          buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30]
+          value: Seconds(span.end_time - span.start_time)
+      # The k8s worker reports it as each creation ends, so it goes stale once creations stop
+      - name: pod.creations.active
+        description: Pod creations still running in the k8s worker
+        unit: "{pod}"
+        conditions:
+          - span.name == "pod.create"
+        gauge:
+          value: Int(span.attributes["pod.active_creations"])
+      - name: configmaps.created
+        description: Executor ConfigMap creations by result
+        unit: "{configmap}"
+        attributes:
+          - key: pod.configmap_result
+        conditions:
+          - span.name == "pod.create_configmap"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: pod.lifetime
+        description: Time from pod creation until the pod monitor saw the execution finish
+        unit: s
+        attributes:
+          - key: pod.phase
+          - key: pod.language
+        conditions:
+          - span.name == "pod_monitor.event" and span.attributes["pod.lifetime_seconds"] != nil
+        histogram:
+          buckets: [1, 5, 10, 30, 60, 120, 300, 600, 1800, 3600]
+          value: Double(span.attributes["pod.lifetime_seconds"])
+      # The pod monitor reports every phase, zeros included, at the end of each watch (at most 35 s apart)
+      - name: pods.by.phase
+        description: Executor pods the pod monitor currently sees, by phase
+        unit: "{pod}"
+        attributes:
+          - key: pod.phase
+        conditions:
+          - span.name == "pod_monitor.pods"
+        gauge:
+          value: Int(span.attributes["pod_monitor.pods"])
+      - name: pod.monitor.events
+        description: Events the pod monitor published
+        unit: "{event}"
+        attributes:
+          - key: pod_monitor.watch_event
+          - key: pod.phase
+        conditions:
+          - span.name == "pod_monitor.event" and span.attributes["pod_monitor.published"] != nil
+        sum:
+          value: Int(span.attributes["pod_monitor.published"])
+          monotonic: true
+      - name: pod.monitor.processing.duration
+        description: Time to map one watch event and publish what it produced
+        unit: s
+        attributes:
+          - key: pod_monitor.watch_event
+        conditions:
+          - span.name == "pod_monitor.event"
+        histogram:
+          buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5]
+          value: Seconds(span.end_time - span.start_time)
+      - name: pod.monitor.reconciliations
+        description: Full pod lists, on the first watch and after the cursor expired
+        unit: "{list}"
+        conditions:
+          - span.name == "pod_monitor.list"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: pod.monitor.watch.errors
+        description: Watches that ended in an error, and pod events that failed to process
+        unit: "{error}"
+        attributes:
+          - key: pod_monitor.error_type
+        conditions:
+          - span.attributes["pod_monitor.error_type"] != nil
+        sum:
+          value: "1"
+          monotonic: true
+      - name: pod.monitor.watch.reconnects
+        description: Watches that ended in an error, so the next cycle starts a new one
+        unit: "{watch}"
+        conditions:
+          - span.name == "pod_monitor.watch" and span.attributes["pod_monitor.error_type"] != nil
+        sum:
+          value: "1"
+          monotonic: true
 
 processors:
   batch:

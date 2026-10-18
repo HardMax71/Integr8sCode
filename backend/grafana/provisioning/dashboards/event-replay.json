@@ -178,7 +178,7 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "replay_sessions_active or vector(0)",
+          "expr": "sum(replay_sessions_by_status{replay_status=~\"running|paused\"}) or vector(0)",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -240,10 +240,10 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum by (status) (replay_sessions_by_status) or vector(0)",
+          "expr": "sum by (replay_status) (replay_sessions_by_status) or vector(0)",
           "refId": "A",
           "datasource": "Victoria Metrics",
-          "legendFormat": "{{status}}"
+          "legendFormat": "{{replay_status}}"
         }
       ],
       "title": "By Status",
@@ -841,7 +841,7 @@
       "targets": [
         {
           "expr": "rate(replay_by_target_total[5m]) or vector(0)",
-          "legendFormat": "{{target}}",
+          "legendFormat": "{{replay_target}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
@@ -993,7 +993,7 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "replay_queue_size or vector(0)",
+          "expr": "sum(replay_queue_size) or vector(0)",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }

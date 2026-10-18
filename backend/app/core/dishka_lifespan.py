@@ -15,6 +15,7 @@ from pymongo import AsyncMongoClient
 from app.core.tracing import Tracer
 from app.db.docs import ALL_DOCUMENTS
 from app.events.handlers import notification_router, sse_router
+from app.services.event_replay import EventReplayService
 from app.services.notification_scheduler import NotificationScheduler
 from app.settings import Settings
 
@@ -64,10 +65,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await broker.start()
     logger.info("Kafka broker started")
 
-    # Set up APScheduler for NotificationScheduler
+    # Set up APScheduler for NotificationScheduler and the replay session report
     notification_scheduler: NotificationScheduler = await container.get(NotificationScheduler)
-    notification_apscheduler = AsyncIOScheduler()
-    notification_apscheduler.add_job(
+    replay_service: EventReplayService = await container.get(EventReplayService)
+    apscheduler = AsyncIOScheduler()
+    apscheduler.add_job(
         notification_scheduler.process_due_notifications,
         trigger="interval",
         seconds=15,
@@ -75,13 +77,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         max_instances=1,
         misfire_grace_time=60,
     )
-    notification_apscheduler.start()
+    apscheduler.add_job(
+        replay_service.report_sessions,
+        trigger="interval",
+        seconds=10,
+        id="report_replay_sessions",
+        max_instances=1,
+        misfire_grace_time=30,
+    )
+    apscheduler.start()
     logger.info("NotificationScheduler started (APScheduler interval=15s)")
 
     try:
         yield
     finally:
-        notification_apscheduler.shutdown(wait=False)
+        apscheduler.shutdown(wait=False)
         logger.info("NotificationScheduler stopped")
         await broker.stop()
         logger.info("Kafka broker stopped")

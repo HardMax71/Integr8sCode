@@ -24,7 +24,7 @@ The collector's metrics pipeline (`backend/otel-collector-config.yaml`) reads th
 
 ## Metrics made from spans
 
-Some metrics have no instrument in the code. A service puts the facts on a span, and the collector's `signaltometrics` connector (alpha in collector v0.162.0) turns them into counters, histograms and gauges, defined under `connectors` in `backend/otel-collector-config.yaml`. The SDK sends every span (`TRACING_SAMPLING_RATE = 1.0`), and the traces pipeline gives each span to the connector before `tail_sampling` decides what Jaeger keeps, so the counts don't depend on sampling. The connector emits a point only when a matching span arrives. Sent straight to VictoriaMetrics, a counter that sees one event every half hour would get one point every half hour, and `increase` and `rate` stop finding the previous point once two points are more than about 8 to 10 minutes apart (measured on v1.153.0): `increase` then counts the whole total again, and `rate` returns nothing. So counters and histograms go another way. `deltatocumulative` adds up the connector's deltas and keeps each total through 24 hours without spans (its default is 5 minutes, after which an idle counter would start again from zero). The collector's `prometheus` exporter serves the totals on `otel-collector:8889`, and VictoriaMetrics scrapes it every 15 seconds (`backend/victoria-metrics/scrape.yaml`, with `honor_labels` so each service's `job` and `instance` stay). A series the exporter hasn't updated for 24 hours drops out until its next span. Gauges still go by remote write, so a gauge goes stale when the job that reports it on a timer stops. Panels wrap counter rates in `or vector(0)` so a series that hasn't started yet reads 0. The execution, pod, queue, dead letter queue and notification metrics work this way so far ([#389](https://github.com/HardMax71/Integr8sCode/issues/389)).
+Some metrics have no instrument in the code. A service puts the facts on a span, and the collector's `signaltometrics` connector (alpha in collector v0.162.0) turns them into counters, histograms and gauges, defined under `connectors` in `backend/otel-collector-config.yaml`. The SDK sends every span (`TRACING_SAMPLING_RATE = 1.0`), and the traces pipeline gives each span to the connector before `tail_sampling` decides what Jaeger keeps, so the counts don't depend on sampling. The connector emits a point only when a matching span arrives. Sent straight to VictoriaMetrics, a counter that sees one event every half hour would get one point every half hour, and `increase` and `rate` stop finding the previous point once two points are more than about 8 to 10 minutes apart (measured on v1.153.0): `increase` then counts the whole total again, and `rate` returns nothing. So counters and histograms go another way. `deltatocumulative` adds up the connector's deltas and keeps each total through 24 hours without spans (its default is 5 minutes, after which an idle counter would start again from zero). The collector's `prometheus` exporter serves the totals on `otel-collector:8889`, and VictoriaMetrics scrapes it every 15 seconds (`backend/victoria-metrics/scrape.yaml`, with `honor_labels` so each service's `job` and `instance` stay). A series the exporter hasn't updated for 24 hours drops out until its next span. Gauges still go by remote write, so a gauge goes stale when the job that reports it on a timer stops. Panels wrap counter rates in `or vector(0)` so a series that hasn't started yet reads 0. The execution, pod, queue, dead letter queue, notification and replay metrics work this way so far ([#389](https://github.com/HardMax71/Integr8sCode/issues/389)).
 
 ## Names and labels in VictoriaMetrics
 
@@ -135,25 +135,24 @@ The status snapshot a stream sends first comes from the database, not Redis, and
 
 ### Event replay (backend)
 
-`EventReplayService`. The replay routes drive it inside backend. A TTL index in MongoDB drops finished sessions, so nothing outside the API touches them.
+`EventReplayService`. The replay routes drive it inside backend. A TTL index in MongoDB drops finished sessions, so nothing outside the API touches them. Each step leaves a span where the service used to record a metric, and the API's scheduler runs `report_sessions` every 10 seconds for the two gauges.
 
-| Metric | Type | Labels | Notes |
-|--------|------|--------|-------|
-| `replay_sessions_created_total` | counter | replay_type, target | |
-| `replay_sessions_active` | gauge, in process | none | running or paused sessions |
-| `replay_sessions_by_status` | gauge, in process | status | sessions held in memory |
-| `replay_status_changes_total` | counter | from_status, to_status | |
-| `replay_events_processed_total` | counter | replay_type, event_type | |
-| `replay_events_failed_total` | counter | replay_type, event_type | |
-| `replay_event_processing_time_seconds` | histogram | event_type | dispatching one event |
-| `replay_duration_seconds` | histogram | replay_type | completed sessions only |
-| `replay_throughput_event_per_second` | histogram | replay_type | events over duration, completed sessions only |
-| `replay_batch_size` | histogram | replay_type | |
-| `replay_by_target_total` | counter | target, success | |
-| `replay_target_errors_total` | counter | target | |
-| `replay_speed_multiplier_x` | histogram | replay_type | one sample per session start |
-| `replay_delay_applied_seconds` | histogram | none | one sample per delayed event |
-| `replay_queue_size` | gauge, in process | session_id | events left in the loaded batch |
+| Metric | Type | Labels | Recorded from |
+|--------|------|--------|---------------|
+| `replay_sessions_created_total` | counter | replay_type, replay_target | span `replay.session_created` |
+| `replay_sessions_by_status` | gauge | replay_status | span `replay.sessions`, one per status with zeros, every 10 s: sessions the process holds in memory. Running plus paused is the active count |
+| `replay_status_changes_total` | counter | replay_from_status, replay_to_status | span `replay.status_change` |
+| `replay_events_processed_total` | counter | replay_type, replay_event_type | span `replay.event` with `replay.result` `replayed` |
+| `replay_events_failed_total` | counter | replay_type, replay_event_type | the same span with `replay.result` `failed` |
+| `replay_event_processing_time_seconds` | histogram | replay_event_type | `replay.processing_seconds` on `replay.event`: dispatching one event |
+| `replay_duration_seconds` | histogram | replay_type | span `replay.session_completed`, completed sessions only |
+| `replay_throughput_event_per_second` | histogram | replay_type | events over duration on the same span |
+| `replay_batch_size` | histogram | replay_type | span `replay.batch` |
+| `replay_by_target_total` | counter | replay_target, replay_target_success | span `replay.target` |
+| `replay_target_errors_total` | counter | replay_target | the same span when the target failed |
+| `replay_speed_multiplier_x` | histogram | replay_type | span `replay.session_started`, one sample per session start |
+| `replay_delay_applied_seconds` | histogram | none | `replay.delay_seconds` on `replay.event`, one sample per delayed event |
+| `replay_queue_size` | gauge | none | `replay.queued_events` on span `replay.report`, every 10 s: loaded events still to send, over all sessions |
 
 ### Authentication and authorization (backend)
 

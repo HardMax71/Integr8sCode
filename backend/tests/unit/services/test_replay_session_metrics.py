@@ -129,17 +129,16 @@ async def test_dispatch_reports_each_event_and_the_completed_session(
         started_at=datetime.now(timezone.utc) - timedelta(seconds=4),
     )
     first, second = make_execution_requested_event(), make_execution_requested_event()
-    second.timestamp = first.timestamp + timedelta(seconds=2)
+    second.timestamp = first.timestamp + timedelta(milliseconds=40)
     service._sessions[session.session_id] = session
     service._event_buffers[session.session_id] = [first, second]
 
-    for _ in range(3):
-        await service._dispatch_next(session)
+    await service._dispatch_events(session)
 
     spans = _spans(span_exporter)
     events = [attributes for name, attributes in spans if name == "replay.event"]
     assert [(e["replay.result"], e.get("replay.delay_seconds")) for e in events] == [
-        ("replayed", 1.0),
+        ("replayed", pytest.approx(0.02)),
         ("replayed", None),
     ]
     [completed] = [attributes for name, attributes in spans if name == "replay.session_completed"]

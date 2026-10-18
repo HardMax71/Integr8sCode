@@ -3,9 +3,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import structlog
+from opentelemetry import trace
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from app.core.exceptions.handlers import _map_to_status_code
-from app.core.metrics import ExecutionMetrics, IdempotencyMetrics
+from app.core.metrics import IdempotencyMetrics
 from app.db import ExecutionRepository
 from app.domain.admin import SystemSettings
 from app.domain.enums import EventType, ExecutionStatus, UserRole
@@ -22,7 +24,7 @@ from app.domain.execution import (
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
 from app.domain.user import User
 from app.events import UnifiedProducer
-from app.runtime_registry import POD_RUNTIME_CONFIGS
+from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION, POD_RUNTIME_CONFIGS
 from app.services.execution_queue import ExecutionQueueService
 from app.services.execution_service import ExecutionService
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager, RedisIdempotencyRepository
@@ -71,7 +73,9 @@ def queue() -> AsyncMock:
 
 
 @pytest.fixture
-def service(repo: AsyncMock, producer: AsyncMock, queue: AsyncMock, test_settings: Settings) -> ExecutionService:
+def service(
+    repo: AsyncMock, producer: AsyncMock, queue: AsyncMock, test_settings: Settings, tracer: trace.Tracer
+) -> ExecutionService:
     runtime_settings = AsyncMock(spec=RuntimeSettingsLoader)
     runtime_settings.get_effective_settings.return_value = SystemSettings()
     return ExecutionService(
@@ -79,7 +83,7 @@ def service(repo: AsyncMock, producer: AsyncMock, queue: AsyncMock, test_setting
         producer=producer,
         settings=test_settings,
         logger=structlog.get_logger("test"),
-        execution_metrics=MagicMock(spec=ExecutionMetrics),
+        tracer=tracer,
         idempotency_manager=AsyncMock(spec=IdempotencyManager),
         runtime_settings=runtime_settings,
         queue=queue,
@@ -137,7 +141,7 @@ async def test_k8s_limits_report_effective_limits_per_language(
         producer=producer,
         settings=test_settings,
         logger=structlog.get_logger("test"),
-        execution_metrics=MagicMock(spec=ExecutionMetrics),
+        tracer=trace.NoOpTracer(),
         idempotency_manager=AsyncMock(spec=IdempotencyManager),
         runtime_settings=RuntimeSettingsLoader(settings_repo, test_settings, structlog.get_logger("test")),
         queue=AsyncMock(spec=ExecutionQueueService),
@@ -199,7 +203,7 @@ def idem_service(
         producer=producer,
         settings=test_settings,
         logger=logger,
-        execution_metrics=MagicMock(spec=ExecutionMetrics),
+        tracer=trace.NoOpTracer(),
         idempotency_manager=manager,
         runtime_settings=runtime_settings,
         queue=queue,
@@ -207,9 +211,7 @@ def idem_service(
 
 
 async def _run(service: ExecutionService) -> str:
-    result = await service.execute_script_idempotent(
-        script="print(1)", user_id="u1", idempotency_key="k1"
-    )
+    result = await service.execute_script_idempotent(script="print(1)", user_id="u1", idempotency_key="k1")
     return result.execution_id
 
 
@@ -295,3 +297,31 @@ async def test_execute_gives_the_slot_back_when_submission_fails(
 
     reserved_id = queue.reserve_user_slot.await_args.args[1]
     queue.release_user_slot.assert_awaited_once_with(reserved_id)
+
+
+async def test_execute_reports_the_submission_on_a_span(
+    service: ExecutionService, repo: AsyncMock, span_exporter: InMemorySpanExporter
+) -> None:
+    repo.create_execution.side_effect = _created
+
+    await service.execute_script(script="print(1)", user_id="u1")
+
+    [span] = span_exporter.get_finished_spans()
+    assert (span.name, span.attributes) == (
+        "execution.submit",
+        {"execution.lang_and_version": f"{DEFAULT_LANG}-{DEFAULT_LANG_VERSION}", "execution.status": "queued"},
+    )
+
+
+async def test_failed_publish_reports_the_error_on_the_span(
+    service: ExecutionService, repo: AsyncMock, producer: AsyncMock, span_exporter: InMemorySpanExporter
+) -> None:
+    repo.create_execution.side_effect = _created
+    producer.produce.side_effect = RuntimeError("kafka down")
+
+    with pytest.raises(InfrastructureError):
+        await service.execute_script(script="print(1)", user_id="u1")
+
+    [span] = span_exporter.get_finished_spans()
+    assert span.attributes is not None
+    assert (span.attributes["execution.status"], span.attributes["execution.error_type"]) == ("error", "RuntimeError")

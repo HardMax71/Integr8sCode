@@ -15,9 +15,7 @@ from app.core.logging import setup_logger
 from app.core.metrics import (
     ConnectionMetrics,
     EventMetrics,
-    ExecutionMetrics,
     IdempotencyMetrics,
-    KubernetesMetrics,
     NotificationMetrics,
     RateLimitMetrics,
     ReplayMetrics,
@@ -266,16 +264,8 @@ class MetricsProvider(Provider):
         return RateLimitMetrics(settings)
 
     @provide
-    def get_execution_metrics(self, settings: Settings) -> ExecutionMetrics:
-        return ExecutionMetrics(settings)
-
-    @provide
     def get_idempotency_metrics(self, settings: Settings) -> IdempotencyMetrics:
         return IdempotencyMetrics(settings)
-
-    @provide
-    def get_kubernetes_metrics(self, settings: Settings) -> KubernetesMetrics:
-        return KubernetesMetrics(settings)
 
     @provide
     def get_notification_metrics(self, settings: Settings) -> NotificationMetrics:
@@ -550,7 +540,7 @@ class BusinessServicesProvider(Provider):
         kafka_producer: UnifiedProducer,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
-        execution_metrics: ExecutionMetrics,
+        tracer: trace.Tracer,
         idempotency_manager: IdempotencyManager,
         runtime_settings: RuntimeSettingsLoader,
         queue_service: ExecutionQueueService,
@@ -560,7 +550,7 @@ class BusinessServicesProvider(Provider):
             producer=kafka_producer,
             settings=settings,
             logger=logger,
-            execution_metrics=execution_metrics,
+            tracer=tracer,
             idempotency_manager=idempotency_manager,
             runtime_settings=runtime_settings,
             queue=queue_service,
@@ -619,14 +609,14 @@ class K8sWorkerProvider(Provider):
         kafka_producer: UnifiedProducer,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
-        kubernetes_metrics: KubernetesMetrics,
+        tracer: trace.Tracer,
     ) -> KubernetesWorker:
         return KubernetesWorker(
             api_client=api_client,
             producer=kafka_producer,
             settings=settings,
             logger=logger,
-            kubernetes_metrics=kubernetes_metrics,
+            tracer=tracer,
         )
 
 
@@ -656,7 +646,7 @@ class PodMonitorProvider(Provider):
         api_client: k8s_client.ApiClient,
         logger: structlog.stdlib.BoundLogger,
         event_mapper: PodEventMapper,
-        kubernetes_metrics: KubernetesMetrics,
+        tracer: trace.Tracer,
     ) -> PodMonitor:
         return PodMonitor(
             config=config,
@@ -664,7 +654,7 @@ class PodMonitorProvider(Provider):
             logger=logger,
             api_client=api_client,
             event_mapper=event_mapper,
-            kubernetes_metrics=kubernetes_metrics,
+            tracer=tracer,
         )
 
 
@@ -704,14 +694,14 @@ class ResultProcessorProvider(Provider):
         kafka_producer: UnifiedProducer,
         runtime_settings: RuntimeSettingsLoader,
         logger: structlog.stdlib.BoundLogger,
-        execution_metrics: ExecutionMetrics,
+        tracer: trace.Tracer,
     ) -> ResultProcessor:
         return ResultProcessor(
             execution_repo=execution_repo,
             producer=kafka_producer,
             runtime_settings=runtime_settings,
             logger=logger,
-            execution_metrics=execution_metrics,
+            tracer=tracer,
         )
 
 

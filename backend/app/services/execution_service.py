@@ -4,9 +4,9 @@ from typing import Any
 from uuid import uuid4
 
 import structlog
+from opentelemetry import trace
 from pydantic import TypeAdapter
 
-from app.core.metrics import ExecutionMetrics
 from app.db import ExecutionRepository
 from app.domain.enums import CancelStatus, EventType, ExecutionStatus, QueuePriority, UserRole
 from app.domain.events import (
@@ -56,7 +56,7 @@ class ExecutionService:
         producer: UnifiedProducer,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
-        execution_metrics: ExecutionMetrics,
+        tracer: trace.Tracer,
         idempotency_manager: IdempotencyManager,
         runtime_settings: RuntimeSettingsLoader,
         queue: ExecutionQueueService,
@@ -65,7 +65,7 @@ class ExecutionService:
         self.producer = producer
         self.settings = settings
         self.logger = logger
-        self.metrics = execution_metrics
+        self._tracer = tracer
         self.idempotency_manager = idempotency_manager
         self._runtime_settings = runtime_settings
         self._queue = queue
@@ -181,22 +181,23 @@ class ExecutionService:
         )
 
         # Publish to Kafka; on failure, mark error and raise
-        try:
-            await self.producer.produce(event_to_produce=event, key=created_execution.execution_id)
-        except Exception as e:  # pragma: no cover - mapped behavior
-            self.metrics.record_script_execution(ExecutionStatus.ERROR, lang_and_version)
-            self.metrics.record_error(type(e).__name__)
-            await self._queue.release_user_slot(created_execution.execution_id)
-            await self._update_execution_error(
-                created_execution.execution_id,
-                f"Failed to submit execution: {e}",
-            )
-            raise InfrastructureError("Failed to submit execution request") from e
+        attributes = {"execution.lang_and_version": lang_and_version}
+        with self._tracer.start_as_current_span("execution.submit", attributes=attributes) as span:
+            try:
+                await self.producer.produce(event_to_produce=event, key=created_execution.execution_id)
+            except Exception as e:  # pragma: no cover - mapped behavior
+                span.set_attributes(
+                    {"execution.status": ExecutionStatus.ERROR, "execution.error_type": type(e).__name__}
+                )
+                await self._queue.release_user_slot(created_execution.execution_id)
+                await self._update_execution_error(
+                    created_execution.execution_id,
+                    f"Failed to submit execution: {e}",
+                )
+                raise InfrastructureError("Failed to submit execution request") from e
+            span.set_attribute("execution.status", ExecutionStatus.QUEUED)
 
-        # Success metrics and return
         duration = time() - start_time
-        self.metrics.record_script_execution(ExecutionStatus.QUEUED, lang_and_version)
-        self.metrics.record_submission_duration(duration, lang_and_version)
         self.logger.info(
             "Script execution submitted successfully",
             execution_id=created_execution.execution_id,

@@ -1,4 +1,3 @@
-import time
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -9,13 +8,15 @@ import structlog
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio import watch as k8s_watch
 from kubernetes_asyncio.client.rest import ApiException
+from opentelemetry import trace
 
-from app.core.metrics import KubernetesMetrics
 from app.core.utils import StringEnum
 from app.events import UnifiedProducer
 from app.infrastructure.kafka.topics import EXECUTION_TERMINAL_EVENT_TYPES
 from app.services.pod_monitor.config import PodMonitorConfig
-from app.services.pod_monitor.event_mapper import PodEventMapper, PodMonitorEvent, WatchEventType
+from app.services.pod_monitor.event_mapper import PodEventMapper, WatchEventType
+
+_POD_PHASES = ("Pending", "Running", "Succeeded", "Failed", "Unknown")
 
 
 class ErrorType(StringEnum):
@@ -54,7 +55,7 @@ class PodMonitor:
         logger: structlog.stdlib.BoundLogger,
         api_client: k8s_client.ApiClient,
         event_mapper: PodEventMapper,
-        kubernetes_metrics: KubernetesMetrics,
+        tracer: trace.Tracer,
     ) -> None:
         self.logger = logger
         self.config = config
@@ -71,9 +72,7 @@ class PodMonitor:
         self._last_resource_version: str | None = None
 
         self._pod_phases: dict[str, str] = {}
-
-        # Metrics
-        self._metrics = kubernetes_metrics
+        self._tracer = tracer
 
         self.logger.info("PodMonitor initialized", namespace=config.namespace)
 
@@ -116,26 +115,29 @@ class PodMonitor:
                 self._last_resource_version = self._watch.resource_version
 
     async def watch_cycle(self) -> None:
-        """Run one watch and count the error that ended it, so the next cycle starts over cleanly.
+        """Run one watch, note the error that ended it, then report how many pods are in each phase.
 
         A 410 Gone means the cursor expired, so the next cycle lists again before watching.
         """
-        try:
-            await self.watch_pod_events()
-            return
-        except ApiException as e:
-            if e.status == 410:
-                self.logger.warning("Resource version expired, resetting watch cursor")
-                self._last_resource_version = None
-                error_type = ErrorType.RESOURCE_VERSION_EXPIRED
-            else:
-                self.logger.error("API error in watch", status=e.status, reason=e.reason)
-                error_type = ErrorType.API_ERROR
-        except Exception:
-            self.logger.error("Unexpected error in watch", exc_info=True)
-            error_type = ErrorType.UNEXPECTED
-        self._metrics.record_pod_monitor_watch_error(error_type)
-        self._metrics.increment_pod_monitor_watch_reconnects()
+        with self._tracer.start_as_current_span("pod_monitor.watch") as span:
+            try:
+                await self.watch_pod_events()
+            except ApiException as e:
+                if e.status == 410:
+                    self.logger.warning("Resource version expired, resetting watch cursor")
+                    self._last_resource_version = None
+                    span.set_attribute("pod_monitor.error_type", ErrorType.RESOURCE_VERSION_EXPIRED)
+                else:
+                    self.logger.error("API error in watch", status=e.status, reason=e.reason)
+                    span.set_attribute("pod_monitor.error_type", ErrorType.API_ERROR)
+            except Exception:
+                self.logger.error("Unexpected error in watch", exc_info=True)
+                span.set_attribute("pod_monitor.error_type", ErrorType.UNEXPECTED)
+            counts = Counter(self._pod_phases.values())
+            for phase in _POD_PHASES:
+                self._tracer.start_span(
+                    "pod_monitor.pods", attributes={"pod.phase": phase, "pod_monitor.pods": counts[phase]}
+                ).end()
 
     async def _list_and_process_existing_pods(self) -> None:
         """LIST all matching pods to bootstrap state and get a resource_version cursor."""
@@ -146,10 +148,9 @@ class PodMonitor:
         if self.config.field_selector:
             kwargs["field_selector"] = self.config.field_selector
 
-        pod_list = await self._v1.list_namespaced_pod(**kwargs)
-        self._metrics.record_pod_monitor_reconciliation_run()
+        with self._tracer.start_as_current_span("pod_monitor.list"):
+            pod_list = await self._v1.list_namespaced_pod(**kwargs)
         self._pod_phases.clear()
-        self._metrics.update_pods_by_phase(Counter())
 
         for pod in pod_list.items:
             event = PodEvent(event_type=WatchEventType.ADDED, pod=pod)
@@ -166,8 +167,6 @@ class PodMonitor:
 
     async def _process_pod_event(self, event: PodEvent) -> None:
         """Process a pod event."""
-        start_time = time.time()
-
         pod_phase = event.pod.status.phase if event.pod.status else None
         self._track_pod_phase(event.event_type, event.pod, pod_phase)
 
@@ -175,20 +174,31 @@ class PodMonitor:
         if pod_phase in self.config.ignored_pod_phases:
             return
 
-        try:
-            app_events = await self._event_mapper.map_pod_event(event.pod, event.event_type)
-            for app_event in app_events:
-                await self._publish_event(app_event, event.pod)
-        except Exception:
-            self.logger.error("Error processing pod event", exc_info=True)
-            self._metrics.record_pod_monitor_watch_error(ErrorType.PROCESSING_ERROR)
-            return
-        finally:
-            duration = time.time() - start_time
-            self._metrics.record_pod_monitor_event_processing_duration(duration, event.event_type)
+        attributes = {"pod_monitor.watch_event": event.event_type, "pod.phase": pod_phase or "Unknown"}
+        with self._tracer.start_as_current_span("pod_monitor.event", attributes=attributes) as span:
+            try:
+                app_events = await self._event_mapper.map_pod_event(event.pod, event.event_type)
+                for app_event in app_events:
+                    await self._producer.produce(event_to_produce=app_event, key=app_event.execution_id)
+            except Exception:
+                self.logger.error("Error processing pod event", exc_info=True)
+                span.set_attribute("pod_monitor.error_type", ErrorType.PROCESSING_ERROR)
+                return
+            span.set_attribute("pod_monitor.published", len(app_events))
 
-        if any(e.event_type in EXECUTION_TERMINAL_EVENT_TYPES for e in app_events):
-            self._record_pod_lifetime(event.pod, pod_phase)
+            terminal = any(e.event_type in EXECUTION_TERMINAL_EVENT_TYPES for e in app_events)
+            metadata = event.pod.metadata
+            if terminal and metadata and metadata.creation_timestamp:
+                span.set_attributes(
+                    {
+                        "pod.lifetime_seconds": (
+                            datetime.now(timezone.utc) - metadata.creation_timestamp
+                        ).total_seconds(),
+                        "pod.language": (metadata.labels or {}).get("language", "unknown"),
+                    }
+                )
+
+        if terminal:
             await self._delete_pod(event.pod)
 
         if app_events:
@@ -209,23 +219,6 @@ class PodMonitor:
             self._pod_phases.pop(pod.metadata.name, None)
         else:
             self._pod_phases[pod.metadata.name] = phase or "Unknown"
-        self._metrics.update_pods_by_phase(Counter(self._pod_phases.values()))
-
-    def _record_pod_lifetime(self, pod: k8s_client.V1Pod, phase: str | None) -> None:
-        """Record seconds from pod creation until the monitor saw the execution finish."""
-        created_at = pod.metadata.creation_timestamp if pod.metadata else None
-        if created_at is None:
-            return
-        lifetime = (datetime.now(timezone.utc) - created_at).total_seconds()
-        language = (pod.metadata.labels or {}).get("language", "unknown")
-        self._metrics.record_pod_lifetime(lifetime, phase or "Unknown", language)
-
-    async def _publish_event(self, event: PodMonitorEvent, pod: k8s_client.V1Pod) -> None:
-        """Publish event to Kafka and store in events collection."""
-        await self._producer.produce(event_to_produce=event, key=event.execution_id)
-
-        phase = pod.status.phase if pod.status else "Unknown"
-        self._metrics.record_pod_monitor_event_published(event.event_type, phase)
 
     async def _delete_pod(self, pod: k8s_client.V1Pod) -> None:
         """Delete a pod after its data has been fully extracted.

@@ -599,6 +599,7 @@ jobs:
         with:
           image-tag: ${{ needs.build-images.outputs.sha-tag }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          install-kueue: 'false'
 
       # Phase 2: Node + Playwright setup (overlaps with k3s boot + image pull)
       - name: Setup Node.js

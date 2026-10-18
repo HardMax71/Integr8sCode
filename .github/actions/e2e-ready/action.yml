@@ -47,6 +47,10 @@ runs:
         [ "$(cat /tmp/kueue-download.exit)" = "0" ]
 
         echo "${KUEUE_MANIFEST_SHA256}  ${KUEUE_MANIFEST}" | sha256sum -c -
+        timeout 600 tail --pid="$(cat /tmp/crictl-kueue.pid)" -f /dev/null 2>/dev/null || true
+        cat /tmp/crictl-kueue.log 2>/dev/null || true
+        [ "$(cat /tmp/crictl-kueue.exit)" = "0" ]
+
         kubectl apply --server-side -f "$KUEUE_MANIFEST"
         rm -f "$KUEUE_MANIFEST"
         if ! kubectl wait --for=condition=Available --timeout=120s deployment/kueue-controller-manager -n kueue-system; then

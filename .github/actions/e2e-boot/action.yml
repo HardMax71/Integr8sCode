@@ -8,6 +8,10 @@ inputs:
   github-token:
     description: 'GitHub token for GHCR authentication'
     required: true
+  install-kueue:
+    description: 'Pre-pull the Kueue controller image, for jobs that install Kueue (default: true)'
+    required: false
+    default: 'true'
 
 runs:
   using: 'composite'
@@ -60,3 +64,16 @@ runs:
           echo $? > /tmp/crictl-python.exit
         ' > /tmp/crictl-python.log 2>&1 &
         echo $! > /tmp/crictl-python.pid
+
+    # registry.k8s.io can take minutes for this image, longer than e2e-ready's wait for the controller
+    - name: Pre-pull the Kueue controller image (background)
+      if: inputs.install-kueue == 'true'
+      shell: bash
+      run: |
+        KUEUE_VERSION="${KUEUE_VERSION:-v0.20.1}"
+        nohup bash -c '
+          timeout 120 bash -c "until docker exec k3s crictl info >/dev/null 2>&1; do sleep 2; done"
+          docker exec k3s crictl pull registry.k8s.io/kueue/kueue:'"$KUEUE_VERSION"'
+          echo $? > /tmp/crictl-kueue.exit
+        ' > /tmp/crictl-kueue.log 2>&1 &
+        echo $! > /tmp/crictl-kueue.pid

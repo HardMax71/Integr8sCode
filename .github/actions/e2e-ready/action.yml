@@ -119,6 +119,15 @@ runs:
         echo "Waiting for backend health..."
         timeout 120 bash -c 'until curl -ksf https://localhost/api/v1/health/live 2>/dev/null; do sleep 1; done'
         echo "Backend ready"
+        # Most groups start at the newest message on a fresh Kafka, so anything sent before they join is never read
+        for group in k8s-worker result-processor saga-orchestrator notification-service sse-bridge-pool; do
+          echo "Waiting for consumer group $group..."
+          timeout 120 bash -c "until docker compose exec -T kafka kafka-consumer-groups --bootstrap-server kafka:29092 --describe --group $group --state 2>/dev/null | grep -qw Stable; do sleep 2; done" || {
+            docker compose exec -T kafka kafka-consumer-groups --bootstrap-server kafka:29092 --describe --all-groups --state
+            exit 1
+          }
+        done
+        echo "Consumer groups ready"
         if [ "$WAIT_FOR_FRONTEND" = "true" ]; then
           echo "Waiting for frontend health..."
           timeout 60 bash -c 'until curl -ksf https://localhost:5001 2>/dev/null; do sleep 1; done'

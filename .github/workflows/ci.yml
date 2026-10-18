@@ -571,6 +571,8 @@ jobs:
             docker compose logs --timestamps "$svc" > "logs/$svc.log" 2>&1 || true
           done
           kubectl get events --sort-by='.metadata.creationTimestamp' -A > logs/k8s-events.log 2>&1 || true
+          docker logs k3s > logs/k3s.log 2>&1 || true
+          kubectl describe nodes > logs/k8s-nodes.log 2>&1 || true
 
       - name: Upload logs
         if: failure()
@@ -662,6 +664,8 @@ jobs:
           for svc in backend frontend; do
             docker compose logs --timestamps "$svc" > "logs/$svc.log" 2>&1 || true
           done
+          docker logs k3s > logs/k3s.log 2>&1 || true
+          kubectl describe nodes > logs/k8s-nodes.log 2>&1 || true
 
       - name: Upload logs
         if: failure()

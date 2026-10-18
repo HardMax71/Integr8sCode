@@ -113,7 +113,7 @@ A language can raise its own pod's limits above the system settings. Go gets at 
 
 | Key | Value | Source | What it does |
 |-----|-------|--------|--------------|
-| `OTLP_TRACES_ENDPOINT` | `http://jaeger:4317` | config.toml | OTLP gRPC endpoint for traces; empty turns export off (the default is empty) |
+| `OTLP_TRACES_ENDPOINT` | `http://otel-collector:4317` | config.toml | OTLP gRPC endpoint for traces; empty turns export off (the default is empty) |
 | `TRACING_SAMPLING_RATE` | `1.0` | config.toml | Fraction of traces kept, 0.0 to 1.0 (the default is 0.1) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4317` | config.toml | OTLP endpoint for metrics and logs; unset turns both off |
 | `SERVICE_NAME` | `integr8scode-backend` | config.toml | `service.name` on traces, metrics and logs, Kafka client id, event metadata; `config.worker.toml` sets `integr8scode-worker` |

@@ -52,7 +52,7 @@ LOG_LEVEL = "INFO"
 
 # --8<-- [start:tracing]
 # Tracing
-OTLP_TRACES_ENDPOINT = "http://jaeger:4317"
+OTLP_TRACES_ENDPOINT = "http://otel-collector:4317"
 TRACING_SAMPLING_RATE = 1.0
 # --8<-- [end:tracing]
 

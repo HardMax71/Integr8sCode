@@ -1,6 +1,6 @@
 # Tracing
 
-The backend and the worker export OpenTelemetry traces straight to Jaeger. A request to the API and the Kafka messages it causes show up as one trace, as long as each hop runs inside a span.
+The backend and the worker export OpenTelemetry traces to the OpenTelemetry Collector, which samples them and passes them on to Jaeger. A request to the API and the Kafka messages it causes show up as one trace, as long as each hop runs inside a span.
 
 ## Setup
 
@@ -12,9 +12,9 @@ The backend and the worker export OpenTelemetry traces straight to Jaeger. A req
 - sets the W3C TraceContext propagator
 - instruments HTTPX through `HTTPX2ClientInstrumentor` (the backend uses httpx2), PyMongo, and stdlib logging
 
-The backend resolves `Tracer` in `dishka_lifespan` and then instruments FastAPI with `FastAPIInstrumentor`, skipping `health`, `metrics`, `docs` and openapi.json. The worker never asks for it directly, but the broker provider depends on it, so every process that builds a `KafkaBroker` sets up tracing first.
+`create_app` instruments FastAPI with `FastAPIInstrumentor`, skipping `health`, `metrics`, `docs` and openapi.json. It has to happen there, before Starlette builds the middleware stack on its first call, which is the lifespan's. The backend then resolves `Tracer` in `dishka_lifespan`, and the instrumentation's spans go to the provider it installs. The worker never asks for it directly, but the broker provider depends on it, so every process that builds a `KafkaBroker` sets up tracing first.
 
-config.toml sends traces to `http://jaeger:4317` with a sampling rate of 1.0. The collector also has a traces pipeline (with tail sampling) into Jaeger, but the app doesn't use it. config.test.toml leaves the endpoint empty, so tests create spans and export nothing, and pytest sets `OTEL_SDK_DISABLED=true` on top.
+config.toml sends traces to `http://otel-collector:4317` with a sampling rate of 1.0, so every span reaches the collector. Its traces pipeline waits 10 seconds per trace (`tail_sampling`) and keeps a trace that has an error, takes longer than 1 second, or falls in a 10 % random sample. Only those reach Jaeger, 10 to 20 seconds after the trace ends, once the batch processor flushes. config.test.toml leaves the endpoint empty, so tests create spans and export nothing, and pytest sets `OTEL_SDK_DISABLED=true` on top.
 
 `config.worker.toml` sets `SERVICE_NAME` to `integr8scode-worker`, so Jaeger lists two services, `integr8scode-backend` and `integr8scode-worker`. Logs and metrics use the same name.
 

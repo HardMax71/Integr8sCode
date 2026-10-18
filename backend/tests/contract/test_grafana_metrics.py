@@ -6,6 +6,7 @@ import pkgutil
 import re
 from collections.abc import Iterator
 from pathlib import Path
+from typing import NotRequired, TypedDict
 from unittest.mock import MagicMock
 
 import pytest
@@ -16,7 +17,7 @@ from opentelemetry import metrics as otel_api
 from opentelemetry.exporter.prometheus import PrometheusMetricReader
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.system_metrics import SystemMetricsInstrumentor
-from opentelemetry.metrics import CallbackOptions, Observation
+from opentelemetry.metrics import CallbackOptions, Meter, Observation
 from opentelemetry.sdk.metrics import MeterProvider
 from prometheus_client.metrics_core import Metric
 
@@ -27,6 +28,7 @@ BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
 GRAFANA_DIR = BACKEND_ROOT / "grafana" / "provisioning"
 DASHBOARDS_DIR = GRAFANA_DIR / "dashboards"
 ALERTING_DIR = GRAFANA_DIR / "alerting"
+COLLECTOR_CONFIG = BACKEND_ROOT / "otel-collector-config.yaml"
 
 # Series written by otel-collector receivers rather than by any Python process, keyed by name prefix.
 COLLECTOR_PREFIXES: dict[str, str] = {
@@ -149,6 +151,38 @@ PROMQL_BUILTINS = frozenset(
 )
 
 
+class _Sum(TypedDict):
+    value: str
+    monotonic: NotRequired[bool]
+
+
+class _SpanMetric(TypedDict):
+    """One metric the collector's signaltometrics connector makes from spans."""
+
+    name: str
+    unit: NotRequired[str]
+    sum: NotRequired[_Sum]
+    gauge: NotRequired[object]
+    histogram: NotRequired[object]
+
+
+def _create_span_metrics(meter: Meter) -> None:
+    """Create an SDK instrument for each metric the collector derives from spans, with its name, unit and kind."""
+    span_metrics: list[_SpanMetric] = yaml.safe_load(COLLECTOR_CONFIG.read_text())["connectors"]["signaltometrics"][
+        "spans"
+    ]
+    for metric in span_metrics:
+        name, unit = metric["name"], metric.get("unit", "")
+        if "histogram" in metric:
+            meter.create_histogram(name, unit=unit)
+        elif "gauge" in metric:
+            meter.create_gauge(name, unit=unit)
+        elif metric["sum"].get("monotonic", False):
+            meter.create_counter(name, unit=unit)
+        else:
+            meter.create_up_down_counter(name, unit=unit)
+
+
 def _stub_observation(_: CallbackOptions) -> list[Observation]:
     return [Observation(1)]
 
@@ -214,6 +248,7 @@ def produced_families() -> Iterator[tuple[dict[str, set[str]], dict[str, set[str
             importlib.import_module(f"app.core.metrics.{mod_name}")
         for cls in BaseMetrics.__subclasses__():
             cls(MagicMock())
+        _create_span_metrics(app_provider.get_meter("signaltometrics"))
         KafkaTelemetryMiddleware(meter_provider=lib_provider)
         api = FastAPI()
         FastAPIInstrumentor.instrument_app(api, meter_provider=lib_provider)

@@ -85,6 +85,62 @@ receivers:
       mongodb.wtcache.bytes.read:
         enabled: true
 
+# Metrics the app used to record by hand, made from the spans it sends (#389)
+connectors:
+  forward/sampling:
+
+  signaltometrics:
+    spans:
+      - name: queue.enqueue
+        description: Executions put in the queue
+        unit: "{execution}"
+        conditions:
+          - span.name == "queue.enqueue"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: queue.schedule
+        description: Executions moved from the queue into a running slot
+        unit: "{execution}"
+        conditions:
+          - span.name == "queue.schedule" and span.attributes["queue.outcome"] == "scheduled"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: queue.event_data_lost
+        description: Executions dropped because their event data had expired in Redis
+        unit: "{execution}"
+        conditions:
+          - span.name == "queue.schedule" and span.attributes["queue.outcome"] == "event_data_lost"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: queue.wait_time
+        description: Time an execution waited in the queue before it was scheduled
+        unit: s
+        attributes:
+          - key: queue.priority
+        conditions:
+          - span.name == "queue.schedule" and span.attributes["queue.outcome"] == "scheduled"
+        histogram:
+          buckets: [0.1, 0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600, 1800, 3600]
+          value: Double(span.attributes["queue.wait_seconds"])
+      # The scheduler job reads both from Redis every 10 s, so they stay right across restarts
+      - name: queue.depth
+        description: Executions waiting in the queue
+        unit: "{execution}"
+        conditions:
+          - span.name == "queue.schedule_pending"
+        gauge:
+          value: Int(span.attributes["queue.depth"])
+      - name: queue.active
+        description: Executions holding a running slot
+        unit: "{execution}"
+        conditions:
+          - span.name == "queue.schedule_pending"
+        gauge:
+          value: Int(span.attributes["queue.active"])
+
 processors:
   batch:
     timeout: 10s
@@ -112,6 +168,9 @@ processors:
         probabilistic:
           sampling_percentage: 10
   
+  # signaltometrics emits deltas, and Prometheus remote write only takes cumulative series
+  deltatocumulative:
+
   resource:
     attributes:
       - key: service.namespace
@@ -161,14 +220,20 @@ service:
   extensions: [health_check, pprof, zpages]
   
   pipelines:
+    # signaltometrics sees every span; tail sampling only decides what Jaeger keeps
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, tail_sampling, batch, resource]
+      processors: [memory_limiter]
+      exporters: [signaltometrics, forward/sampling]
+
+    traces/sampled:
+      receivers: [forward/sampling]
+      processors: [tail_sampling, batch, resource]
       exporters: [otlp_grpc/jaeger, debug]
     
     metrics:
-      receivers: [otlp, host_metrics, kafka_metrics, mongodb]
-      processors: [memory_limiter, batch, resource]
+      receivers: [otlp, host_metrics, kafka_metrics, mongodb, signaltometrics]
+      processors: [memory_limiter, deltatocumulative, batch, resource]
       exporters: [prometheus_remote_write, debug]
     
     logs:

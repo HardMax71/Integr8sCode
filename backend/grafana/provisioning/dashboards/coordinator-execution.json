@@ -118,8 +118,8 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(queue_wait_time_seconds_bucket[5m])) by (le, priority))",
-          "legendFormat": "p95 {{priority}}",
+          "expr": "histogram_quantile(0.95, sum(rate(queue_wait_time_seconds_bucket[5m])) by (le, queue_priority))",
+          "legendFormat": "p95 {{queue_priority}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -330,7 +330,7 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "rate(queue_schedule_total[5m])",
+          "expr": "sum(rate(queue_schedule_total[5m])) or vector(0)",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -511,13 +511,13 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "rate(queue_schedule_total[5m])",
+          "expr": "sum(rate(queue_schedule_total[5m])) or vector(0)",
           "legendFormat": "Assigned",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "rate(queue_enqueue_total[5m])",
+          "expr": "sum(rate(queue_enqueue_total[5m])) or vector(0)",
           "legendFormat": "Queued",
           "refId": "B",
           "datasource": "Victoria Metrics"

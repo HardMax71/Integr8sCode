@@ -6,7 +6,6 @@ from app.core.metrics.events import EventMetrics
 from app.core.metrics.execution import ExecutionMetrics
 from app.core.metrics.kubernetes import KubernetesMetrics
 from app.core.metrics.notifications import NotificationMetrics
-from app.core.metrics.queue import QueueMetrics
 from app.core.metrics.rate_limit import RateLimitMetrics
 from app.core.metrics.replay import ReplayMetrics
 from app.core.metrics.security import SecurityMetrics
@@ -20,7 +19,6 @@ __all__ = [
     "ExecutionMetrics",
     "KubernetesMetrics",
     "NotificationMetrics",
-    "QueueMetrics",
     "RateLimitMetrics",
     "ReplayMetrics",
     "SecurityMetrics",

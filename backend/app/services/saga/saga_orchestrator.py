@@ -50,6 +50,7 @@ class SagaOrchestrator:
         logger: structlog.stdlib.BoundLogger,
         queue_service: ExecutionQueueService,
         runtime_settings: RuntimeSettingsLoader,
+        tracer: trace.Tracer,
     ):
         self.config = config
         self._producer = producer
@@ -58,6 +59,7 @@ class SagaOrchestrator:
         self.logger = logger
         self._queue = queue_service
         self._runtime_settings = runtime_settings
+        self._tracer = tracer
 
     async def _save_saga(self, saga_id: str, **updates: Any) -> Saga:
         """Persist partial saga updates.
@@ -137,37 +139,40 @@ class SagaOrchestrator:
     _MAX_SAGA_START_RETRIES = 3
 
     async def try_schedule_from_queue(self) -> None:
-        """Try to schedule pending executions from the queue."""
-        settings = await self._runtime_settings.get_effective_settings()
-        while True:
-            result = await self._queue.try_schedule(settings.max_concurrent_executions)
-            if result is None:
-                break
-            execution_id, event = result
-            try:
-                await self._start_saga(event)
-            except Exception:
-                retry_count = await self._queue.increment_retry_count(execution_id)
-                self.logger.error(
-                    "Failed to start saga",
-                    execution_id=execution_id,
-                    retry_count=retry_count,
-                    exc_info=True,
-                )
-                await self._queue.release(execution_id)
-                if retry_count >= self._MAX_SAGA_START_RETRIES:
+        """Try to schedule pending executions from the queue, and report its depth and active slots on the span."""
+        with self._tracer.start_as_current_span("queue.schedule_pending") as span:
+            settings = await self._runtime_settings.get_effective_settings()
+            while True:
+                result = await self._queue.try_schedule(settings.max_concurrent_executions)
+                if result is None:
+                    break
+                execution_id, event = result
+                try:
+                    await self._start_saga(event)
+                except Exception:
+                    retry_count = await self._queue.increment_retry_count(execution_id)
                     self.logger.error(
-                        "Max saga start retries exceeded, dropping execution",
+                        "Failed to start saga",
                         execution_id=execution_id,
+                        retry_count=retry_count,
+                        exc_info=True,
                     )
-                    await self._resolve_completion(
-                        execution_id,
-                        SagaState.FAILED,
-                        f"Failed to start saga after {retry_count} attempts",
-                    )
-                else:
-                    await self._queue.enqueue(event)
-                break
+                    await self._queue.release(execution_id)
+                    if retry_count >= self._MAX_SAGA_START_RETRIES:
+                        self.logger.error(
+                            "Max saga start retries exceeded, dropping execution",
+                            execution_id=execution_id,
+                        )
+                        await self._resolve_completion(
+                            execution_id,
+                            SagaState.FAILED,
+                            f"Failed to start saga after {retry_count} attempts",
+                        )
+                    else:
+                        await self._queue.enqueue(event)
+                    break
+            status = await self._queue.get_queue_status()
+            span.set_attributes({"queue.depth": status["queue_depth"], "queue.active": status["active_count"]})
 
     async def _start_saga(self, trigger_event: ExecutionRequestedEvent) -> str:
         """Start a new saga instance."""
@@ -218,7 +223,6 @@ class SagaOrchestrator:
         trigger_event: DomainEvent,
     ) -> None:
         """Execute saga steps."""
-        tracer = trace.get_tracer(__name__)
         try:
             steps = saga.get_steps()
 
@@ -231,7 +235,7 @@ class SagaOrchestrator:
 
                 self.logger.info("Executing saga step", step=step.name, saga_id=instance.saga_id)
 
-                with tracer.start_as_current_span(
+                with self._tracer.start_as_current_span(
                     name="saga.step",
                     kind=SpanKind.INTERNAL,
                     attributes={

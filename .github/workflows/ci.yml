@@ -515,7 +515,9 @@ jobs:
   backend-e2e:
     name: Backend E2E Tests
     needs: [changes, build-images]
+    # !cancelled() keeps a skipped unit job further up the chain from skipping this one
     if: >-
+      !cancelled() && needs.build-images.result == 'success' &&
       !github.event.pull_request.head.repo.fork &&
       (needs.changes.outputs.backend == 'true' || needs.changes.outputs.infra == 'true')
     runs-on: ubuntu-latest
@@ -580,7 +582,10 @@ jobs:
   frontend-e2e:
     name: Frontend E2E (${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
     needs: [build-images]
-    if: ${{ !github.event.pull_request.head.repo.fork }}
+    # !cancelled() keeps a skipped unit job further up the chain from skipping this one
+    if: >-
+      !cancelled() && needs.build-images.result == 'success' &&
+      !github.event.pull_request.head.repo.fork
     runs-on: ubuntu-latest
     permissions:
       contents: read

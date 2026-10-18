@@ -72,7 +72,7 @@ Once both pass, or are skipped because only one side changed, one job builds the
 | `cert-generator` | `cert-generator/Dockerfile` | GHA layer cache                                               |
 | `frontend`       | `frontend/Dockerfile`       | GHA layer cache                                               |
 
-The pushes run in parallel and each failure is reported on its own. Fork PRs can't push to GHCR, so for them the push and both E2E jobs are skipped. Workers reuse the backend image, so there are no worker images.
+The pushes run in parallel and each failure is reported on its own. Fork PRs can't push to GHCR, so for them the push and both E2E jobs are skipped. Both E2E jobs check `!cancelled()` and the build's result in their own `if`. Without a status function, GitHub skips every job below a skipped one in the `needs` chain, so a backend-only PR, which skips the frontend unit job, would skip both E2E jobs. Workers reuse the backend image, so there are no worker images.
 
 ### E2E
 

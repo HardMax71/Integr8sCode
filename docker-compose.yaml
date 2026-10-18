@@ -426,10 +426,12 @@ services:
       - "127.0.0.1:8428:8428"
     volumes:
       - victoria_metrics_data:/victoria-metrics-data
+      - ./backend/victoria-metrics/scrape.yaml:/etc/victoria-metrics/scrape.yaml:ro
     command:
       - "--storageDataPath=/victoria-metrics-data"
       - "--httpListenAddr=0.0.0.0:8428"
       - "--retentionPeriod=30d"
+      - "--promscrape.config=/etc/victoria-metrics/scrape.yaml"
     networks:
       - app-network
     restart: unless-stopped

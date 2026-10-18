@@ -96,7 +96,7 @@
       "targets": [
         {
           "expr": "rate(notifications_by_channel_total[5m])",
-          "legendFormat": "{{channel}}",
+          "legendFormat": "{{notification_channel}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -121,7 +121,7 @@
       "targets": [
         {
           "expr": "rate(notifications_by_severity_total[5m])",
-          "legendFormat": "{{severity}}",
+          "legendFormat": "{{notification_severity}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -145,8 +145,8 @@
       "id": 7,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(notification_channel_delivery_time_seconds_bucket[5m])) by (le, channel))",
-          "legendFormat": "{{channel}} p95",
+          "expr": "histogram_quantile(0.95, sum(rate(notification_channel_delivery_time_seconds_bucket[5m])) by (le, notification_channel))",
+          "legendFormat": "{{notification_channel}} p95",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -170,8 +170,8 @@
       "id": 8,
       "targets": [
         {
-          "expr": "sum by (channel, error) (rate(notification_channel_failures_total[5m]))",
-          "legendFormat": "{{channel}} {{error}}",
+          "expr": "sum by (notification_channel, notification_error) (rate(notification_channel_failures_total[5m]))",
+          "legendFormat": "{{notification_channel}} {{notification_error}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -246,8 +246,8 @@
       "id": 11,
       "targets": [
         {
-          "expr": "sum by (category) (rate(notifications_throttled_total[5m]))",
-          "legendFormat": "{{category}}",
+          "expr": "sum by (notification_category) (rate(notifications_throttled_total[5m]))",
+          "legendFormat": "{{notification_category}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -271,8 +271,8 @@
       "id": 12,
       "targets": [
         {
-          "expr": "sum by (channel) (rate(notification_retries_total[5m]))",
-          "legendFormat": "{{channel}}",
+          "expr": "sum by (notification_channel) (rate(notification_retries_total[5m]))",
+          "legendFormat": "{{notification_channel}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }

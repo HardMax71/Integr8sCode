@@ -11,7 +11,6 @@ from opentelemetry import trace
 from tenacity import AsyncRetrying, RetryCallState, stop_after_attempt, wait_exponential
 from tenacity.wait import wait_base
 
-from app.core.metrics import NotificationMetrics
 from app.db import NotificationRepository
 from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus, UserRole
 from app.domain.events import (
@@ -108,13 +107,13 @@ class NotificationService:
         sse_bus: SSERedisBus,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
-        notification_metrics: NotificationMetrics,
+        tracer: trace.Tracer,
         retry_wait: wait_base = DELIVERY_RETRY_WAIT,
     ) -> None:
         self.repository = notification_repository
         self._retry_wait = retry_wait
         self._producer = producer
-        self.metrics = notification_metrics
+        self._tracer = tracer
         self.settings = settings
         self.sse_bus = sse_bus
         self.logger = logger
@@ -172,7 +171,7 @@ class NotificationService:
                 max_per_window=self.settings.NOTIF_THROTTLE_MAX_PER_HOUR,
                 window_hours=self.settings.NOTIF_THROTTLE_WINDOW_HOURS,
             )
-            self.metrics.record_notification_throttled("general")
+            self._tracer.start_span("notification.throttled", attributes={"notification.category": "general"}).end()
             raise NotificationThrottledError(
                 user_id,
                 self.settings.NOTIF_THROTTLE_MAX_PER_HOUR,
@@ -302,7 +301,9 @@ class NotificationService:
                     max_per_hour=self.settings.NOTIF_THROTTLE_MAX_PER_HOUR,
                 )
                 if throttled:
-                    self.metrics.record_notification_throttled("system")
+                    self._tracer.start_span(
+                        "notification.throttled", attributes={"notification.category": "system"}
+                    ).end()
                     return "throttled"
 
             await self.create_notification(
@@ -553,7 +554,9 @@ class NotificationService:
                 raise NotificationValidationError("slack_webhook is required when enabling SLACK")
 
         result = await self.repository.upsert_subscription(user_id, channel, update_data)
-        self.metrics.record_subscription_change(channel, update_data.enabled)
+        action = "enabled" if update_data.enabled is True else "disabled" if update_data.enabled is False else "updated"
+        attributes = {"notification.channel": channel, "notification.action": action}
+        self._tracer.start_span("notification.subscription_change", attributes=attributes).end()
         return result
 
     async def mark_all_as_read(self, user_id: str) -> int:
@@ -622,9 +625,11 @@ class NotificationService:
             max_attempts=notification.max_retries,
             error=str(state.outcome.exception() if state.outcome else None),
         )
-        self.metrics.record_notification_retry(
-            notification.tags[0] if notification.tags else "unknown", notification.channel
-        )
+        attributes = {
+            "notification.category": notification.tags[0] if notification.tags else "unknown",
+            "notification.channel": notification.channel,
+        }
+        self._tracer.start_span("notification.retry", attributes=attributes).end()
 
     async def _deliver_notification(self, notification: DomainNotification) -> bool:
         """Deliver notification through configured channel with inline retry.
@@ -674,7 +679,11 @@ class NotificationService:
             return False
 
         start_time = asyncio.get_running_loop().time()
-        notification_type = notification.tags[0] if notification.tags else "unknown"
+        attributes = {
+            "notification.category": notification.tags[0] if notification.tags else "unknown",
+            "notification.channel": notification.channel,
+            "notification.severity": notification.severity,
+        }
 
         retrying = AsyncRetrying(
             stop=stop_after_attempt(notification.max_retries),
@@ -683,44 +692,40 @@ class NotificationService:
             reraise=True,
         )
 
-        try:
-            await retrying(handler, notification, subscription)
-            delivery_time = asyncio.get_running_loop().time() - start_time
-            await self.repository.update_notification(
-                notification.notification_id,
-                notification.user_id,
-                DomainNotificationUpdate(status=NotificationStatus.DELIVERED, delivered_at=datetime.now(UTC)),
-            )
-            self.logger.info(
-                "Delivered notification",
-                notification_id=str(notification.notification_id),
-                channel=notification.channel,
-                delivery_time_ms=int(delivery_time * 1000),
-            )
-            self.metrics.record_notification_sent(
-                notification_type, channel=notification.channel, severity=notification.severity
-            )
-            self.metrics.record_notification_delivery_time(
-                delivery_time, notification_type, channel=notification.channel
-            )
-            return True
-        except Exception as last_error:
-            await self.repository.update_notification(
-                notification.notification_id,
-                notification.user_id,
-                DomainNotificationUpdate(
-                    status=NotificationStatus.FAILED,
-                    failed_at=datetime.now(UTC),
-                    error_message=f"Delivery failed via {notification.channel}: {last_error}",
-                    retry_count=notification.max_retries,
-                ),
-            )
-            self.metrics.record_notification_failed(
-                notification_type, type(last_error).__name__, channel=notification.channel
-            )
-            self.logger.error(
-                "All delivery attempts exhausted",
-                notification_id=str(notification.notification_id),
-                exc_info=last_error,
-            )
-            return False
+        with self._tracer.start_as_current_span("notification.deliver", attributes=attributes) as span:
+            try:
+                await retrying(handler, notification, subscription)
+                delivery_time = asyncio.get_running_loop().time() - start_time
+                span.set_attributes(
+                    {"notification.result": "delivered", "notification.delivery_seconds": delivery_time}
+                )
+                await self.repository.update_notification(
+                    notification.notification_id,
+                    notification.user_id,
+                    DomainNotificationUpdate(status=NotificationStatus.DELIVERED, delivered_at=datetime.now(UTC)),
+                )
+                self.logger.info(
+                    "Delivered notification",
+                    notification_id=str(notification.notification_id),
+                    channel=notification.channel,
+                    delivery_time_ms=int(delivery_time * 1000),
+                )
+                return True
+            except Exception as last_error:
+                span.set_attributes({"notification.result": "failed", "notification.error": type(last_error).__name__})
+                await self.repository.update_notification(
+                    notification.notification_id,
+                    notification.user_id,
+                    DomainNotificationUpdate(
+                        status=NotificationStatus.FAILED,
+                        failed_at=datetime.now(UTC),
+                        error_message=f"Delivery failed via {notification.channel}: {last_error}",
+                        retry_count=notification.max_retries,
+                    ),
+                )
+                self.logger.error(
+                    "All delivery attempts exhausted",
+                    notification_id=str(notification.notification_id),
+                    exc_info=last_error,
+                )
+                return False

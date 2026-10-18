@@ -26,7 +26,6 @@ from app.core.metrics import (
     ConnectionMetrics,
     EventMetrics,
     IdempotencyMetrics,
-    NotificationMetrics,
     RateLimitMetrics,
     ReplayMetrics,
     SecurityMetrics,
@@ -237,11 +236,6 @@ def idempotency_metrics(test_settings: Settings) -> IdempotencyMetrics:
 @pytest.fixture
 def event_metrics(test_settings: Settings) -> EventMetrics:
     return EventMetrics(test_settings)
-
-
-@pytest.fixture
-def notification_metrics(test_settings: Settings) -> NotificationMetrics:
-    return NotificationMetrics(test_settings)
 
 
 @pytest.fixture

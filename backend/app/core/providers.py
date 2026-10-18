@@ -16,7 +16,6 @@ from app.core.metrics import (
     ConnectionMetrics,
     EventMetrics,
     IdempotencyMetrics,
-    NotificationMetrics,
     RateLimitMetrics,
     ReplayMetrics,
     SecurityMetrics,
@@ -268,10 +267,6 @@ class MetricsProvider(Provider):
         return IdempotencyMetrics(settings)
 
     @provide
-    def get_notification_metrics(self, settings: Settings) -> NotificationMetrics:
-        return NotificationMetrics(settings)
-
-    @provide
     def get_replay_metrics(self, settings: Settings) -> ReplayMetrics:
         return ReplayMetrics(settings)
 
@@ -464,7 +459,7 @@ class AdminServicesProvider(Provider):
         sse_redis_bus: SSERedisBus,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
-        notification_metrics: NotificationMetrics,
+        tracer: trace.Tracer,
     ) -> NotificationService:
         return NotificationService(
             notification_repository=notification_repository,
@@ -472,7 +467,7 @@ class AdminServicesProvider(Provider):
             sse_bus=sse_redis_bus,
             settings=settings,
             logger=logger,
-            notification_metrics=notification_metrics,
+            tracer=tracer,
         )
 
     @provide

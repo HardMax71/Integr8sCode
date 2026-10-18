@@ -21,6 +21,10 @@ flowchart LR
 
 The collector's metrics pipeline (`backend/otel-collector-config.yaml`) reads the `otlp`, `host_metrics`, `kafka_metrics` and `mongodb` receivers, runs `memory_limiter`, `batch` and `resource`, and exports with `prometheus_remote_write` to `http://victoria-metrics:8428/api/v1/write`. VictoriaMetrics keeps 30 days. The collector, VictoriaMetrics and Grafana sit in the `observability` compose profile, so none of this runs unless you start the stack with `./deploy.sh dev --observability`.
 
+## Metrics made from spans
+
+Some metrics have no instrument in the code. A service puts the facts on a span, and the collector's `signaltometrics` connector (alpha in collector v0.162.0) turns them into counters, histograms and gauges, defined under `connectors` in `backend/otel-collector-config.yaml`. The SDK sends every span (`TRACING_SAMPLING_RATE = 1.0`), and the traces pipeline gives each span to the connector before `tail_sampling` decides what Jaeger keeps, so the counts don't depend on sampling. The connector emits deltas, and `deltatocumulative` turns them into the cumulative series that Prometheus remote write needs. A point only arrives when a matching span does, so a counter has no points while nothing happens, unlike an SDK counter that exports every 60 seconds. Panels wrap rates of these counters in `or vector(0)` so an idle period reads 0, and gauges come from a job that runs on a timer. The queue metrics are the first moved this way ([#389](https://github.com/HardMax71/Integr8sCode/issues/389)).
+
 ## Names and labels in VictoriaMetrics
 
 Code names instruments with dots, and they arrive with underscores. The collector's Prometheus translator also changes three things:
@@ -60,14 +64,14 @@ The system metrics instrumentation records each backend and worker process's own
 | `script_execution_duration_seconds` | histogram | lang_and_version | `ResultProcessor` in worker: wall time from the pod's resource usage, or the timeout for timed out runs |
 | `script_memory_usage_MiB` | histogram | lang_and_version | `ResultProcessor` in worker: peak memory |
 | `script_memory_utilization_percent` | histogram | lang_and_version | `ResultProcessor` in worker: peak memory over the effective memory limit for the language (admin setting or TOML, raised to the language minimum) |
-| `queue_depth` | gauge, in process | none | `ExecutionQueueService` in worker: enqueued minus scheduled |
-| `queue_active` | gauge, in process | none | `ExecutionQueueService` in worker: scheduled minus released |
-| `queue_enqueue_total` | counter | none | `ExecutionQueueService.enqueue` in worker |
-| `queue_schedule_total` | counter | none | `ExecutionQueueService.try_schedule` in worker |
-| `queue_wait_time_seconds` | histogram | priority | `ExecutionQueueService.try_schedule` in worker: enqueue to schedule |
-| `queue_event_data_lost_total` | counter | none | `ExecutionQueueService.try_schedule` in worker, when the queued event expired in Redis |
+| `queue_depth` | gauge | none | span `queue.schedule_pending` from the worker's scheduler job, every 10 s: pending executions in Redis |
+| `queue_active` | gauge | none | the same span: running slots in Redis |
+| `queue_enqueue_total` | counter | none | span `queue.enqueue` from `ExecutionQueueService.enqueue` in worker |
+| `queue_schedule_total` | counter | none | span `queue.schedule` with `queue.outcome` `scheduled` |
+| `queue_wait_time_seconds` | histogram | queue_priority | `queue.wait_seconds` on those spans: enqueue to schedule |
+| `queue_event_data_lost_total` | counter | none | span `queue.schedule` with `queue.outcome` `event_data_lost`: the queued event had expired in Redis |
 
-The queue itself lives in Redis, so after a worker restart `queue_depth` and `queue_active` read zero while work is still queued.
+The six queue metrics come from spans (see [Metrics made from spans](#metrics-made-from-spans)). Both gauges read Redis on each run of the job, so they stay right across worker restarts.
 
 ### Events and idempotency
 

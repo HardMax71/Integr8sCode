@@ -5,9 +5,9 @@ from typing import Any
 
 import redis.asyncio as redis
 import structlog
+from opentelemetry import trace
 from redis.exceptions import RedisError
 
-from app.core.metrics.queue import QueueMetrics
 from app.domain.enums import QueuePriority
 from app.domain.events import ExecutionRequestedEvent
 from app.runtime_registry import POD_RUNTIME_CONFIGS, PodRuntimeConfig
@@ -122,11 +122,11 @@ class ExecutionQueueService:
         self,
         redis_client: redis.Redis,
         logger: structlog.stdlib.BoundLogger,
-        queue_metrics: QueueMetrics,
+        tracer: trace.Tracer,
     ) -> None:
         self._redis = redis_client
         self._logger = logger
-        self._metrics = queue_metrics
+        self._tracer = tracer
         self._schedule_script: Any = None
         self._update_priority_script: Any = None
         self._reserve_user_slot_script: Any = None
@@ -176,15 +176,15 @@ class ExecutionQueueService:
         key = _pending_key(event.priority)
         score = time.time()
 
-        pipe = self._redis.pipeline(transaction=True)
-        pipe.zadd(key, {execution_id: score})
-        pipe.set(_event_key(execution_id), event.model_dump_json(), ex=_EVENT_TTL)
-        await pipe.execute()
+        with self._tracer.start_as_current_span("queue.enqueue", attributes={"queue.priority": event.priority}):
+            pipe = self._redis.pipeline(transaction=True)
+            pipe.zadd(key, {execution_id: score})
+            pipe.set(_event_key(execution_id), event.model_dump_json(), ex=_EVENT_TTL)
+            await pipe.execute()
 
         rank = await self._redis.zrank(key, execution_id)
         position = rank if isinstance(rank, int) else 0
 
-        self._metrics.record_enqueue()
         self._logger.info("Enqueued execution", execution_id=execution_id, priority=event.priority, position=position)
         return position
 
@@ -203,30 +203,30 @@ class ExecutionQueueService:
         enqueue_score = float(raw_score)
         priority = PRIORITY_ORDER[int(raw_priority_idx)]
 
-        event_json = await self._redis.get(_event_key(execution_id))
-        if event_json is None:
-            self._logger.error(
-                "Event data expired or missing for scheduled execution, execution lost",
-                execution_id=execution_id,
-            )
-            await self._redis.zrem(_RUNNING_KEY, execution_id)
-            await self.release_user_slot(execution_id)
-            self._metrics.record_event_data_lost()
-            return None
+        with self._tracer.start_as_current_span("queue.schedule", attributes={"queue.priority": priority}) as span:
+            event_json = await self._redis.get(_event_key(execution_id))
+            if event_json is None:
+                self._logger.error(
+                    "Event data expired or missing for scheduled execution, execution lost",
+                    execution_id=execution_id,
+                )
+                await self._redis.zrem(_RUNNING_KEY, execution_id)
+                await self.release_user_slot(execution_id)
+                span.set_attribute("queue.outcome", "event_data_lost")
+                return None
 
-        event_str = event_json if isinstance(event_json, str) else event_json.decode()
-        event = ExecutionRequestedEvent.model_validate_json(event_str)
+            event_str = event_json if isinstance(event_json, str) else event_json.decode()
+            event = ExecutionRequestedEvent.model_validate_json(event_str)
 
-        pod_config = POD_RUNTIME_CONFIGS.get(event.language, PodRuntimeConfig())
-        deadline = time.time() + pod_config.timeout_for(event.timeout_seconds) + _SLOT_GRACE_SECONDS
-        pipe = self._redis.pipeline(transaction=True)
-        pipe.zadd(_RUNNING_KEY, {execution_id: deadline}, xx=True)
-        pipe.zadd(_user_key(event.metadata.user_id), {execution_id: deadline}, xx=True)
-        await pipe.execute()
+            pod_config = POD_RUNTIME_CONFIGS.get(event.language, PodRuntimeConfig())
+            deadline = time.time() + pod_config.timeout_for(event.timeout_seconds) + _SLOT_GRACE_SECONDS
+            pipe = self._redis.pipeline(transaction=True)
+            pipe.zadd(_RUNNING_KEY, {execution_id: deadline}, xx=True)
+            pipe.zadd(_user_key(event.metadata.user_id), {execution_id: deadline}, xx=True)
+            await pipe.execute()
 
-        wait_seconds = time.time() - enqueue_score
-        self._metrics.record_wait_time(wait_seconds, str(priority))
-        self._metrics.record_schedule()
+            wait_seconds = time.time() - enqueue_score
+            span.set_attributes({"queue.outcome": "scheduled", "queue.wait_seconds": wait_seconds})
         self._logger.info(
             "Scheduled execution from queue", execution_id=execution_id, wait_seconds=round(wait_seconds, 3)
         )
@@ -243,9 +243,7 @@ class ExecutionQueueService:
         pipe = self._redis.pipeline(transaction=True)
         pipe.zrem(_RUNNING_KEY, execution_id)
         pipe.delete(_event_key(execution_id))
-        was_active, _ = await pipe.execute()
-        if was_active:
-            self._metrics.record_release()
+        await pipe.execute()
         self._logger.debug("Released execution from active set", execution_id=execution_id)
 
     async def update_priority(self, execution_id: str, new_priority: QueuePriority) -> bool:
@@ -271,8 +269,6 @@ class ExecutionQueueService:
         pipe.delete(_retry_key(execution_id))
         pipe.zrem(_RUNNING_KEY, execution_id)
         results = await pipe.execute()
-        if results[-1]:
-            self._metrics.record_release()
         removed = any(results[: len(_PENDING_KEYS)]) or bool(results[-1])
         if removed:
             self._logger.info("Removed execution from queue", execution_id=execution_id)

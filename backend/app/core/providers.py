@@ -9,6 +9,7 @@ from faststream.kafka import KafkaBroker
 from faststream.kafka.opentelemetry import KafkaTelemetryMiddleware
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio import config as k8s_config
+from opentelemetry import trace
 
 from app.core.logging import setup_logger
 from app.core.metrics import (
@@ -19,7 +20,6 @@ from app.core.metrics import (
     IdempotencyMetrics,
     KubernetesMetrics,
     NotificationMetrics,
-    QueueMetrics,
     RateLimitMetrics,
     ReplayMetrics,
     SecurityMetrics,
@@ -169,6 +169,11 @@ class CoreServicesProvider(Provider):
     ) -> Tracer:
         return Tracer(settings, logger)
 
+    @provide
+    def get_span_tracer(self, tracer: Tracer) -> trace.Tracer:
+        # Takes Tracer so the global tracer provider is installed before anyone gets a tracer from it
+        return trace.get_tracer("integr8scode")
+
 
 class MessagingProvider(Provider):
     scope = Scope.APP
@@ -272,10 +277,6 @@ class MetricsProvider(Provider):
     @provide
     def get_kubernetes_metrics(self, settings: Settings) -> KubernetesMetrics:
         return KubernetesMetrics(settings)
-
-    @provide
-    def get_queue_metrics(self, settings: Settings) -> QueueMetrics:
-        return QueueMetrics(settings)
 
     @provide
     def get_dlq_metrics(self, settings: Settings) -> DLQMetrics:
@@ -524,9 +525,9 @@ class ExecutionQueueProvider(Provider):
         self,
         redis_client: redis.Redis,
         logger: structlog.stdlib.BoundLogger,
-        queue_metrics: QueueMetrics,
+        tracer: trace.Tracer,
     ) -> ExecutionQueueService:
-        return ExecutionQueueService(redis_client, logger, queue_metrics)
+        return ExecutionQueueService(redis_client, logger, tracer)
 
 
 class BusinessServicesProvider(Provider):
@@ -684,6 +685,7 @@ class SagaOrchestratorProvider(Provider):
         logger: structlog.stdlib.BoundLogger,
         queue_service: ExecutionQueueService,
         runtime_settings: RuntimeSettingsLoader,
+        tracer: trace.Tracer,
     ) -> SagaOrchestrator:
         return SagaOrchestrator(
             config=_create_default_saga_config(),
@@ -693,6 +695,7 @@ class SagaOrchestratorProvider(Provider):
             logger=logger,
             queue_service=queue_service,
             runtime_settings=runtime_settings,
+            tracer=tracer,
         )
 
 

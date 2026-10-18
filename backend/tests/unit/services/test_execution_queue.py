@@ -3,9 +3,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import structlog
+from opentelemetry import trace
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from redis.exceptions import ConnectionError as RedisConnectionError
 
-from app.core.metrics.queue import QueueMetrics
 from app.domain.enums import QueuePriority
 from app.services.execution_queue import (
     _EVENT_TTL,
@@ -19,7 +20,6 @@ from app.services.execution_queue import (
     _pending_key,
     _user_key,
 )
-from app.settings import Settings
 from tests.conftest import make_execution_requested_event
 
 pytestmark = pytest.mark.unit
@@ -37,10 +37,8 @@ def mock_redis() -> AsyncMock:
 
 
 @pytest.fixture
-def queue_service(mock_redis: AsyncMock, test_settings: Settings) -> ExecutionQueueService:
-    logger = structlog.get_logger("test")
-    metrics = QueueMetrics(test_settings)
-    return ExecutionQueueService(mock_redis, logger, metrics)
+def queue_service(mock_redis: AsyncMock, tracer: trace.Tracer) -> ExecutionQueueService:
+    return ExecutionQueueService(mock_redis, structlog.get_logger("test"), tracer)
 
 
 def test_priority_order() -> None:
@@ -57,23 +55,31 @@ def test_pending_keys_match_priority_order() -> None:
         assert priority in key
 
 
-async def test_enqueue(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
-    event = make_execution_requested_event(execution_id="e1")
+async def test_enqueue(
+    queue_service: ExecutionQueueService, mock_redis: AsyncMock, span_exporter: InMemorySpanExporter
+) -> None:
+    event = make_execution_requested_event(execution_id="e1", priority=QueuePriority.HIGH)
     position = await queue_service.enqueue(event)
     assert position == 0
     mock_redis.pipeline.assert_called()
+    [span] = span_exporter.get_finished_spans()
+    assert (span.name, span.attributes) == ("queue.enqueue", {"queue.priority": QueuePriority.HIGH})
 
 
-async def test_try_schedule_empty(queue_service: ExecutionQueueService) -> None:
+async def test_try_schedule_empty(queue_service: ExecutionQueueService, span_exporter: InMemorySpanExporter) -> None:
     result = await queue_service.try_schedule(5)
     assert result is None
+    assert span_exporter.get_finished_spans() == ()
 
 
-async def test_try_schedule_returns_event(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
+async def test_try_schedule_returns_event(
+    queue_service: ExecutionQueueService, mock_redis: AsyncMock, span_exporter: InMemorySpanExporter
+) -> None:
     event = make_execution_requested_event(execution_id="e1")
     event_json = event.model_dump_json()
 
-    script = AsyncMock(return_value=[b"e1", str(time.time() - 1.5).encode(), 0])
+    enqueued_at = time.time() - 1.5
+    script = AsyncMock(return_value=[b"e1", str(enqueued_at).encode(), 0])
     mock_redis.register_script = MagicMock(return_value=script)
     mock_redis.get = AsyncMock(return_value=event_json)
 
@@ -102,8 +108,19 @@ async def test_try_schedule_returns_event(queue_service: ExecutionQueueService, 
     assert calls[1].args[1] == calls[0].args[1]
     assert [c.kwargs for c in calls] == [{"xx": True}, {"xx": True}]
 
+    [span] = span_exporter.get_finished_spans()
+    assert span.name == "queue.schedule"
+    assert span.attributes is not None
+    assert span.attributes["queue.outcome"] == "scheduled"
+    assert span.attributes["queue.priority"] == PRIORITY_ORDER[0]
+    wait_seconds = span.attributes["queue.wait_seconds"]
+    assert isinstance(wait_seconds, float)
+    assert before - enqueued_at <= wait_seconds <= after - enqueued_at
 
-async def test_try_schedule_event_data_expired(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
+
+async def test_try_schedule_event_data_expired(
+    queue_service: ExecutionQueueService, mock_redis: AsyncMock, span_exporter: InMemorySpanExporter
+) -> None:
     """When the event JSON has expired from Redis, try_schedule frees the running slot and returns None."""
     script = AsyncMock(return_value=[b"e-gone", str(time.time()).encode(), 2])
     mock_redis.register_script = MagicMock(return_value=script)
@@ -115,6 +132,11 @@ async def test_try_schedule_event_data_expired(queue_service: ExecutionQueueServ
     assert result is None
     mock_redis.zrem.assert_awaited_once_with(_RUNNING_KEY, "e-gone")
     mock_redis.get.assert_any_await(_owner_key("e-gone"))
+    [span] = span_exporter.get_finished_spans()
+    assert (span.name, span.attributes) == (
+        "queue.schedule",
+        {"queue.priority": PRIORITY_ORDER[2], "queue.outcome": "event_data_lost"},
+    )
 
 
 async def test_release(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
@@ -154,27 +176,6 @@ async def test_remove_not_found(queue_service: ExecutionQueueService, mock_redis
     mock_redis.pipeline.return_value = pipe
     result = await queue_service.remove("e1")
     assert result is False
-
-
-@pytest.mark.parametrize(
-    ("method", "results", "released"),
-    [
-        ("release", [1, 1], True),
-        ("release", [0, 1], False),  # a duplicate completion, or a pending execution that remove() already took
-        ("remove", [0, 0, 0, 0, 0, 1, 0, 1], True),  # cancelled while running
-        ("remove", [0, 0, 1, 0, 0, 1, 0, 0], False),  # cancelled while still pending
-    ],
-)
-async def test_active_count_drops_only_when_an_execution_leaves_the_active_set(
-    mock_redis: AsyncMock, method: str, results: list[int], released: bool
-) -> None:
-    metrics = MagicMock(spec=QueueMetrics)
-    service = ExecutionQueueService(mock_redis, structlog.get_logger("test"), metrics)
-    mock_redis.pipeline.return_value.execute = AsyncMock(return_value=results)
-
-    await getattr(service, method)("e1")
-
-    assert metrics.record_release.called is released
 
 
 async def test_get_queue_status(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:

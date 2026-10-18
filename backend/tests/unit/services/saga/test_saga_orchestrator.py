@@ -1,9 +1,12 @@
 import dataclasses
 from datetime import datetime, timezone
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 import structlog
+from opentelemetry import trace
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from app.db.repositories import ResourceAllocationRepository, SagaRepository
 from app.domain.admin import SystemSettings
@@ -175,6 +178,7 @@ class _FakeRuntimeSettings(RuntimeSettingsLoader):
 def _orch(
     repo: SagaRepository | None = None,
     queue: _FakeQueue | None = None,
+    tracer: trace.Tracer | None = None,
 ) -> SagaOrchestrator:
     return SagaOrchestrator(
         config=SagaConfig(name="t", enable_compensation=True, store_events=True, publish_commands=True),
@@ -184,6 +188,7 @@ def _orch(
         logger=_test_logger,
         queue_service=queue or _FakeQueue(),
         runtime_settings=_FakeRuntimeSettings(),
+        tracer=tracer or trace.NoOpTracer(),
     )
 
 
@@ -330,7 +335,6 @@ async def test_resolve_completion_releases_slot_when_no_saga_found() -> None:
     assert "orphan" in fake_queue.released
 
 
-
 class _VanishingRepo(_FakeRepo):
     """A repository whose saga disappears once ``vanished`` is set, as a user deletion does mid-flight."""
 
@@ -338,6 +342,7 @@ class _VanishingRepo(_FakeRepo):
 
     async def save_saga(self, saga_id: str, **updates: Any) -> Saga | None:
         return None if self.vanished else await super().save_saga(saga_id, **updates)
+
 
 async def test_resolve_completion_releases_slot_when_saga_deleted_before_update() -> None:
     """A saga removed between the read and the update (user deletion) must not keep the slot."""
@@ -402,6 +407,18 @@ async def test_retry_count_increments_across_failures() -> None:
     assert fake_queue._retry_counts["e1"] == orch._MAX_SAGA_START_RETRIES
     assert len(fake_queue.enqueued) == orch._MAX_SAGA_START_RETRIES
     assert fake_queue.released_user_slots == ["e1"]
+
+
+async def test_scheduler_job_reports_queue_depth_and_active_slots(
+    monkeypatch: pytest.MonkeyPatch, tracer: trace.Tracer, span_exporter: InMemorySpanExporter
+) -> None:
+    fake_queue = _FakeQueue()
+    monkeypatch.setattr(fake_queue, "get_queue_status", AsyncMock(return_value={"queue_depth": 3, "active_count": 2}))
+
+    await _orch(queue=fake_queue, tracer=tracer).try_schedule_from_queue()
+
+    [span] = span_exporter.get_finished_spans()
+    assert (span.name, span.attributes) == ("queue.schedule_pending", {"queue.depth": 3, "queue.active": 2})
 
 
 async def test_cancel_missing_saga_raises_not_found() -> None:

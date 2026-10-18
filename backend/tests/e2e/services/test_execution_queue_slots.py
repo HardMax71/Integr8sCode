@@ -5,18 +5,17 @@ from uuid import uuid4
 import pytest
 import redis.asyncio as redis
 import structlog
+from opentelemetry import trace
 
-from app.core.metrics.queue import QueueMetrics
 from app.services.execution_queue import ExecutionQueueService, _user_key
-from app.settings import Settings
 
 pytestmark = [pytest.mark.e2e]
 
 
 @pytest.fixture
-def queue(redis_client: redis.Redis, test_settings: Settings) -> ExecutionQueueService:
+def queue(redis_client: redis.Redis) -> ExecutionQueueService:
     logger = structlog.get_logger("test.execution_queue")
-    return ExecutionQueueService(redis_client, logger, QueueMetrics(test_settings))
+    return ExecutionQueueService(redis_client, logger, trace.NoOpTracer())
 
 
 @pytest.fixture

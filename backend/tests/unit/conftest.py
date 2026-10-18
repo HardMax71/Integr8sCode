@@ -17,6 +17,10 @@ from kubernetes_asyncio.client import (
     V1PodSpec,
     V1PodStatus,
 )
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from app.core.metrics import (
     ConnectionMetrics,
@@ -26,7 +30,6 @@ from app.core.metrics import (
     IdempotencyMetrics,
     KubernetesMetrics,
     NotificationMetrics,
-    QueueMetrics,
     RateLimitMetrics,
     ReplayMetrics,
     SecurityMetrics,
@@ -216,8 +219,17 @@ def connection_metrics(test_settings: Settings) -> ConnectionMetrics:
 
 
 @pytest.fixture
-def queue_metrics(test_settings: Settings) -> QueueMetrics:
-    return QueueMetrics(test_settings)
+def span_exporter(monkeypatch: pytest.MonkeyPatch) -> InMemorySpanExporter:
+    """Collects the spans a test finishes. pytest-env sets OTEL_SDK_DISABLED, so the SDK is turned back on here."""
+    monkeypatch.delenv("OTEL_SDK_DISABLED", raising=False)
+    return InMemorySpanExporter()
+
+
+@pytest.fixture
+def tracer(span_exporter: InMemorySpanExporter) -> trace.Tracer:
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(span_exporter))
+    return provider.get_tracer("test")
 
 
 @pytest.fixture

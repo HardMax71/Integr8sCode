@@ -53,10 +53,12 @@ runs:
 
         kubectl apply --server-side -f "$KUEUE_MANIFEST"
         rm -f "$KUEUE_MANIFEST"
-        if ! kubectl wait --for=condition=Available --timeout=120s deployment/kueue-controller-manager -n kueue-system; then
+        # Kueue's cert bootstrap answers /readyz with 404 until the kubelet mounts its new secret, which can take minutes
+        if ! kubectl wait --for=condition=Available --timeout=300s deployment/kueue-controller-manager -n kueue-system; then
           kubectl -n kueue-system get pods -o wide
           kubectl -n kueue-system describe pods
           kubectl -n kueue-system get events --sort-by=.lastTimestamp
+          kubectl -n kueue-system logs deployment/kueue-controller-manager --all-containers --tail=300
           exit 1
         fi
 

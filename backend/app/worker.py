@@ -16,6 +16,7 @@ from app.core.metrics import setup_metrics
 from app.db.docs import ALL_DOCUMENTS
 from app.dlq.manager import DLQManager
 from app.events.handlers import k8s_worker_router, result_processor_router, saga_router
+from app.services.idempotency import IdempotencyManager
 from app.services.k8s_worker import KubernetesWorker
 from app.services.pod_monitor import PodMonitor
 from app.services.saga import SagaOrchestrator
@@ -49,7 +50,7 @@ async def run(settings: Settings, logger: structlog.stdlib.BoundLogger) -> None:
 
 
 async def start_jobs(container: AsyncContainer) -> AsyncIOScheduler:
-    """Prepare the cluster, then schedule the pod watch, the saga queue and timeouts, and DLQ retries."""
+    """Prepare the cluster, then schedule the pod watch, saga jobs, DLQ retries and the idempotency key count."""
     k8s_worker = await container.get(KubernetesWorker)
     await k8s_worker.ensure_namespace_security()
     await k8s_worker.ensure_image_pre_puller_daemonset()
@@ -57,6 +58,7 @@ async def start_jobs(container: AsyncContainer) -> AsyncIOScheduler:
     monitor = await container.get(PodMonitor)
     orchestrator = await container.get(SagaOrchestrator)
     dlq_manager = await container.get(DLQManager)
+    idempotency = await container.get(IdempotencyManager)
 
     scheduler = AsyncIOScheduler()
     jobs = (
@@ -64,6 +66,7 @@ async def start_jobs(container: AsyncContainer) -> AsyncIOScheduler:
         ("saga_try_schedule", orchestrator.try_schedule_from_queue, 10, 30),
         ("saga_check_timeouts", orchestrator.check_timeouts, 30, 60),
         ("dlq_monitor_retries", dlq_manager.process_monitoring_cycle, 10, 60),
+        ("idempotency_report_keys", idempotency.report_active_keys, 30, 60),
     )
     for job_id, job, seconds, grace in jobs:
         scheduler.add_job(

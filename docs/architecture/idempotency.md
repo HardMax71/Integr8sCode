@@ -92,13 +92,4 @@ The DI provider builds `IdempotencyConfig()` with these defaults; nothing in `co
 
 ## Metrics
 
-`IdempotencyMetrics` in `backend/app/core/metrics/database.py` defines these. The second column is the series name in VictoriaMetrics after the collector's Prometheus conversion.
-
-| Instrument | Series | Meaning |
-|------------|--------|---------|
-| `idempotency.cache.hits.total` | `idempotency_cache_hits_total` | Lookups that found a record, by `event_type` and `operation` |
-| `idempotency.cache.misses.total` | `idempotency_cache_misses_total` | Lookups that found no record and went on to `SET NX`, whether or not they won it |
-| `idempotency.duplicates.blocked.total` | `idempotency_duplicates_blocked_total` | Calls rejected as duplicates, by `event_type` |
-| `idempotency.check.duration` | `idempotency_check_duration_seconds` | Histogram of `check_and_reserve` time |
-| `idempotency.processing.duration` | `idempotency_processing_duration_seconds` | Histogram of reserve to completed or failed, by `event_type` and `status` |
-| `idempotency.keys.active` | `idempotency_keys_active` | Observable gauge: `SCAN` count of `idempotency:*` keys in Redis at each export |
+`IdempotencyManager` puts each `check_and_reserve` on an `idempotency.check` span with a hit or miss, and leaves `idempotency.duplicate_blocked` and `idempotency.processed` spans for blocked duplicates and finished keys. The worker counts the `idempotency:*` keys in Redis with `SCAN` every 30 seconds for `idempotency_keys_active`. A miss is a lookup that found no record and went on to `SET NX`, whether or not it won it. The [metrics reference](../operations/metrics-reference.md#events-and-idempotency) lists the series and their labels.

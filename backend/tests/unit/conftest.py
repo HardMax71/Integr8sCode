@@ -22,15 +22,9 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from app.core.metrics import (
-    ConnectionMetrics,
-    EventMetrics,
-    IdempotencyMetrics,
-)
 from app.domain.enums import ExecutionStatus, QueuePriority
 from app.domain.execution import DomainExecution
 from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION
-from app.settings import Settings
 
 
 def make_domain_execution(
@@ -207,11 +201,6 @@ def mock_watch() -> MagicMock:
 
 
 @pytest.fixture
-def connection_metrics(test_settings: Settings) -> ConnectionMetrics:
-    return ConnectionMetrics(test_settings)
-
-
-@pytest.fixture
 def span_exporter(monkeypatch: pytest.MonkeyPatch) -> InMemorySpanExporter:
     """Collects the spans a test finishes. pytest-env sets OTEL_SDK_DISABLED, so the SDK is turned back on here."""
     monkeypatch.delenv("OTEL_SDK_DISABLED", raising=False)
@@ -223,16 +212,6 @@ def tracer(span_exporter: InMemorySpanExporter) -> trace.Tracer:
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(span_exporter))
     return provider.get_tracer("test")
-
-
-@pytest.fixture
-def idempotency_metrics(test_settings: Settings) -> IdempotencyMetrics:
-    return IdempotencyMetrics(test_settings)
-
-
-@pytest.fixture
-def event_metrics(test_settings: Settings) -> EventMetrics:
-    return EventMetrics(test_settings)
 
 
 @pytest.fixture

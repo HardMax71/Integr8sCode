@@ -49,5 +49,6 @@ async def test_start_jobs_prepares_the_cluster_and_schedules_the_jobs(monkeypatc
         "saga_try_schedule",
         "saga_check_timeouts",
         "dlq_monitor_retries",
+        "idempotency_report_keys",
     ]
     scheduler.start.assert_called_once()

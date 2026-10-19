@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 
 import redis.asyncio as redis
 import structlog
+from opentelemetry import trace
+from opentelemetry.util.types import AttributeValue
 from pydantic import TypeAdapter
 
-from app.core.metrics import ConnectionMetrics
 from app.domain.sse import DomainNotificationSSEPayload, DomainReplaySSEPayload, SSEExecutionEventData
 
 _sse_event_adapter = TypeAdapter(SSEExecutionEventData)
@@ -22,17 +24,36 @@ class SSERedisBus:
         self,
         redis_client: redis.Redis,
         logger: structlog.stdlib.BoundLogger,
-        connection_metrics: ConnectionMetrics,
+        tracer: trace.Tracer,
         exec_prefix: str = "sse:exec:",
         notif_prefix: str = "sse:notif:",
         replay_prefix: str = "sse:replay:",
     ) -> None:
         self._redis = redis_client
         self.logger = logger
-        self._metrics = connection_metrics
+        self._tracer = tracer
+        self._open_streams: Counter[str] = Counter()
         self._exec_prefix = exec_prefix
         self._notif_prefix = notif_prefix
         self._replay_prefix = replay_prefix
+
+    async def report_open_streams(self) -> None:
+        """Report this process's open SSE streams per endpoint, zeros included. The API runs it every 10 s."""
+        for endpoint in ("executions", "notifications", "replay"):
+            attributes: dict[str, AttributeValue] = {
+                "sse.endpoint": endpoint,
+                "sse.open_streams": self._open_streams[endpoint],
+            }
+            self._tracer.start_span("sse.streams", attributes=attributes).end()
+
+    def _report_message(self, endpoint: str, event_type: str) -> None:
+        self._tracer.start_span(
+            "sse.message", attributes={"sse.endpoint": endpoint, "sse.event_type": event_type}
+        ).end()
+
+    def _report_stream_closed(self, endpoint: str, seconds: float) -> None:
+        attributes: dict[str, AttributeValue] = {"sse.endpoint": endpoint, "sse.duration_seconds": seconds}
+        self._tracer.start_span("sse.stream_closed", attributes=attributes).end()
 
     def _exec_channel(self, execution_id: str) -> str:
         return f"{self._exec_prefix}{execution_id}"
@@ -48,36 +69,36 @@ class SSERedisBus:
 
     async def listen_execution(self, execution_id: str) -> AsyncGenerator[SSEExecutionEventData, None]:
         start = datetime.now(timezone.utc)
-        self._metrics.increment_sse_connections("executions")
+        self._open_streams["executions"] += 1
         self.logger.info("SSE execution stream opened", execution_id=execution_id)
         try:
             async with self._redis.pubsub(ignore_subscribe_messages=True) as pubsub:
                 await pubsub.subscribe(self._exec_channel(execution_id))
                 async for message in pubsub.listen():
                     event = _sse_event_adapter.validate_json(message["data"])
-                    self._metrics.record_sse_message_sent("executions", event.event_type)
+                    self._report_message("executions", event.event_type)
                     yield event
         finally:
             duration = (datetime.now(timezone.utc) - start).total_seconds()
-            self._metrics.record_sse_connection_duration(duration, "executions")
-            self._metrics.decrement_sse_connections("executions")
+            self._open_streams["executions"] -= 1
+            self._report_stream_closed("executions", duration)
             self.logger.info("SSE execution stream closed", execution_id=execution_id)
 
     async def listen_notifications(self, user_id: str) -> AsyncGenerator[DomainNotificationSSEPayload, None]:
         start = datetime.now(timezone.utc)
-        self._metrics.increment_sse_connections("notifications")
+        self._open_streams["notifications"] += 1
         self.logger.info("SSE notification stream opened", user_id=user_id)
         try:
             async with self._redis.pubsub(ignore_subscribe_messages=True) as pubsub:
                 await pubsub.subscribe(self._notif_channel(user_id))
                 async for message in pubsub.listen():
                     notification = _notif_payload_adapter.validate_json(message["data"])
-                    self._metrics.record_sse_message_sent("notifications", "notification")
+                    self._report_message("notifications", "notification")
                     yield notification
         finally:
             duration = (datetime.now(timezone.utc) - start).total_seconds()
-            self._metrics.record_sse_connection_duration(duration, "notifications")
-            self._metrics.decrement_sse_connections("notifications")
+            self._open_streams["notifications"] -= 1
+            self._report_stream_closed("notifications", duration)
             self.logger.info("SSE notification stream closed", user_id=user_id)
 
     def _replay_channel(self, session_id: str) -> str:
@@ -88,17 +109,17 @@ class SSERedisBus:
 
     async def listen_replay(self, session_id: str) -> AsyncGenerator[DomainReplaySSEPayload, None]:
         start = datetime.now(timezone.utc)
-        self._metrics.increment_sse_connections("replay")
+        self._open_streams["replay"] += 1
         self.logger.info("SSE replay stream opened", session_id=session_id)
         try:
             async with self._redis.pubsub(ignore_subscribe_messages=True) as pubsub:
                 await pubsub.subscribe(self._replay_channel(session_id))
                 async for message in pubsub.listen():
                     status = _replay_adapter.validate_json(message["data"])
-                    self._metrics.record_sse_message_sent("replay", "replay_status")
+                    self._report_message("replay", "replay_status")
                     yield status
         finally:
             duration = (datetime.now(timezone.utc) - start).total_seconds()
-            self._metrics.record_sse_connection_duration(duration, "replay")
-            self._metrics.decrement_sse_connections("replay")
+            self._open_streams["replay"] -= 1
+            self._report_stream_closed("replay", duration)
             self.logger.info("SSE replay stream closed", session_id=session_id)

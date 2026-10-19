@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 import structlog
@@ -7,7 +7,6 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from app.core.exceptions.handlers import _map_to_status_code
-from app.core.metrics import IdempotencyMetrics
 from app.db import ExecutionRepository
 from app.domain.admin import SystemSettings
 from app.domain.enums import EventType, ExecutionStatus, UserRole
@@ -197,7 +196,7 @@ def idem_service(
     runtime_settings = AsyncMock(spec=RuntimeSettingsLoader)
     runtime_settings.get_effective_settings.return_value = SystemSettings()
     logger = structlog.get_logger("test")
-    manager = IdempotencyManager(IdempotencyConfig(), idem_repo, logger, MagicMock(spec=IdempotencyMetrics))
+    manager = IdempotencyManager(IdempotencyConfig(), idem_repo, logger, trace.NoOpTracer())
     return ExecutionService(
         execution_repo=repo,
         producer=producer,

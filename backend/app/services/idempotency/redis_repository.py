@@ -123,3 +123,7 @@ class RedisIdempotencyRepository:
 
     async def delete_key(self, key: str) -> int:
         return int(await self._r.delete(self._full_key(key)))
+
+    async def count_keys(self) -> int:
+        """Count the idempotency keys Redis holds now; SCAN walks the keyspace without blocking Redis."""
+        return len([key async for key in self._r.scan_iter(match=f"{self._prefix}:*", count=1000)])

@@ -6,12 +6,11 @@ from datetime import datetime, timedelta, timezone
 import pytest
 import redis.asyncio as redis
 import structlog
+from opentelemetry import trace
 
-from app.core.metrics import IdempotencyMetrics
 from app.domain.enums import EventType
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus, KeyStrategy
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager, RedisIdempotencyRepository
-from app.settings import Settings
 from tests.conftest import make_execution_requested_event
 
 pytestmark = [pytest.mark.e2e]
@@ -24,7 +23,7 @@ class TestIdempotencyManager:
     """IdempotencyManager backed by real Redis repository (DI-provided client)."""
 
     @pytest.fixture
-    def manager(self, redis_client: redis.Redis, test_settings: Settings) -> IdempotencyManager:
+    def manager(self, redis_client: redis.Redis) -> IdempotencyManager:
         prefix = f"idemp_ut:{uuid.uuid4().hex[:6]}"
         cfg = IdempotencyConfig(
             key_prefix=prefix,
@@ -34,8 +33,7 @@ class TestIdempotencyManager:
             max_result_size_bytes=1024,
         )
         repo = RedisIdempotencyRepository(redis_client, key_prefix=prefix)
-        idempotency_metrics = IdempotencyMetrics(test_settings)
-        return IdempotencyManager(cfg, repo, _test_logger, idempotency_metrics=idempotency_metrics)
+        return IdempotencyManager(cfg, repo, _test_logger, tracer=trace.NoOpTracer())
 
     async def test_complete_flow_new_event(self, manager: IdempotencyManager) -> None:
         """Test the complete flow for a new event"""

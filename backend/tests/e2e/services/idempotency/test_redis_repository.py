@@ -133,3 +133,13 @@ async def test_update_record_when_missing(
     # If key missing, update returns 0
     res = await repository.update_record(sample_record)
     assert res == 0
+
+
+async def test_count_keys_counts_only_its_own_prefix(redis_client: redis.Redis) -> None:
+    prefix = f"count-{uuid4().hex[:8]}"
+    repository = RedisIdempotencyRepository(redis_client, key_prefix=prefix)
+    for n in range(3):
+        await redis_client.set(f"{prefix}:key-{n}", "{}", ex=60)
+    await redis_client.set(f"{prefix}-other:key", "{}", ex=60)
+
+    assert await repository.count_keys() == 3

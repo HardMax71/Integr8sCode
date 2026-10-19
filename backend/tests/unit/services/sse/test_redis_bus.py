@@ -5,13 +5,13 @@ from collections.abc import AsyncGenerator
 from contextlib import aclosing
 from datetime import datetime, timezone
 from typing import Any, cast
-from unittest.mock import MagicMock
 
 import pytest
 import redis.asyncio as redis_async
 import structlog
+from opentelemetry import trace
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from app.core.metrics import ConnectionMetrics
 from app.domain.enums import EventType, NotificationSeverity, NotificationStatus, ReplayStatus
 from app.domain.sse import DomainNotificationSSEPayload, DomainReplaySSEPayload, SSEExecutionEventData
 from app.services.sse import SSERedisBus
@@ -69,10 +69,13 @@ class _FakeRedis:
         return self._pubsub
 
 
-async def test_publish_and_subscribe_round_trip() -> None:
+def _spans(exporter: InMemorySpanExporter, name: str) -> list[dict[str, Any]]:
+    return [dict(span.attributes or {}) for span in exporter.get_finished_spans() if span.name == name]
+
+
+async def test_publish_and_subscribe_round_trip(tracer: trace.Tracer, span_exporter: InMemorySpanExporter) -> None:
     r = _FakeRedis()
-    metrics = MagicMock(spec=ConnectionMetrics)
-    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger, connection_metrics=metrics)
+    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger, tracer=tracer)
 
     # Publish event as SSEExecutionEventData (field projection happens in handlers.py)
     evt = SSEExecutionEventData(
@@ -105,14 +108,14 @@ async def test_publish_and_subscribe_round_trip() -> None:
         await r._pubsub.push(ch, good_payload)
         msg2 = await asyncio.wait_for(messages.__anext__(), timeout=2.0)
         assert msg2.event_type == EventType.EXECUTION_COMPLETED
-        assert metrics.record_sse_message_sent.call_count == 2
-        metrics.record_sse_message_sent.assert_called_with("executions", EventType.EXECUTION_COMPLETED)
+        assert _spans(span_exporter, "sse.message") == 2 * [
+            {"sse.endpoint": "executions", "sse.event_type": EventType.EXECUTION_COMPLETED}
+        ]
 
 
-async def test_notifications_channels() -> None:
+async def test_notifications_channels(tracer: trace.Tracer, span_exporter: InMemorySpanExporter) -> None:
     r = _FakeRedis()
-    metrics = MagicMock(spec=ConnectionMetrics)
-    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger, connection_metrics=metrics)
+    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger, tracer=tracer)
 
     notif = DomainNotificationSSEPayload(
         notification_id="n1",
@@ -136,13 +139,16 @@ async def test_notifications_channels() -> None:
         # Subscription happened inside __anext__
         assert "sse:notif:user-1" in r._pubsub.subscribed
         assert got.notification_id == "n1"
-        metrics.record_sse_message_sent.assert_called_once_with("notifications", "notification")
+        assert _spans(span_exporter, "sse.message") == [
+            {"sse.endpoint": "notifications", "sse.event_type": "notification"}
+        ]
 
 
-async def test_replay_publish_and_subscribe_round_trip() -> None:
+async def test_replay_publish_and_subscribe_round_trip(
+    tracer: trace.Tracer, span_exporter: InMemorySpanExporter
+) -> None:
     r = _FakeRedis()
-    metrics = MagicMock(spec=ConnectionMetrics)
-    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger, connection_metrics=metrics)
+    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger, tracer=tracer)
 
     status = DomainReplaySSEPayload(
         session_id="sess-1",
@@ -167,4 +173,35 @@ async def test_replay_publish_and_subscribe_round_trip() -> None:
         assert got.session_id == "sess-1"
         assert got.status == ReplayStatus.RUNNING
         assert got.replayed_events == 3
-        metrics.record_sse_message_sent.assert_called_once_with("replay", "replay_status")
+        assert _spans(span_exporter, "sse.message") == [{"sse.endpoint": "replay", "sse.event_type": "replay_status"}]
+
+
+async def test_open_streams_are_reported_per_endpoint_and_closing_records_the_duration(
+    tracer: trace.Tracer, span_exporter: InMemorySpanExporter
+) -> None:
+    r = _FakeRedis()
+    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger, tracer=tracer)
+    await r._pubsub.push(
+        "sse:exec:exec-1",
+        _sse_event_adapter.dump_json(
+            SSEExecutionEventData(event_type=EventType.EXECUTION_COMPLETED, execution_id="exec-1")
+        ),
+    )
+
+    async with aclosing(bus.listen_execution("exec-1")) as messages:
+        await asyncio.wait_for(messages.__anext__(), timeout=2.0)
+        await bus.report_open_streams()
+    await bus.report_open_streams()
+
+    reports = [(a["sse.endpoint"], a["sse.open_streams"]) for a in _spans(span_exporter, "sse.streams")]
+    assert reports == [
+        ("executions", 1),
+        ("notifications", 0),
+        ("replay", 0),
+        ("executions", 0),
+        ("notifications", 0),
+        ("replay", 0),
+    ]
+    [closed] = _spans(span_exporter, "sse.stream_closed")
+    assert closed["sse.endpoint"] == "executions"
+    assert closed["sse.duration_seconds"] >= 0

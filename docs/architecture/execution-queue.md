@@ -75,15 +75,4 @@ The queue status reads Redis directly: `queue_depth` is the sum of `ZCARD` over 
 
 ## Metrics
 
-`QueueMetrics` in `backend/app/core/metrics/queue.py` defines these. The second column is the series name in VictoriaMetrics.
-
-| Instrument | Series | Meaning |
-|------------|--------|---------|
-| `queue.depth` | `queue_depth` | Up-down counter: up on enqueue, down on schedule |
-| `queue.active` | `queue_active` | Up-down counter: up on schedule, down when `release` or `remove` takes an id out of the running set; slots dropped for expiry don't bring it down |
-| `queue.enqueue.total` | `queue_enqueue_total` | Enqueues, including re-enqueues after a failed saga start |
-| `queue.schedule.total` | `queue_schedule_total` | Executions popped from the queue |
-| `queue.wait_time` | `queue_wait_time_seconds` | Histogram of enqueue to schedule, by `priority` |
-| `queue.event_data_lost` | `queue_event_data_lost_total` | Scheduled ids whose stored event had expired |
-
-`queue_depth` and `queue_active` are counted in the orchestrator process, so they start from zero after a restart. `queue_depth` also drifts: an id popped with an expired event, or removed by a cancel, leaves the pending set without decrementing it. The admin queue endpoint is the number to trust. The [metrics reference](../operations/metrics-reference.md) lists the rest.
+The queue's six series come from spans: `queue.enqueue` and `queue.schedule` from `ExecutionQueueService`, and `queue.schedule_pending` from the saga scheduler's 10-second job, which reads the depth and the running slots from Redis. So `queue_depth` and `queue_active` match the admin queue endpoint and survive restarts. The [metrics reference](../operations/metrics-reference.md#executions-and-queue) lists the series and their labels.

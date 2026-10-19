@@ -31,6 +31,20 @@ describe('route files', () => {
             mockApi(getCurrentUserProfileApiV1AuthMeGet).err({ status, detail });
             await expect(rootLoad({} as Parameters<typeof rootLoad>[0])).resolves.toEqual({ user: null });
         });
+
+        it.each([
+            ['rate limited', 429, 'Too many requests'],
+            ['failing', 500, 'Internal server error'],
+        ])(
+            'shows the error page when the session check is %s, without signing the user out',
+            async (_label, status, detail) => {
+                mockApi(getCurrentUserProfileApiV1AuthMeGet).err({ status, detail });
+                await expect(rootLoad({} as Parameters<typeof rootLoad>[0])).rejects.toMatchObject({
+                    status,
+                    body: { message: detail },
+                });
+            },
+        );
     });
 
     describe('(auth) group guard', () => {

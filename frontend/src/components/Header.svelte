@@ -11,6 +11,7 @@
         UserRole,
     } from '#lib/api/index.ts';
     import { setMode, userPrefersMode } from 'mode-watcher';
+    import { prefersReducedMotion } from 'svelte/motion';
     import { fade } from 'svelte/transition';
     import { MediaQuery } from 'svelte/reactivity';
     import NotificationCenter from '#components/NotificationCenter.svelte';
@@ -188,8 +189,8 @@
         <div
             data-testid="mobile-menu"
             class="lg:hidden absolute top-16 left-0 right-0 bg-surface shadow-lg border-t px-2 py-3 sm:px-3"
-            in:fade={{ duration: 150 }}
-            out:fade={{ duration: 100 }}
+            in:fade={{ duration: prefersReducedMotion.current ? 0 : 150 }}
+            out:fade={{ duration: prefersReducedMotion.current ? 0 : 100 }}
         >
             {#if page.data.user}
                 {@const user = page.data.user}

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { prefersReducedMotion } from 'svelte/motion';
     import { slide } from 'svelte/transition';
     import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
     import { List, Trash } from '@lucide/svelte';
@@ -59,7 +60,7 @@
         </button>
     </div>
     {#if show}
-        <div class="mt-2" transition:slide={{ duration: 200 }}>
+        <div class="mt-2" transition:slide={{ duration: prefersReducedMotion.current ? 0 : 200 }}>
             {#if scripts.length > 0}
                 <div class="saved-scripts-container border rounded-lg bg-page shadow-inner">
                     <ul class="divide-y">

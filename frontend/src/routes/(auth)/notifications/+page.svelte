@@ -1,6 +1,7 @@
 <script lang="ts">
     import { toast } from 'svelte-sonner';
     import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
+    import { prefersReducedMotion } from 'svelte/motion';
     import { fly } from 'svelte/transition';
     import Spinner from '#components/Spinner.svelte';
     import {
@@ -145,7 +146,7 @@
             {#each notifications as notification (notification.notification_id)}
                 {@const NotifIcon = notificationIcon(notification.tags)}
                 <article
-                    in:fly={{ y: 20, duration: 300 }}
+                    in:fly={{ y: 20, duration: prefersReducedMotion.current ? 0 : 300 }}
                     class={[
                         'card flex items-start gap-4 p-4',
                         notification.status !== NotificationStatus.READ && 'bg-info-soft border-info/30',

@@ -2,6 +2,7 @@
     import { resolve } from '$app/paths';
     import { goto } from '$app/navigation';
     import { toast } from 'svelte-sonner';
+    import { prefersReducedMotion } from 'svelte/motion';
     import { fade, fly } from 'svelte/transition';
     import * as z from 'zod/mini';
     import { createMutation } from '@tanstack/svelte-query';
@@ -79,7 +80,10 @@
     />
 </svelte:head>
 
-<div class="min-h-[60vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8" in:fade>
+<div
+    class="min-h-[60vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8"
+    in:fade={{ duration: prefersReducedMotion.current ? 0 : 400 }}
+>
     <div class="max-w-md w-full space-y-8">
         <div class="text-center">
             <h2 class="text-3xl font-bold">Create a new account</h2>
@@ -93,7 +97,7 @@
                 <p
                     class="mt-0 text-sm text-danger text-center"
                     data-testid="error-message"
-                    in:fly={{ y: -10, duration: 200 }}
+                    in:fly={{ y: -10, duration: prefersReducedMotion.current ? 0 : 200 }}
                 >
                     {error}
                 </p>

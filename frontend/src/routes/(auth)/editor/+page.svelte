@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { prefersReducedMotion } from 'svelte/motion';
     import { fade, slide } from 'svelte/transition';
     import { createQuery } from '@tanstack/svelte-query';
     import { CirclePlay, Settings, Lightbulb } from '@lucide/svelte';
@@ -52,7 +53,10 @@
     />
 </svelte:head>
 
-<div class="editor-grid-container space-y-4 md:space-y-0 md:gap-6" in:fade={{ duration: 300 }}>
+<div
+    class="editor-grid-container space-y-4 md:space-y-0 md:gap-6"
+    in:fade={{ duration: prefersReducedMotion.current ? 0 : 300 }}
+>
     <div class="editor-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h2 class="sm:text-2xl whitespace-nowrap">Code Editor</h2>
         <ResourceLimits />
@@ -117,7 +121,10 @@
             {#if showOptions}
                 <div
                     class="p-4 bg-surface border rounded-lg flex gap-x-4"
-                    transition:slide={{ duration: 300, easing: (t) => 1 - Math.pow(1 - t, 3) }}
+                    transition:slide={{
+                        duration: prefersReducedMotion.current ? 0 : 300,
+                        easing: (t) => 1 - Math.pow(1 - t, 3),
+                    }}
                 >
                     <div class="w-1/2">
                         <ScriptActions />

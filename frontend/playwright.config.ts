@@ -29,6 +29,8 @@ export default defineConfig({
   ],
   use: {
     baseURL: 'https://localhost:5001',
+    // The app's Svelte transitions honor it, so a click never lands on a list that is still sliding open
+    reducedMotion: 'reduce',
     ignoreHTTPSErrors: true,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

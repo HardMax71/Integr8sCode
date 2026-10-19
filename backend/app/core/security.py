@@ -6,11 +6,11 @@ from typing import Any, TypedDict
 import jwt
 from fastapi import Request
 from fastapi.security import OAuth2PasswordBearer
+from opentelemetry import trace
 from pwdlib import PasswordHash
 from pwdlib.hashers.bcrypt import BcryptHasher
 from pydantic import TypeAdapter, ValidationError
 
-from app.core.metrics import SecurityMetrics
 from app.domain.user import CSRFValidationError, InvalidCredentialsError
 from app.settings import Settings
 
@@ -30,9 +30,9 @@ _claims_adapter = TypeAdapter(AccessTokenClaims)
 
 
 class SecurityService:
-    def __init__(self, settings: Settings, security_metrics: SecurityMetrics) -> None:
+    def __init__(self, settings: Settings, tracer: trace.Tracer) -> None:
         self.settings = settings
-        self._security_metrics = security_metrics
+        self._tracer = tracer
         # --8<-- [start:password_hashing]
         self._password_hash = PasswordHash((BcryptHasher(rounds=self.settings.BCRYPT_ROUNDS),))
 
@@ -69,18 +69,18 @@ class SecurityService:
                 options={"verify_exp": not allow_expired},
             )
         except jwt.ExpiredSignatureError:
-            self._security_metrics.record_token_validation_failure("expired")
+            self._tracer.start_span("auth.token_rejected", attributes={"auth.reason": "expired"}).end()
             raise InvalidCredentialsError() from None
         except jwt.InvalidSignatureError:
-            self._security_metrics.record_token_validation_failure("invalid_signature")
+            self._tracer.start_span("auth.token_rejected", attributes={"auth.reason": "invalid_signature"}).end()
             raise InvalidCredentialsError() from None
         except jwt.PyJWTError:
-            self._security_metrics.record_token_validation_failure("invalid")
+            self._tracer.start_span("auth.token_rejected", attributes={"auth.reason": "invalid"}).end()
             raise InvalidCredentialsError() from None
         try:
             claims = _subject_adapter.validate_python(payload)
         except ValidationError:
-            self._security_metrics.record_token_validation_failure("missing_subject")
+            self._tracer.start_span("auth.token_rejected", attributes={"auth.reason": "missing_subject"}).end()
             raise InvalidCredentialsError() from None
         return claims["sub"]
 
@@ -175,15 +175,15 @@ class SecurityService:
         cookie_token = request.cookies.get("csrf_token", "")
 
         if not header_token:
-            self._security_metrics.record_csrf_validation_failure("missing_header")
+            self._tracer.start_span("auth.csrf_rejected", attributes={"auth.reason": "missing_header"}).end()
             raise CSRFValidationError("CSRF token missing from X-CSRF-Token header")
 
         if not self.validate_csrf_token(header_token, cookie_token):
-            self._security_metrics.record_csrf_validation_failure("token_mismatch")
+            self._tracer.start_span("auth.csrf_rejected", attributes={"auth.reason": "token_mismatch"}).end()
             raise CSRFValidationError("CSRF token invalid or does not match cookie")
 
         if not self._verify_csrf_signature(header_token, access_token):
-            self._security_metrics.record_csrf_validation_failure("invalid_signature")
+            self._tracer.start_span("auth.csrf_rejected", attributes={"auth.reason": "invalid_signature"}).end()
             raise CSRFValidationError("CSRF token signature invalid")
 
         return header_token

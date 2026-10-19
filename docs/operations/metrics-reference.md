@@ -24,7 +24,7 @@ The collector's metrics pipeline (`backend/otel-collector-config.yaml`) reads th
 
 ## Metrics made from spans
 
-Some metrics have no instrument in the code. A service puts the facts on a span, and the collector's `signaltometrics` connector (alpha in collector v0.162.0) turns them into counters, histograms and gauges, defined under `connectors` in `backend/otel-collector-config.yaml`. The SDK sends every span (`TRACING_SAMPLING_RATE = 1.0`), and the traces pipeline gives each span to the connector before `tail_sampling` decides what Jaeger keeps, so the counts don't depend on sampling. The connector emits a point only when a matching span arrives. Sent straight to VictoriaMetrics, a counter that sees one event every half hour would get one point every half hour, and `increase` and `rate` stop finding the previous point once two points are more than about 8 to 10 minutes apart (measured on v1.153.0): `increase` then counts the whole total again, and `rate` returns nothing. So counters and histograms go another way. `deltatocumulative` adds up the connector's deltas and keeps each total through 24 hours without spans (its default is 5 minutes, after which an idle counter would start again from zero). The collector's `prometheus` exporter serves the totals on `otel-collector:8889`, and VictoriaMetrics scrapes it every 15 seconds (`backend/victoria-metrics/scrape.yaml`, with `honor_labels` so each service's `job` and `instance` stay). A series the exporter hasn't updated for 24 hours drops out until its next span. Gauges still go by remote write, so a gauge goes stale when the job that reports it on a timer stops. Panels wrap counter rates in `or vector(0)` so a series that hasn't started yet reads 0. The execution, pod, queue, dead letter queue, notification and replay metrics work this way so far ([#389](https://github.com/HardMax71/Integr8sCode/issues/389)).
+Some metrics have no instrument in the code. A service puts the facts on a span, and the collector's `signaltometrics` connector (alpha in collector v0.162.0) turns them into counters, histograms and gauges, defined under `connectors` in `backend/otel-collector-config.yaml`. The SDK sends every span (`TRACING_SAMPLING_RATE = 1.0`), and the traces pipeline gives each span to the connector before `tail_sampling` decides what Jaeger keeps, so the counts don't depend on sampling. The connector emits a point only when a matching span arrives. Sent straight to VictoriaMetrics, a counter that sees one event every half hour would get one point every half hour, and `increase` and `rate` stop finding the previous point once two points are more than about 8 to 10 minutes apart (measured on v1.153.0): `increase` then counts the whole total again, and `rate` returns nothing. So counters and histograms go another way. `deltatocumulative` adds up the connector's deltas and keeps each total through 24 hours without spans (its default is 5 minutes, after which an idle counter would start again from zero). The collector's `prometheus` exporter serves the totals on `otel-collector:8889`, and VictoriaMetrics scrapes it every 15 seconds (`backend/victoria-metrics/scrape.yaml`, with `honor_labels` so each service's `job` and `instance` stay). A series the exporter hasn't updated for 24 hours drops out until its next span. Gauges still go by remote write, so a gauge goes stale when the job that reports it on a timer stops. Panels wrap counter rates in `or vector(0)` so a series that hasn't started yet reads 0. The execution, pod, queue, dead letter queue, notification, replay, security and rate limit metrics work this way so far ([#389](https://github.com/HardMax71/Integr8sCode/issues/389)).
 
 ## Names and labels in VictoriaMetrics
 
@@ -156,30 +156,32 @@ The status snapshot a stream sends first comes from the database, not Redis, and
 
 ### Authentication and authorization (backend)
 
-| Metric | Type | Labels | Recorded in |
-|--------|------|--------|-------------|
-| `authentication_attempts_total` | counter | method, success | `AuthService.login` through `track_authentication`; method is `login` |
-| `authentication_failures_total` | counter | method | the same |
-| `authentication_duration_seconds` | histogram | method | the same |
-| `accounts_locked_total` | counter | reason: brute_force | `AuthService`, when a failed login triggers the lockout |
-| `brute_force_attempts_total` | counter | none | `AuthService.login`, a login against an account that is already locked |
-| `weak_password_attempts_total` | counter | weakness_type: too_short | `AuthService.register` |
-| `token_validation_failures_total` | counter | reason: expired, invalid_signature, invalid, missing_subject | `SecurityService.decode_token` |
-| `csrf_validation_failures_total` | counter | reason: missing_header, token_mismatch, invalid_signature | `SecurityService.validate_csrf_from_request` |
-| `authorization_checks_total` | counter | resource, action, allowed, user_role | `AuthService.get_admin`, on every admin route |
-| `authorization_denials_total` | counter | resource, action, user_role | the same |
-| `password_reset_requests_total` | counter | method: admin | `AdminUserService` |
+Each login runs in an `auth.login` span; the other events leave a span named in the table where the code used to record the metric.
+
+| Metric | Type | Labels | Recorded from |
+|--------|------|--------|---------------|
+| `authentication_attempts_total` | counter | auth_method, auth_success | span `auth.login` from `AuthService.login`; the method is `login` |
+| `authentication_failures_total` | counter | auth_method | the same span with `auth.success` false |
+| `authentication_duration_seconds` | histogram | auth_method | the length of that span |
+| `accounts_locked_total` | counter | auth_reason: brute_force | span `auth.account_locked`, when a failed login triggers the lockout |
+| `brute_force_attempts_total` | counter | none | span `auth.locked_login`, a login against an account that is already locked |
+| `weak_password_attempts_total` | counter | auth_weakness_type: too_short | span `auth.weak_password` from `AuthService.register` |
+| `token_validation_failures_total` | counter | auth_reason: expired, invalid_signature, invalid, missing_subject | span `auth.token_rejected` from `SecurityService.decode_token` |
+| `csrf_validation_failures_total` | counter | auth_reason: missing_header, token_mismatch, invalid_signature | span `auth.csrf_rejected` from `SecurityService.validate_csrf_from_request` |
+| `authorization_checks_total` | counter | auth_resource, auth_action, auth_allowed, auth_user_role | span `auth.authorization` from `AuthService.get_admin`, on every admin route |
+| `authorization_denials_total` | counter | auth_resource, auth_action, auth_user_role | the same span with `auth.allowed` false |
+| `password_reset_requests_total` | counter | auth_method: admin | span `auth.password_reset` from `AdminUserService` |
 
 ### Rate limiting (backend)
 
-`RateLimitService.check_rate_limit`, called from `RateLimitMiddleware`. `endpoint` is the path with UUIDs and any segment of 20 or more letters and digits replaced by `*`. Shorter IDs such as `/42` stay as they are.
+`RateLimitService.check_rate_limit`, called from `RateLimitMiddleware`, leaves a `rate_limit.request` span for each check and a `rate_limit.decision` span when a rule applies. `rate_limit_endpoint` is the path with UUIDs and any segment of 20 or more letters and digits replaced by `*`. Shorter IDs such as `/42` stay as they are.
 
-| Metric | Type | Labels | Notes |
-|--------|------|--------|-------|
-| `rate_limit_requests_total` | counter | endpoint, authenticated, algorithm | the matched rule's algorithm, or `bypassed` and `no_limit` |
-| `rate_limit_allowed_total` | counter | endpoint, group | |
-| `rate_limit_rejected_total` | counter | endpoint, group | |
-| `rate_limit_bypass_total` | counter | endpoint | users with `bypass_rate_limit` |
+| Metric | Type | Labels | Recorded from |
+|--------|------|--------|---------------|
+| `rate_limit_requests_total` | counter | rate_limit_endpoint, rate_limit_authenticated, rate_limit_algorithm | `rate_limit.request`: the matched rule's algorithm, or `bypassed`, `no_limit` and `redis_error` |
+| `rate_limit_allowed_total` | counter | rate_limit_endpoint, rate_limit_group | `rate_limit.decision` with `rate_limit.allowed` true |
+| `rate_limit_rejected_total` | counter | rate_limit_endpoint, rate_limit_group | the same span with `rate_limit.allowed` false |
+| `rate_limit_bypass_total` | counter | rate_limit_endpoint | `rate_limit.request` with algorithm `bypassed`: users with `bypass_rate_limit` |
 
 ### Dead letter queue
 
@@ -246,7 +248,7 @@ sum(rate(rate_limit_rejected_total[5m])) / sum(rate(rate_limit_requests_total[5m
 sum by (messaging_destination_name) (rate(messaging_publish_messages_message_total[5m]))
 
 # rejected access tokens by reason
-sum by (reason) (rate(token_validation_failures_total[5m]))
+sum by (auth_reason) (rate(token_validation_failures_total[5m]))
 
 # MongoDB cache hit ratio
 sum(rate(mongodb_cache_operations_total{type="hit"}[5m])) / sum(rate(mongodb_cache_operations_total[5m]))

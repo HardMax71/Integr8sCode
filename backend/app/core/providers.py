@@ -16,8 +16,6 @@ from app.core.metrics import (
     ConnectionMetrics,
     EventMetrics,
     IdempotencyMetrics,
-    RateLimitMetrics,
-    SecurityMetrics,
 )
 from app.core.security import SecurityService
 from app.core.tracing import Tracer
@@ -143,18 +141,18 @@ class RedisProvider(Provider):
         self,
         redis_client: redis.Redis,
         settings: Settings,
-        rate_limit_metrics: RateLimitMetrics,
+        tracer: trace.Tracer,
         logger: structlog.stdlib.BoundLogger,
     ) -> RateLimitService:
-        return RateLimitService(redis_client, settings, rate_limit_metrics, logger)
+        return RateLimitService(redis_client, settings, tracer, logger)
 
 
 class CoreServicesProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_security_service(self, settings: Settings, security_metrics: SecurityMetrics) -> SecurityService:
-        return SecurityService(settings, security_metrics)
+    def get_security_service(self, settings: Settings, tracer: trace.Tracer) -> SecurityService:
+        return SecurityService(settings, tracer)
 
     @provide
     def get_tracer(
@@ -258,16 +256,8 @@ class MetricsProvider(Provider):
         return ConnectionMetrics(settings)
 
     @provide
-    def get_rate_limit_metrics(self, settings: Settings) -> RateLimitMetrics:
-        return RateLimitMetrics(settings)
-
-    @provide
     def get_idempotency_metrics(self, settings: Settings) -> IdempotencyMetrics:
         return IdempotencyMetrics(settings)
-
-    @provide
-    def get_security_metrics(self, settings: Settings) -> SecurityMetrics:
-        return SecurityMetrics(settings)
 
 
 class RepositoryProvider(Provider):
@@ -360,7 +350,7 @@ class AuthProvider(Provider):
         self,
         user_repository: UserRepository,
         security_service: SecurityService,
-        security_metrics: SecurityMetrics,
+        tracer: trace.Tracer,
         logger: structlog.stdlib.BoundLogger,
         lockout_service: LoginLockoutService,
         runtime_settings: RuntimeSettingsLoader,
@@ -370,7 +360,7 @@ class AuthProvider(Provider):
         return AuthService(
             user_repo=user_repository,
             security_service=security_service,
-            security_metrics=security_metrics,
+            tracer=tracer,
             logger=logger,
             lockout_service=lockout_service,
             runtime_settings=runtime_settings,
@@ -560,7 +550,7 @@ class BusinessServicesProvider(Provider):
         execution_service: ExecutionService,
         rate_limit_service: RateLimitService,
         security_service: SecurityService,
-        security_metrics: SecurityMetrics,
+        tracer: trace.Tracer,
         logger: structlog.stdlib.BoundLogger,
     ) -> AdminUserService:
         return AdminUserService(
@@ -569,7 +559,7 @@ class BusinessServicesProvider(Provider):
             execution_service=execution_service,
             rate_limit_service=rate_limit_service,
             security_service=security_service,
-            security_metrics=security_metrics,
+            tracer=tracer,
             logger=logger,
         )
 

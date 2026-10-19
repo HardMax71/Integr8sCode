@@ -1,12 +1,12 @@
 import time
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock
 from uuid import uuid4
 
 import jwt
 import pytest
+from opentelemetry import trace
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from app.core.metrics import SecurityMetrics
 from app.core.security import SecurityService
 from app.domain.enums import UserRole
 from app.domain.user import InvalidCredentialsError
@@ -17,9 +17,9 @@ class TestPasswordHashing:
     """Test password hashing functionality."""
 
     @pytest.fixture
-    def security_svc(self, test_settings: Settings, security_metrics: SecurityMetrics) -> SecurityService:
+    def security_svc(self, test_settings: Settings, tracer: trace.Tracer) -> SecurityService:
         """Create SecurityService instance."""
-        return SecurityService(test_settings, security_metrics)
+        return SecurityService(test_settings, tracer)
 
     def test_password_hash_creates_different_hash(self, security_svc: SecurityService) -> None:
         """Test that password hashing creates unique hashes."""
@@ -74,9 +74,9 @@ class TestSecurityService:
     """Test SecurityService functionality."""
 
     @pytest.fixture
-    def security_service(self, test_settings: Settings, security_metrics: SecurityMetrics) -> SecurityService:
+    def security_service(self, test_settings: Settings, tracer: trace.Tracer) -> SecurityService:
         """Create SecurityService instance using test settings."""
-        return SecurityService(test_settings, security_metrics)
+        return SecurityService(test_settings, tracer)
 
     def test_create_access_token_basic(self, security_service: SecurityService) -> None:
         """Test basic access token creation."""
@@ -172,8 +172,8 @@ class TestDecodeToken:
     """Test SecurityService.decode_token method."""
 
     @pytest.fixture
-    def security_service(self, test_settings: Settings, security_metrics: SecurityMetrics) -> SecurityService:
-        return SecurityService(test_settings, security_metrics)
+    def security_service(self, test_settings: Settings, tracer: trace.Tracer) -> SecurityService:
+        return SecurityService(test_settings, tracer)
 
     def test_valid_token_returns_username(self, security_service: SecurityService) -> None:
         token = security_service.create_access_token({"sub": "testuser"}, expires_delta=timedelta(minutes=15))
@@ -225,9 +225,10 @@ class TestDecodeToken:
         lifetime: timedelta,
         key: str | None,
         reason: str,
+        tracer: trace.Tracer,
+        span_exporter: InMemorySpanExporter,
     ) -> None:
-        metrics = MagicMock(spec=SecurityMetrics)
-        svc = SecurityService(test_settings, metrics)
+        svc = SecurityService(test_settings, tracer)
         token = (
             "not.a.token"
             if claims is None
@@ -241,22 +242,24 @@ class TestDecodeToken:
         with pytest.raises(InvalidCredentialsError):
             svc.decode_token(token)
 
-        metrics.record_token_validation_failure.assert_called_once_with(reason)
+        [span] = span_exporter.get_finished_spans()
+        assert (span.name, span.attributes) == ("auth.token_rejected", {"auth.reason": reason})
 
-    def test_valid_token_records_no_failure(self, test_settings: Settings) -> None:
-        metrics = MagicMock(spec=SecurityMetrics)
-        svc = SecurityService(test_settings, metrics)
+    def test_valid_token_records_no_failure(
+        self, test_settings: Settings, tracer: trace.Tracer, span_exporter: InMemorySpanExporter
+    ) -> None:
+        svc = SecurityService(test_settings, tracer)
 
         svc.decode_token(svc.create_access_token({"sub": "u"}, expires_delta=timedelta(minutes=5)))
 
-        metrics.record_token_validation_failure.assert_not_called()
+        assert span_exporter.get_finished_spans() == ()
 
 
 class TestDecodeUserId:
     """SecurityService.decode_user_id gives an id only for a valid token that carries one."""
 
-    def test_valid_token_returns_user_id(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
-        svc = SecurityService(test_settings, security_metrics)
+    def test_valid_token_returns_user_id(self, test_settings: Settings, tracer: trace.Tracer) -> None:
+        svc = SecurityService(test_settings, tracer)
         token = svc.create_access_token({"sub": "u", "user_id": "user-1"}, expires_delta=timedelta(minutes=5))
 
         assert svc.decode_user_id(token) == "user-1"
@@ -272,10 +275,15 @@ class TestDecodeUserId:
         ids=["expired", "wrong_signature", "no_user_id", "malformed"],
     )
     def test_unusable_token_raises_without_counting_a_failure(
-        self, test_settings: Settings, claims: dict[str, object] | None, lifetime: timedelta, key: str | None
+        self,
+        test_settings: Settings,
+        tracer: trace.Tracer,
+        span_exporter: InMemorySpanExporter,
+        claims: dict[str, object] | None,
+        lifetime: timedelta,
+        key: str | None,
     ) -> None:
-        metrics = MagicMock(spec=SecurityMetrics)
-        svc = SecurityService(test_settings, metrics)
+        svc = SecurityService(test_settings, tracer)
         token = (
             "not.a.token"
             if claims is None
@@ -288,4 +296,4 @@ class TestDecodeUserId:
 
         with pytest.raises(InvalidCredentialsError):
             svc.decode_user_id(token)
-        metrics.record_token_validation_failure.assert_not_called()
+        assert span_exporter.get_finished_spans() == ()

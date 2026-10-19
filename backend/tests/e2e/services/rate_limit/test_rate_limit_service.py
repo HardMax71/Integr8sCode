@@ -4,8 +4,8 @@ from uuid import uuid4
 import pytest
 import redis.asyncio as redis
 import structlog
+from opentelemetry import trace
 
-from app.core.metrics import RateLimitMetrics
 from app.domain.rate_limit import (
     EndpointGroup,
     RateLimitAlgorithm,
@@ -20,12 +20,10 @@ pytestmark = [pytest.mark.e2e]
 
 
 @pytest.fixture
-async def svc(
-    redis_client: redis.Redis, rate_limit_metrics: RateLimitMetrics, test_settings: Settings
-) -> RateLimitService:
+async def svc(redis_client: redis.Redis, test_settings: Settings) -> RateLimitService:
     """A service of its own, so a test's config and counters live under a prefix no other test reads."""
     settings = test_settings.model_copy(update={"RATE_LIMIT_REDIS_PREFIX": f"rate_limit_test:{uuid4().hex}:"})
-    return RateLimitService(redis_client, settings, rate_limit_metrics, structlog.get_logger("test"))
+    return RateLimitService(redis_client, settings, trace.NoOpTracer(), structlog.get_logger("test"))
 
 
 async def test_normalize_and_bypass_and_no_rule(svc: RateLimitService) -> None:
@@ -177,7 +175,7 @@ async def test_sliding_window_pipeline_failure(test_settings: Settings) -> None:
     client.sadd = AsyncMock()
     client.pipeline = MagicMock()
     client.pipeline.return_value.execute = AsyncMock(side_effect=ConnectionError("Pipeline failed"))
-    svc = RateLimitService(client, test_settings, MagicMock(spec=RateLimitMetrics), structlog.get_logger("test"))
+    svc = RateLimitService(client, test_settings, trace.NoOpTracer(), structlog.get_logger("test"))
     rule = RateLimitRule(
         endpoint_pattern=r"^/api",
         group=EndpointGroup.API,
@@ -211,7 +209,7 @@ async def test_token_bucket_invalid_data(svc: RateLimitService) -> None:
 async def test_update_config_serialization_error(test_settings: Settings) -> None:
     client = AsyncMock(spec=redis.Redis)
     client.set.side_effect = ValueError("Serialization failed")
-    svc = RateLimitService(client, test_settings, MagicMock(spec=RateLimitMetrics), structlog.get_logger("test"))
+    svc = RateLimitService(client, test_settings, trace.NoOpTracer(), structlog.get_logger("test"))
 
     with pytest.raises(ValueError):
         await svc.update_config(RateLimitConfig(default_rules=[]))
@@ -230,7 +228,7 @@ async def test_user_without_override_gets_the_defaults(svc: RateLimitService) ->
 async def test_reset_user_limits_error(test_settings: Settings) -> None:
     client = AsyncMock(spec=redis.Redis)
     client.smembers.side_effect = ConnectionError("smembers failed")
-    svc = RateLimitService(client, test_settings, MagicMock(spec=RateLimitMetrics), structlog.get_logger("test"))
+    svc = RateLimitService(client, test_settings, trace.NoOpTracer(), structlog.get_logger("test"))
 
     with pytest.raises(ConnectionError):
         await svc.reset_user_limits("user")

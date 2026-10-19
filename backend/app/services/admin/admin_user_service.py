@@ -2,8 +2,8 @@ import math
 from datetime import datetime, timedelta, timezone
 
 import structlog
+from opentelemetry import trace
 
-from app.core.metrics import SecurityMetrics
 from app.core.security import SecurityService
 from app.db import UserRepository
 from app.domain.admin import AdminUserOverviewDomain, DerivedCountsDomain
@@ -39,7 +39,7 @@ class AdminUserService:
         execution_service: ExecutionService,
         rate_limit_service: RateLimitService,
         security_service: SecurityService,
-        security_metrics: SecurityMetrics,
+        tracer: trace.Tracer,
         logger: structlog.stdlib.BoundLogger,
     ) -> None:
         self._users = user_repository
@@ -47,7 +47,7 @@ class AdminUserService:
         self._executions = execution_service
         self._rate_limits = rate_limit_service
         self._security = security_service
-        self._security_metrics = security_metrics
+        self._tracer = tracer
         self.logger = logger
 
     async def get_user_overview(self, user_id: str, hours: int = 24) -> AdminUserOverviewDomain:
@@ -266,7 +266,7 @@ class AdminUserService:
 
     async def reset_user_password(self, *, admin_user_id: str, user_id: str, new_password: str) -> None:
         self.logger.info("Admin resetting user password", admin_user_id=admin_user_id, target_user_id=user_id)
-        self._security_metrics.record_password_reset_request(method="admin")
+        self._tracer.start_span("auth.password_reset", attributes={"auth.method": "admin"}).end()
         hashed = self._security.get_password_hash(new_password)
         pr = PasswordReset(user_id=user_id, new_password=hashed)
         if not await self._users.reset_user_password(pr):

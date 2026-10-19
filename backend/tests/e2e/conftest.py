@@ -13,7 +13,6 @@ from fastapi import FastAPI
 from httpx2 import AsyncClient
 from starlette.types import ASGIApp, Message, Scope
 
-from app.core.metrics import RateLimitMetrics
 from app.core.security import SecurityService
 from app.db.docs import EventDocument, NotificationDocument
 from app.db.docs.saga import SagaDocument
@@ -263,11 +262,6 @@ async def admin_settings_repository(scope: AsyncContainer) -> AdminSettingsRepos
 @pytest.fixture
 async def admin_events_repository(scope: AsyncContainer) -> AdminEventsRepository:
     return await scope.get(AdminEventsRepository)
-
-
-@pytest.fixture
-async def rate_limit_metrics(scope: AsyncContainer) -> RateLimitMetrics:
-    return await scope.get(RateLimitMetrics)
 
 
 @pytest.fixture

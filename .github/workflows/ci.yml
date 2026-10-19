@@ -20,8 +20,6 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   K3S_IMAGE: rancher/k3s:v1.37.1-k3s1@sha256:ca7f37d993d82ef0dcdcfecb2e0e2618ea541dbaffc620c8cedebe01a82acd0d
-  KUEUE_VERSION: v0.20.1
-  KUEUE_MANIFEST_SHA256: c48514295365aae0c7dc578c70330befdd0015fec57cb4a06ba872bbef8750dd
 
 jobs:
   changes:
@@ -52,7 +50,7 @@ jobs:
               - 'frontend/**'
             infra:
               - *workflow
-              - 'cert-generator/**'
+              - '.env.example'
               - 'docker-compose.yaml'
               - 'deploy.sh'
               - '.github/actions/**'
@@ -432,7 +430,7 @@ jobs:
         id: base-cache
         with:
           path: /tmp/base-image.tar.zst
-          key: base-image-${{ runner.os }}-${{ hashFiles('backend/Dockerfile.base', 'backend/pyproject.toml', 'backend/uv.lock') }}
+          key: base-image-${{ runner.os }}-${{ hashFiles('backend/Dockerfile', 'backend/pyproject.toml', 'backend/uv.lock') }}
 
       - name: Load base image from cache
         if: steps.base-cache.outputs.cache-hit == 'true'
@@ -443,7 +441,8 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: ./backend
-          file: ./backend/Dockerfile.base
+          file: ./backend/Dockerfile
+          target: base
           load: true
           tags: integr8scode-base:latest
           cache-from: type=gha,scope=backend-base
@@ -453,23 +452,12 @@ jobs:
         if: steps.base-cache.outputs.cache-hit != 'true'
         run: docker save integr8scode-base:latest | zstd -T0 -3 > /tmp/base-image.tar.zst
 
-      # ── Backend (depends on local base image) ───────────────
+      # ── Backend (the cached base image stands in for the Dockerfile's base stage) ───────────────
       - name: Build backend image
         run: |
           docker build -t integr8scode-backend:latest \
             --build-context base=docker-image://integr8scode-base:latest \
             -f ./backend/Dockerfile ./backend
-
-      # ── Utility images (GHA-cached, independent of base) ────────────
-      - name: Build cert-generator image
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
-        with:
-          context: ./cert-generator
-          file: ./cert-generator/Dockerfile
-          load: true
-          tags: integr8scode-cert-generator:latest
-          cache-from: type=gha,scope=cert-generator
-          cache-to: type=gha,mode=max,scope=cert-generator
 
       # ── Frontend (nginx + SSL) ─────────────────────────────────────
       - name: Build frontend image
@@ -490,14 +478,12 @@ jobs:
           IMG: ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}
         run: |
           # Tag all images for GHCR
-          docker tag integr8scode-base:latest "$IMG/base:$TAG"
           docker tag integr8scode-backend:latest "$IMG/backend:$TAG"
-          docker tag integr8scode-cert-generator:latest "$IMG/cert-generator:$TAG"
           docker tag integr8scode-frontend:latest "$IMG/frontend:$TAG"
 
-          # Push all 4 images in parallel, tracking each PID
+          # Push both images in parallel, tracking each PID
           declare -A PIDS
-          for name in base backend cert-generator frontend; do
+          for name in backend frontend; do
             docker push "$IMG/$name:$TAG" &
             PIDS[$name]=$!
           done
@@ -606,7 +592,6 @@ jobs:
         with:
           image-tag: ${{ needs.build-images.outputs.sha-tag }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          install-kueue: 'false'
 
       # Phase 2: Node + Playwright setup (overlaps with k3s boot + image pull)
       - name: Setup Node.js
@@ -642,7 +627,6 @@ jobs:
         with:
           image-tag: ${{ needs.build-images.outputs.sha-tag }}
           wait-for-frontend: 'true'
-          install-kueue: 'false'
 
       - name: Run Playwright tests
         timeout-minutes: 10

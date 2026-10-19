@@ -30,11 +30,11 @@ Integr8sCode runs user scripts in Python, Node.js, Ruby, Bash or Go, each in its
 
 ![System diagram](/assets/images/system_diagram.svg)
 
-The browser loads the SPA from the frontend container, an nginx on port 5001 that also proxies `/api` to the backend over HTTPS. The backend runs FastAPI under Gunicorn with Uvicorn workers and serves both REST and SSE. Kafka runs in KRaft mode and creates topics on first use, so there is no topic setup step. Events travel as JSON that FastStream serializes from the Pydantic models.
+The browser loads the SPA from the frontend container, an nginx that serves HTTPS on port 5001 and proxies `/api` to the backend over HTTPS, checking the backend's own certificate. The backend runs FastAPI under Gunicorn with Uvicorn workers and serves both REST and SSE. Kafka runs in KRaft mode and creates topics on first use, so there is no topic setup step. Events travel as JSON that FastStream serializes from the Pydantic models.
 
 The worker is one more container from the same backend image, running `python -m app.worker`. Inside it, the k8s worker creates pods through the Kubernetes API, the pod monitor watches them, the result processor writes results to MongoDB, and the saga orchestrator schedules executions with a Redis-backed queue and tracks sagas in MongoDB. A DLQ job retries failed events every 10 seconds.
 
-The observability profile adds an OpenTelemetry Collector that ships traces to Jaeger, metrics to VictoriaMetrics and logs to Loki, with Grafana on top of all three. Kafdrop is under the debug profile. The cert-generator creates TLS certificates for the frontend and backend from a shared CA, and it also prepares the cluster: it creates the `integr8scode` namespace, installs Kueue, sets up a service account with RBAC and writes the kubeconfig the backend containers use.
+The observability profile adds an OpenTelemetry Collector that ships traces to Jaeger, metrics to VictoriaMetrics and logs to Loki, with Grafana on top of all three. Kafdrop is under the debug profile. No container runs once and exits. nginx and the backend each make their own TLS certificate when they first start, and the backend seeds the users before it serves. The worker reads k3s's own kubeconfig and creates the `integr8scode` namespace with its NetworkPolicy and ResourceQuota.
 
 ## Backend wiring
 
@@ -112,7 +112,7 @@ sequenceDiagram
 
 The rate limit middleware has already run by the time the route sees the request. If the client sent an `Idempotency-Key` header it used before, the [idempotency](idempotency.md) layer returns the earlier execution instead of creating a new one, or 409 while that first request is still in flight. Otherwise the execution service checks the language and version against the [runtime registry](runtime-registry.md) and rejects an unknown pair with 422. Then it stores the execution in MongoDB, publishes `execution_requested` and answers with the execution ID and its status.
 
-The saga orchestrator puts the request into the [execution queue](execution-queue.md) and, once a slot is free, runs the saga steps, the last of which publishes `create_pod_command`. The k8s worker creates a ConfigMap with the script and a hardened pod, then publishes `pod_created`, or `execution_failed` if the Kubernetes API refused. The pod monitor watches the pod and publishes `pod_scheduled`, `pod_running` and finally one of `execution_completed`, `execution_failed` or `execution_timeout`. Then it deletes the pod, which frees the Kueue quota, and Kubernetes garbage-collects the ConfigMap through its owner reference.
+The saga orchestrator puts the request into the [execution queue](execution-queue.md) and, once a slot is free, runs the saga steps, the last of which publishes `create_pod_command`. The k8s worker creates a ConfigMap with the script and a hardened pod, then publishes `pod_created`, or `execution_failed` if the Kubernetes API refused. The pod monitor watches the pod and publishes `pod_scheduled`, `pod_running` and finally one of `execution_completed`, `execution_failed` or `execution_timeout`. Then it deletes the pod, which frees its share of the ResourceQuota, and Kubernetes garbage-collects the ConfigMap through its owner reference.
 
 The result processor writes the final state and output to MongoDB and publishes `result_stored`, or `result_failed` if it couldn't. The saga orchestrator also listens for the terminal events: it marks the saga done, releases the queue slot and schedules the next execution.
 

@@ -42,7 +42,7 @@ The saga orchestrator puts each request into the execution queue and runs the sa
 
 The k8s worker creates a ConfigMap holding the script and the entrypoint, then the pod, then sets the pod as the ConfigMap's owner so Kubernetes deletes both together. The pod runs as user 1000 with a read-only root filesystem, all capabilities dropped, seccomp `RuntimeDefault`, no service account token, no service links and no host namespaces. The worker refuses to start if `K8S_NAMESPACE` is `default`.
 
-The pod monitor lists and then watches pods labelled `app=integr8s,component=executor`. Each watch window lasts up to 30 seconds, and an APScheduler job checks every 5 seconds and opens the next one once the last has ended. It maps pod phases to events, reads the exit code, resource usage and output from the termination message and logs, and deletes the pod once it has published a terminal execution event. Deleting the pod frees the Kueue quota for the next one.
+The pod monitor lists and then watches pods labelled `app=integr8s,component=executor`. Each watch window lasts up to 30 seconds, and an APScheduler job checks every 5 seconds and opens the next one once the last has ended. It maps pod phases to events, reads the exit code, resource usage and output from the termination message and logs, and deletes the pod once it has published a terminal execution event. Deleting the pod frees its share of the ResourceQuota for the next one.
 
 The result processor writes the final status, output and resource usage to MongoDB and records execution metrics. It doesn't touch Kubernetes.
 

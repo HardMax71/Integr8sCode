@@ -29,12 +29,11 @@ updates:
       - dependency-name: "typescript"
         versions: [">=7.0.0"]
 
-  # Docker base images, one entry so one group covers all three Dockerfiles
+  # Docker base images, one entry so one group covers both Dockerfiles
   - package-ecosystem: "docker"
     directories:
       - "/backend"
       - "/frontend"
-      - "/cert-generator"
     schedule:
       interval: "weekly"
     commit-message:

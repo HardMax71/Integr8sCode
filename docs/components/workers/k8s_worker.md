@@ -44,7 +44,7 @@ Before it consumes anything, the worker applies two things to the executor names
 
 It also applies the `runtime-image-pre-puller` DaemonSet, which pulls every image in the runtime registry on each node. The worker doesn't wait for those pulls, so an execution that arrives before they finish still waits for its image.
 
-Executor pods also carry the label `kueue.x-k8s.io/queue-name: executor-queue`, which points at the Kueue LocalQueue that `cert-generator/setup-k8s.sh` creates in the `integr8scode` namespace. That script sets up no other namespace, so a different `K8S_NAMESPACE` needs its own LocalQueue.
+Every executor pod counts against the `executor-quota` ResourceQuota that the worker applies to its namespace on start (`K8S_NAMESPACE_CPU_QUOTA` and `K8S_NAMESPACE_MEMORY_QUOTA`, 32 CPU and 4Gi of requests). A pod over the quota is refused with `403 Forbidden`, and the worker publishes `pod_creation_failed`.
 
 ## Key files
 

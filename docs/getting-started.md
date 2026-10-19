@@ -1,6 +1,6 @@
 # Getting started
 
-You need Docker with Compose and a Kubernetes cluster that kubectl on your machine can reach. Docker alone isn't enough: every script runs in a Kubernetes pod, and there's no Docker fallback. The project runs on k3s, locally and in CI.
+You need Docker with Compose and k3s on the same machine. Docker alone isn't enough: every script runs in a Kubernetes pod, and there's no Docker fallback. The project runs on k3s, locally and in CI.
 
 ## Set up k3s
 
@@ -12,7 +12,7 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --bind-addres
 
 CI also passes `--disable-network-policy` to dodge the iptables race under [Troubleshooting](#troubleshooting). Leave it out here: without the policy controller, k3s doesn't enforce the NetworkPolicy that cuts executor pods off the network.
 
-On startup the `cert-generator` container looks for the cluster through `~/.kube` and `/etc/rancher/k3s`. When it finds one, it creates the `integr8scode` namespace, installs Kueue, sets up a service account and writes `backend/kubeconfig.yaml` for the workers. When it can't connect, it logs "Cannot connect to Kubernetes cluster" and skips all of that. The rest of the stack still starts and you can log in, but the worker has no kubeconfig and keeps restarting, so scripts stay queued forever.
+That's all the cluster needs. The worker reads k3s's own kubeconfig from `/etc/rancher/k3s/k3s.yaml`, talks to `https://host.docker.internal:6443` (the name the `--tls-san` flag puts on k3s's certificate) and on start creates the `integr8scode` namespace with its Pod Security labels, NetworkPolicy and ResourceQuota.
 
 ## Start the stack
 
@@ -22,12 +22,12 @@ cd Integr8sCode
 ./deploy.sh dev
 ```
 
-The first start pulls or builds the images and takes a few minutes. Secrets (JWT key, MongoDB and Redis passwords) come from environment variables with dev defaults, so there's nothing to copy or fill in. Add `--wait` to block until every service is running, and healthy where it has a healthcheck.
+The first start pulls or builds the images and takes a few minutes. On its first run `./deploy.sh dev` copies `.env.example` to `.env`, which holds the local secrets (JWT key, MongoDB and Redis passwords, the two logins), so there's nothing to fill in. Add `--wait` to block until every service is running, and healthy where it has a healthcheck.
 
 Check the backend:
 
 ```bash
-curl -k https://localhost/api/v1/health/live
+curl -k https://localhost:5001/api/v1/health/live
 ```
 
 ```json
@@ -36,7 +36,7 @@ curl -k https://localhost/api/v1/health/live
 
 ## Log in and run a script
 
-Open [https://localhost:5001](https://localhost:5001) and accept the self-signed certificate. Log in with username `user` and password `user123`. For the admin pages (events, executions, sagas, users, system settings) use `admin` / `admin123`. A one-shot `user-seed` container creates both accounts, or resets their passwords, on every start. Set `DEFAULT_USER_PASSWORD` and `ADMIN_USER_PASSWORD` before deploying anywhere that isn't your laptop.
+Open [https://localhost:5001](https://localhost:5001) and accept the self-signed certificate. Log in with username `user` and password `user123`. For the admin pages (events, executions, sagas, users, system settings) use `admin` / `admin123`. The backend creates both accounts, or resets their passwords, every time it starts. Anywhere that isn't your laptop, put your own values in `.env`.
 
 After login you land in the editor, which starts with a small Python script. Click **Run Script** and the editor shows the status while the pod runs, then the output once it finishes. The language picker offers what the runtime registry lists: Python 3.14, 3.13, 3.12 and 3.11, Node 26, 24 and 22, Ruby 4.0, 3.4 and 3.3, Go 1.27 and 1.26, and Bash 5.3.
 
@@ -66,7 +66,7 @@ Kafdrop, Grafana and Jaeger aren't part of the default stack. `./deploy.sh dev -
 
 ## Troubleshooting
 
-If scripts stay queued, check `docker compose logs cert-generator` for the connection error above, then `docker compose logs worker`. A k3s that stopped after a VPN or IP change is covered in [Deployment](operations/deployment.md).
+If scripts stay queued, check `docker compose logs worker`, which logs the Kubernetes error when it can't reach k3s. A k3s that stopped after a VPN or IP change is covered in [Deployment](operations/deployment.md).
 
 If every service times out talking to mongo or kafka right after k3s started or restarted, k3s's policy sync probably wiped Docker's iptables rules ([kube-router#1248](https://github.com/cloudnativelabs/kube-router/issues/1248)). `docker compose down` followed by `./deploy.sh dev` recreates the network and its rules.
 

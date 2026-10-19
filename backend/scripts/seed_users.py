@@ -5,15 +5,17 @@ Seed default users in MongoDB (idempotent - safe to run multiple times).
 Creates:
   1. Default user (role=user) for testing/demo
   2. Admin user (role=admin, is_superuser=True) for administration
+  3. The collector's monitoring user, with a role that can only read server and index stats
 
 Also drops duplicate system settings documents, which an old get-or-insert race could create
 and which would stop the unique settings_id index from building, and rewrites the stored theme
-"auto" to its current name "system". Compose starts the API and the workers only after this
-script succeeds.
+"auto" to its current name "system". The backend container runs this script before gunicorn
+starts, and the worker starts once the backend is healthy.
 
-Uses main Settings for MongoDB connection. Password env vars are script-specific:
-  DEFAULT_USER_PASSWORD: Default user password (default: user123)
-  ADMIN_USER_PASSWORD: Admin user password (default: admin123)
+Uses main Settings for MongoDB connection. Password env vars are script-specific and required:
+  DEFAULT_USER_PASSWORD: Default user password
+  ADMIN_USER_PASSWORD: Admin user password
+  MONGO_MONITOR_USER, MONGO_MONITOR_PASSWORD: the collector's mongodb receiver login
 """
 
 import asyncio
@@ -97,11 +99,25 @@ async def rename_auto_theme(db: AsyncDatabase[dict[str, Any]]) -> None:
             print(f"Renamed the auto theme to system in {result.modified_count} {collection.name} documents")
 
 
+async def sync_monitor_user(client: AsyncMongoClient[dict[str, Any]], db_name: str, user: str, password: str) -> None:
+    """Create or update the collector's mongodb receiver login; root fails $indexStats on admin.system.*."""
+    admin = client.admin
+    privileges = [
+        {"resource": {"cluster": True}, "actions": ["serverStatus", "top"]},
+        {"resource": {"db": db_name, "collection": ""}, "actions": ["dbStats", "indexStats", "listCollections"]},
+    ]
+    role_exists = (await admin.command("rolesInfo", "otelMonitor"))["roles"]
+    await admin.command("updateRole" if role_exists else "createRole", "otelMonitor", privileges=privileges, roles=[])
+    user_exists = (await admin.command("usersInfo", user))["users"]
+    await admin.command("updateUser" if user_exists else "createUser", user, pwd=password, roles=["otelMonitor"])
+    print(f"Synced monitoring user '{user}'")
+
+
 async def seed_users(settings: Settings) -> None:
     """Seed default users using provided settings for MongoDB connection."""
     pwd_hasher = PasswordHash((BcryptHasher(rounds=settings.BCRYPT_ROUNDS),))
-    default_password = os.environ.get("DEFAULT_USER_PASSWORD", "user123")
-    admin_password = os.environ.get("ADMIN_USER_PASSWORD", "admin123")
+    default_password = os.environ["DEFAULT_USER_PASSWORD"]
+    admin_password = os.environ["ADMIN_USER_PASSWORD"]
 
     client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL)
     db = client.get_default_database(default=settings.MONGO_DB)
@@ -109,6 +125,7 @@ async def seed_users(settings: Settings) -> None:
 
     await drop_duplicate_system_settings(db)
     await rename_auto_theme(db)
+    await sync_monitor_user(client, db.name, os.environ["MONGO_MONITOR_USER"], os.environ["MONGO_MONITOR_PASSWORD"])
 
     # Default user
     await upsert_user(
@@ -132,12 +149,7 @@ async def seed_users(settings: Settings) -> None:
         is_superuser=True,
     )
 
-    print("\n" + "=" * 50)
-    print("SEEDED USERS:")
-    print("=" * 50)
-    print("Default: user / user123  (or DEFAULT_USER_PASSWORD)")
-    print("Admin:   admin / admin123 (or ADMIN_USER_PASSWORD)")
-    print("=" * 50)
+    print("Seeded users 'user' and 'admin', passwords from DEFAULT_USER_PASSWORD and ADMIN_USER_PASSWORD")
 
     await client.close()
 

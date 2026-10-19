@@ -46,7 +46,9 @@ server {
 
     location /api/ {
         proxy_pass $backend_upstream;
-        proxy_ssl_verify off;
+        # The backend's own certificate, from the volume it writes it to; the SSE location below inherits this
+        proxy_ssl_verify on;
+        proxy_ssl_trusted_certificate /etc/nginx/backend/server.crt;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -61,7 +63,6 @@ server {
         # SSE specific settings for /api/v1/events/
         location ~ ^/api/v1/events/ {
             proxy_pass $backend_upstream;
-            proxy_ssl_verify off;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

@@ -10,13 +10,13 @@ Findings show up in the repository's Security tab under code scanning, as `backe
 
 ## Image and code scans
 
-Docker Scan & Promote runs Trivy v0.75.0 on the `base`, `backend`, `frontend` and `cert-generator` images of every commit that passed CI on `main`. It reports `CRITICAL` and `HIGH` findings that have a fix, skips anything listed in `backend/.trivyignore`, and uploads SARIF per image as `trivy-<image>`. A finding fails the job and blocks the promote to `latest`. The images keep the count at zero by upgrading their OS packages at build time, and the backend drops pip, whose vendored packages were the only Python findings. The ignore file holds three Go CVEs in kubectl v1.37.1, the newest release, which cert-generator only uses to talk to the local k3s API. See [CI/CD](../operations/cicd.md#docker-scan-promote).
+Docker Scan & Promote runs Trivy v0.75.0 on the `backend` and `frontend` images of every commit that passed CI on `main`. It reports `CRITICAL` and `HIGH` findings that have a fix, skips anything listed in `backend/.trivyignore`, and uploads SARIF per image as `trivy-<image>`. A finding fails the job and blocks the promote to `latest`. The images keep the count at zero by upgrading their OS packages at build time, and the backend drops pip, whose vendored packages were the only Python findings. The ignore file lists no CVE today. See [CI/CD](../operations/cicd.md#docker-scan-promote).
 
 CI's Security Scanning job runs `uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/ -ll` on pushes to `main` and on PRs that change `backend/`. `-ll` reports medium severity and up, and any finding fails the workflow.
 
 ## Pinning
 
-Every GitHub Action, including those used inside the composite actions, is pinned to a full commit SHA with the version in a comment. The Trivy action is pinned to the commit of v0.36.0, since its older tags were deleted upstream. Tools are pinned to exact versions (bandit, Trivy, mkdocs and its plugins), Python installs are `uv sync --frozen --no-build` from the lockfile, and npm installs are `npm ci --ignore-scripts`. The k3s install script and the Kueue manifest are fetched over HTTPS only and checked against a SHA256 before use.
+Every GitHub Action, including those used inside the composite actions, is pinned to a full commit SHA with the version in a comment. The Trivy action is pinned to the commit of v0.36.0, since its older tags were deleted upstream. Tools are pinned to exact versions (bandit, Trivy, mkdocs and its plugins), Python installs are `uv sync --frozen --no-build` from the lockfile, and npm installs are `npm ci --ignore-scripts`. The k3s image is pinned by digest.
 
 Dependabot opens one grouped PR per ecosystem every week, for uv, npm, the Dockerfiles, the compose images and the GitHub Actions, and updates SHA and version comment together. Details are in [CI/CD](../operations/cicd.md#dependabot).
 

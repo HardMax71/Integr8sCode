@@ -249,15 +249,17 @@ exec "$@"
         await self.producer.produce(event_to_produce=event, key=command.execution_id)
 
     async def ensure_namespace_security(self) -> None:
-        """Apply security controls to the executor namespace at startup.
+        """Create the executor namespace and apply its security controls at startup.
 
-        Creates:
+        Applies:
+        - The namespace with Pod Security Admission labels (Restricted profile)
         - Default-deny NetworkPolicy for executor pods (blocks lateral movement and exfiltration)
-        - Pod Security Admission labels (Restricted profile)
+        - ResourceQuota capping what all executor pods together may request
         """
         namespace = self._settings.K8S_NAMESPACE
+        await self._apply_namespace(namespace)
         await self._ensure_executor_network_policy(namespace)
-        await self._apply_psa_labels(namespace)
+        await self._ensure_resource_quota(namespace)
 
     async def _ensure_executor_network_policy(self, namespace: str) -> None:
         """Create or update default-deny NetworkPolicy for executor pods."""
@@ -289,17 +291,57 @@ exec "$@"
         )
         self.logger.info("NetworkPolicy applied", policy_name=policy_name, namespace=namespace)
 
-    async def _apply_psa_labels(self, namespace: str) -> None:
-        """Apply Pod Security Admission labels to the executor namespace."""
+    async def _apply_namespace(self, namespace: str) -> None:
+        """Create or update the executor namespace with its Pod Security Admission labels."""
         psa_labels = {
             "pod-security.kubernetes.io/enforce": "restricted",
             "pod-security.kubernetes.io/enforce-version": "latest",
             "pod-security.kubernetes.io/warn": "restricted",
             "pod-security.kubernetes.io/audit": "restricted",
         }
+        body = k8s_client.V1Namespace(
+            api_version="v1",
+            kind="Namespace",
+            metadata=k8s_client.V1ObjectMeta(name=namespace, labels=psa_labels),
+        )
 
-        await self.v1.patch_namespace(name=namespace, body={"metadata": {"labels": psa_labels}})
-        self.logger.info("Pod Security Admission labels applied", namespace=namespace)
+        await self.v1.patch_namespace(  # type: ignore[call-arg]
+            name=namespace,
+            body=body,
+            field_manager="integr8s",
+            force=True,
+            _content_type="application/apply-patch+yaml",
+        )
+        self.logger.info("Namespace applied with Pod Security Admission labels", namespace=namespace)
+
+    async def _ensure_resource_quota(self, namespace: str) -> None:
+        """Create or update the quota on what all pods in the executor namespace may request together."""
+        quota_name = "executor-quota"
+        quota = k8s_client.V1ResourceQuota(
+            api_version="v1",
+            kind="ResourceQuota",
+            metadata=k8s_client.V1ObjectMeta(
+                name=quota_name,
+                namespace=namespace,
+                labels={"app": "integr8s", "component": "security"},
+            ),
+            spec=k8s_client.V1ResourceQuotaSpec(
+                hard={
+                    "requests.cpu": self._settings.K8S_NAMESPACE_CPU_QUOTA,
+                    "requests.memory": self._settings.K8S_NAMESPACE_MEMORY_QUOTA,
+                }
+            ),
+        )
+
+        await self.v1.patch_namespaced_resource_quota(  # type: ignore[call-arg]
+            name=quota_name,
+            namespace=namespace,
+            body=quota,
+            field_manager="integr8s",
+            force=True,
+            _content_type="application/apply-patch+yaml",
+        )
+        self.logger.info("ResourceQuota applied", quota_name=quota_name, namespace=namespace)
 
     async def ensure_image_pre_puller_daemonset(self) -> None:
         """Ensure the runtime image pre-puller DaemonSet exists."""

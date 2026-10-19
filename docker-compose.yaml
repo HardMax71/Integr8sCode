@@ -144,7 +144,7 @@ services:
     logging: *logging
     container_name: grafana
     profiles: ["observability"]
-    image: grafana/grafana:13.2.3
+    image: grafana/grafana:13.2.4
     user: "472"
     # Alert rules load after dashboards create the integr8scode folder; loaded first, they'd make one with a random UID
     entrypoint:
@@ -351,7 +351,7 @@ services:
   # Victoria Metrics - Time series database
   victoria-metrics:
     logging: *logging
-    image: victoriametrics/victoria-metrics:v1.153.0
+    image: victoriametrics/victoria-metrics:v1.154.0
     container_name: victoria-metrics
     profiles: ["observability"]
     mem_limit: 256m
@@ -383,7 +383,7 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    image: otel/opentelemetry-collector-contrib:0.162.0
+    image: otel/opentelemetry-collector-contrib:0.163.1
     container_name: otel-collector
     profiles: ["observability"]
     mem_limit: 192m

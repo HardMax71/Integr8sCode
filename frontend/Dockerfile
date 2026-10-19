@@ -11,7 +11,7 @@ RUN npm run build
 
 # --8<-- [start:production_stage]
 # Production stage
-FROM nginx:1.31-alpine
+FROM nginx:1.31-alpine AS production
 
 # Upgrade the base image's packages to pick up fixes newer than the image, and add curl for the healthcheck and openssl for the certificate
 RUN apk upgrade --no-cache && apk add --no-cache curl openssl

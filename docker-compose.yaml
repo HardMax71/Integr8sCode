@@ -14,7 +14,7 @@ x-backend-secrets: &backend-secrets
 services:
   mongo:
     logging: *logging
-    image: mongo:9.0.2
+    image: mongo:9.0.4
     command: ["mongod", "--wiredTigerCacheSizeGB", "0.4"]
     ports:
       - "127.0.0.1:27017:27017"

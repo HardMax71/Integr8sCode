@@ -1,13 +1,12 @@
 import asyncio
 import contextlib
-from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
 import redis.asyncio as redis
 import structlog
+from opentelemetry import trace
 
-from app.core.metrics import ConnectionMetrics
 from app.domain.enums import EventType
 from app.domain.sse import SSEExecutionEventData
 from app.services.sse import SSERedisBus
@@ -23,7 +22,7 @@ async def test_bus_routes_event_to_redis(redis_client: redis.Redis, test_setting
     bus = SSERedisBus(
         redis_client,
         logger=_test_logger,
-        connection_metrics=MagicMock(spec=ConnectionMetrics),
+        tracer=trace.NoOpTracer(),
         exec_prefix=f"sse:exec:{suffix}:",
         notif_prefix=f"sse:notif:{suffix}:",
     )

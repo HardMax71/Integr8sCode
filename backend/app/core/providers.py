@@ -12,11 +12,6 @@ from kubernetes_asyncio import config as k8s_config
 from opentelemetry import trace
 
 from app.core.logging import setup_logger
-from app.core.metrics import (
-    ConnectionMetrics,
-    EventMetrics,
-    IdempotencyMetrics,
-)
 from app.core.security import SecurityService
 from app.core.tracing import Tracer
 from app.db import (
@@ -184,9 +179,9 @@ class MessagingProvider(Provider):
         self,
         event_repository: EventRepository,
         transport: KafkaEventTransport,
-        event_metrics: EventMetrics,
+        tracer: trace.Tracer,
     ) -> UnifiedProducer:
-        return UnifiedProducer(event_repository, transport, event_metrics)
+        return UnifiedProducer(event_repository, transport, tracer)
 
     @provide
     def get_idempotency_repository(self, redis_client: redis.Redis) -> RedisIdempotencyRepository:
@@ -197,9 +192,9 @@ class MessagingProvider(Provider):
         self,
         repo: RedisIdempotencyRepository,
         logger: structlog.stdlib.BoundLogger,
-        idempotency_metrics: IdempotencyMetrics,
+        tracer: trace.Tracer,
     ) -> IdempotencyManager:
-        return IdempotencyManager(IdempotencyConfig(), repo, logger, idempotency_metrics)
+        return IdempotencyManager(IdempotencyConfig(), repo, logger, tracer)
 
 
 class DLQProvider(Provider):
@@ -240,24 +235,6 @@ class KubernetesProvider(Provider):
             yield api_client
         finally:
             await api_client.close()
-
-
-class MetricsProvider(Provider):
-    """Provides all metrics instances via DI (no contextvars needed)."""
-
-    scope = Scope.APP
-
-    @provide
-    def get_event_metrics(self, settings: Settings) -> EventMetrics:
-        return EventMetrics(settings)
-
-    @provide
-    def get_connection_metrics(self, settings: Settings) -> ConnectionMetrics:
-        return ConnectionMetrics(settings)
-
-    @provide
-    def get_idempotency_metrics(self, settings: Settings) -> IdempotencyMetrics:
-        return IdempotencyMetrics(settings)
 
 
 class RepositoryProvider(Provider):
@@ -328,9 +305,9 @@ class SSEProvider(Provider):
         self,
         redis_client: redis.Redis,
         logger: structlog.stdlib.BoundLogger,
-        connection_metrics: ConnectionMetrics,
+        tracer: trace.Tracer,
     ) -> SSERedisBus:
-        return SSERedisBus(redis_client, logger, connection_metrics)
+        return SSERedisBus(redis_client, logger, tracer)
 
     @provide
     def get_sse_service(

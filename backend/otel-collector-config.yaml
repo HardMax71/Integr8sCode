@@ -778,6 +778,118 @@ connectors:
         sum:
           value: "1"
           monotonic: true
+      - name: events.published
+        description: Events stored and published by the producer
+        unit: "{event}"
+        attributes:
+          - key: event.type
+        conditions:
+          - span.name == "publish_event" and span.status.code != STATUS_CODE_ERROR
+        sum:
+          value: "1"
+          monotonic: true
+      - name: event.processing.duration
+        description: Time to store an event and publish it to Kafka
+        unit: s
+        attributes:
+          - key: event.type
+        conditions:
+          - span.name == "publish_event" and span.status.code != STATUS_CODE_ERROR
+        histogram:
+          buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5]
+          value: Seconds(span.end_time - span.start_time)
+      - name: idempotency.cache.hits
+        description: Idempotency checks that found the key already stored
+        unit: "{check}"
+        attributes:
+          - key: idempotency.event_type
+          - key: idempotency.operation
+        conditions:
+          - span.name == "idempotency.check" and span.attributes["idempotency.result"] == "hit"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: idempotency.cache.misses
+        description: Idempotency checks that reserved a new key
+        unit: "{check}"
+        attributes:
+          - key: idempotency.event_type
+          - key: idempotency.operation
+        conditions:
+          - span.name == "idempotency.check" and span.attributes["idempotency.result"] == "miss"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: idempotency.duplicates.blocked
+        description: Events skipped because their key was done or still in progress
+        unit: "{event}"
+        attributes:
+          - key: idempotency.event_type
+        conditions:
+          - span.name == "idempotency.duplicate_blocked"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: idempotency.check.duration
+        description: Time to look up and reserve an idempotency key
+        unit: s
+        attributes:
+          - key: idempotency.operation
+        conditions:
+          - span.name == "idempotency.check"
+        histogram:
+          buckets: [0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25]
+          value: Seconds(span.end_time - span.start_time)
+      - name: idempotency.processing.duration
+        description: Time from reserving an idempotency key to marking it completed or failed
+        unit: s
+        attributes:
+          - key: idempotency.event_type
+          - key: idempotency.status
+        conditions:
+          - span.name == "idempotency.processed"
+        histogram:
+          buckets: [0.01, 0.05, 0.1, 0.5, 1, 5, 10, 30, 60, 300]
+          value: Double(span.attributes["idempotency.processing_seconds"])
+      # The worker counts the keys in Redis every 30 s
+      - name: idempotency.keys.active
+        description: Idempotency keys currently stored in Redis
+        unit: "{key}"
+        conditions:
+          - span.name == "idempotency.keys"
+        gauge:
+          value: Int(span.attributes["idempotency.active_keys"])
+      # Each API process reports its own open streams every 10 s, zeros included
+      - name: sse.connections.active
+        description: Open SSE streams, by endpoint
+        unit: "{connection}"
+        attributes:
+          - key: sse.endpoint
+        conditions:
+          - span.name == "sse.streams"
+        gauge:
+          value: Int(span.attributes["sse.open_streams"])
+      - name: sse.messages.sent
+        description: Messages sent down SSE streams, by endpoint and event type
+        unit: "{message}"
+        attributes:
+          - key: sse.endpoint
+          - key: sse.event_type
+        conditions:
+          - span.name == "sse.message"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: sse.connection.duration
+        description: How long an SSE stream stayed open
+        unit: s
+        attributes:
+          - key: sse.endpoint
+        conditions:
+          - span.name == "sse.stream_closed"
+        histogram:
+          buckets: [1, 5, 10, 30, 60, 300, 600, 1800, 3600, 7200]
+          value: Double(span.attributes["sse.duration_seconds"])
 
 processors:
   batch:

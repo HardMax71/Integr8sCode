@@ -17,6 +17,7 @@ from app.db.docs import ALL_DOCUMENTS
 from app.events.handlers import notification_router, sse_router
 from app.services.event_replay import EventReplayService
 from app.services.notification_scheduler import NotificationScheduler
+from app.services.sse import SSERedisBus
 from app.settings import Settings
 
 
@@ -65,9 +66,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await broker.start()
     logger.info("Kafka broker started")
 
-    # Set up APScheduler for NotificationScheduler and the replay session report
+    # Set up APScheduler for NotificationScheduler and the replay session and SSE stream reports
     notification_scheduler: NotificationScheduler = await container.get(NotificationScheduler)
     replay_service: EventReplayService = await container.get(EventReplayService)
+    sse_bus: SSERedisBus = await container.get(SSERedisBus)
     apscheduler = AsyncIOScheduler()
     apscheduler.add_job(
         notification_scheduler.process_due_notifications,
@@ -82,6 +84,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         trigger="interval",
         seconds=10,
         id="report_replay_sessions",
+        max_instances=1,
+        misfire_grace_time=30,
+    )
+    apscheduler.add_job(
+        sse_bus.report_open_streams,
+        trigger="interval",
+        seconds=10,
+        id="report_open_sse_streams",
         max_instances=1,
         misfire_grace_time=30,
     )

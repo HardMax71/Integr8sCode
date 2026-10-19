@@ -1,19 +1,15 @@
 from __future__ import annotations
 
-import importlib
 import json
-import pkgutil
 import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import NotRequired, TypedDict
-from unittest.mock import MagicMock
 
 import pytest
 import yaml
 from fastapi import FastAPI
 from faststream.kafka.opentelemetry import KafkaTelemetryMiddleware
-from opentelemetry import metrics as otel_api
 from opentelemetry.exporter.prometheus import PrometheusMetricReader
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.system_metrics import SystemMetricsInstrumentor
@@ -21,8 +17,7 @@ from opentelemetry.metrics import CallbackOptions, Meter, Observation
 from opentelemetry.sdk.metrics import MeterProvider
 from prometheus_client.metrics_core import Metric
 
-import app.core.metrics as metrics_pkg
-from app.core.metrics.base import PROCESS_METRICS, BaseMetrics
+from app.core.metrics.base import PROCESS_METRICS
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
 GRAFANA_DIR = BACKEND_ROOT / "grafana" / "provisioning"
@@ -227,7 +222,7 @@ def _families(reader: PrometheusMetricReader) -> dict[str, set[str]]:
 
 @pytest.fixture(scope="module")
 def produced_families() -> Iterator[tuple[dict[str, set[str]], dict[str, set[str]]]]:
-    """Run every app metric class and the libraries' telemetry through the real OTel SDK.
+    """Run every span metric the collector defines and the libraries' telemetry through the real OTel SDK.
 
     The libraries are FastStream's Kafka middleware and the FastAPI and system metrics instrumentations,
     configured the way the app configures them.
@@ -242,12 +237,7 @@ def produced_families() -> Iterator[tuple[dict[str, set[str]], dict[str, set[str
         app_provider = MeterProvider(metric_readers=[app_reader])
         lib_reader = PrometheusMetricReader()
         lib_provider = MeterProvider(metric_readers=[lib_reader])
-        otel_api.set_meter_provider(app_provider)
 
-        for _, mod_name, _ in pkgutil.iter_modules(metrics_pkg.__path__):
-            importlib.import_module(f"app.core.metrics.{mod_name}")
-        for cls in BaseMetrics.__subclasses__():
-            cls(MagicMock())
         _create_span_metrics(app_provider.get_meter("signaltometrics"))
         KafkaTelemetryMiddleware(meter_provider=lib_provider)
         api = FastAPI()

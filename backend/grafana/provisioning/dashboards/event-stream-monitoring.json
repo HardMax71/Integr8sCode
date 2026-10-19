@@ -322,7 +322,7 @@
           "editorMode": "code",
           "expr": "sse_connections_active",
           "instant": false,
-          "legendFormat": "{{endpoint}}",
+          "legendFormat": "{{sse_endpoint}}",
           "range": true,
           "refId": "A"
         }
@@ -515,9 +515,9 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum by (endpoint, event_type) (rate(sse_messages_sent_total[5m]))",
+          "expr": "sum by (sse_endpoint, sse_event_type) (rate(sse_messages_sent_total[5m]))",
           "instant": false,
-          "legendFormat": "{{endpoint}} {{event_type}}",
+          "legendFormat": "{{sse_endpoint}} {{sse_event_type}}",
           "range": true,
           "refId": "A"
         }

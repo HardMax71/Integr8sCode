@@ -1,14 +1,14 @@
 import hashlib
 import json
-import time
 from datetime import datetime, timedelta, timezone
 
 import structlog
+from opentelemetry import trace
+from opentelemetry.util.types import AttributeValue
 from pydantic import BaseModel
 from pymongo.errors import DuplicateKeyError
 from redis import RedisError
 
-from app.core.metrics import IdempotencyMetrics
 from app.domain.enums import EventType
 from app.domain.events import BaseEvent
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus, KeyStrategy
@@ -44,13 +44,18 @@ class IdempotencyManager:
         config: IdempotencyConfig,
         repository: RedisIdempotencyRepository,
         logger: structlog.stdlib.BoundLogger,
-        idempotency_metrics: IdempotencyMetrics,
+        tracer: trace.Tracer,
     ) -> None:
         self.config = config
-        self.metrics = idempotency_metrics
+        self._tracer = tracer
         self._repo = repository
         self.logger = logger
         self.logger.info("Idempotency manager initialized")
+
+    async def report_active_keys(self) -> None:
+        """Report how many idempotency keys Redis holds, for the collector's gauge. The worker runs it every 30 s."""
+        count = await self._repo.count_keys()
+        self._tracer.start_span("idempotency.keys", attributes={"idempotency.active_keys": count}).end()
 
     # --8<-- [start:generate_key]
     def _generate_key(
@@ -83,21 +88,17 @@ class IdempotencyManager:
         ttl_seconds: int | None = None,
         fields: set[str] | None = None,
     ) -> IdempotencyResult:
-        start = time.monotonic()
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
         ttl = ttl_seconds or self.config.default_ttl_seconds
 
-        existing = await self._repo.find_by_key(full_key)
-        if existing:
-            self.metrics.record_idempotency_cache_hit(event.event_type, "check_and_reserve")
-            result = await self._handle_existing_key(existing, full_key, event.event_type)
-            self.metrics.record_idempotency_check_duration(time.monotonic() - start, "check_and_reserve")
-            return result
-
-        self.metrics.record_idempotency_cache_miss(event.event_type, "check_and_reserve")
-        result = await self._create_new_key(full_key, event, ttl)
-        self.metrics.record_idempotency_check_duration(time.monotonic() - start, "check_and_reserve")
-        return result
+        attributes = {"idempotency.event_type": event.event_type, "idempotency.operation": "check_and_reserve"}
+        with self._tracer.start_as_current_span("idempotency.check", attributes=attributes) as span:
+            existing = await self._repo.find_by_key(full_key)
+            if existing:
+                span.set_attribute("idempotency.result", "hit")
+                return await self._handle_existing_key(existing, full_key, event.event_type)
+            span.set_attribute("idempotency.result", "miss")
+            return await self._create_new_key(full_key, event, ttl)
 
     async def _handle_existing_key(
         self,
@@ -109,7 +110,9 @@ class IdempotencyManager:
         if status == IdempotencyStatus.PROCESSING:
             return await self._handle_processing_key(existing, full_key, event_type)
 
-        self.metrics.record_idempotency_duplicate_blocked(event_type)
+        self._tracer.start_span(
+            "idempotency.duplicate_blocked", attributes={"idempotency.event_type": event_type}
+        ).end()
         created_at = existing.created_at or datetime.now(timezone.utc)
         return IdempotencyResult(
             is_duplicate=True,
@@ -140,7 +143,9 @@ class IdempotencyManager:
                 is_duplicate=False, status=IdempotencyStatus.PROCESSING, created_at=now, key=full_key
             )
 
-        self.metrics.record_idempotency_duplicate_blocked(event_type)
+        self._tracer.start_span(
+            "idempotency.duplicate_blocked", attributes={"idempotency.event_type": event_type}
+        ).end()
         return IdempotencyResult(
             is_duplicate=True,
             status=IdempotencyStatus.PROCESSING,
@@ -194,7 +199,12 @@ class IdempotencyManager:
                 existing.result_json = cached_json
             else:
                 self.logger.warning("Result too large to cache", key=full_key)
-        self.metrics.record_idempotent_processing_duration(duration_seconds, existing.event_type, status)
+        attributes: dict[str, AttributeValue] = {
+            "idempotency.event_type": existing.event_type,
+            "idempotency.status": status,
+            "idempotency.processing_seconds": duration_seconds,
+        }
+        self._tracer.start_span("idempotency.processed", attributes=attributes).end()
         return (await self._repo.update_record(existing)) > 0
 
     async def mark_completed(

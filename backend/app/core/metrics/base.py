@@ -22,8 +22,8 @@ PROCESS_METRICS: dict[str, list[str] | None] = {
 def setup_metrics(settings: Settings, logger: structlog.stdlib.BoundLogger) -> None:
     """Install the global MeterProvider that exports through OTLP, and this process's CPU and memory metrics.
 
-    ``BaseMetrics`` subclasses and the OpenTelemetry instrumentations take their meters from the global
-    provider, so this runs before them. Without an OTLP endpoint (tests) the no-op provider stays.
+    The OpenTelemetry instrumentations take their meters from the global provider, so this runs before them.
+    Without an OTLP endpoint (tests) the no-op provider stays.
     """
     if not settings.OTEL_EXPORTER_OTLP_ENDPOINT:
         logger.info("Metrics OTLP export disabled", endpoint=settings.OTEL_EXPORTER_OTLP_ENDPOINT)
@@ -48,30 +48,3 @@ def setup_metrics(settings: Settings, logger: structlog.stdlib.BoundLogger) -> N
     SystemMetricsInstrumentor(config=PROCESS_METRICS).instrument(meter_provider=meter_provider)
 
     logger.info("OpenTelemetry metrics configured with OTLP exporter")
-
-
-class BaseMetrics:
-    # --8<-- [start:init]
-    def __init__(self, settings: Settings, meter_name: str | None = None):
-        """Initialize base metrics with a meter from the global MeterProvider.
-
-        The global MeterProvider is configured once by ``setup_metrics``.
-        If it hasn't been called (e.g. in tests), the default no-op provider is used.
-
-        Args:
-            settings: Application settings (kept for DI compatibility).
-            meter_name: Optional name for the meter. Defaults to class name.
-        """
-        meter_name = meter_name or self.__class__.__name__
-        self._meter = metrics.get_meter(meter_name)
-        self._create_instruments()
-
-    # --8<-- [end:init]
-
-    def _create_instruments(self) -> None:
-        """Create metric instruments. Override in subclasses."""
-        pass
-
-    def close(self) -> None:
-        """Close the metrics collector and clean up resources."""
-        pass

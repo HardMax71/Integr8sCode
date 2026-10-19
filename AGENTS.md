@@ -448,7 +448,7 @@ class ExecutionService:
 
 - Location: `app/services/`
 - Constructor injection: repo, producer, logger, settings, and `trace.Tracer` when the service makes spans
-- New metrics come from spans: put the facts on a span as attributes (`queue.priority`, `queue.outcome`) and define the metric under `signaltometrics` in `backend/otel-collector-config.yaml`. The classes in `app/core/metrics/` go area by area ([#389](https://github.com/HardMax71/Integr8sCode/issues/389)); don't add to them
+- New metrics come from spans: put the facts on a span as attributes (`queue.priority`, `queue.outcome`) and define the metric under `signaltometrics` in `backend/otel-collector-config.yaml`. There are no metric classes: `app/core/metrics/` only sets up the OTLP `MeterProvider` for the instrumentations ([#389](https://github.com/HardMax71/Integr8sCode/issues/389)). A gauge needs a job that reports it on a timer
 - Publish events via `UnifiedProducer`: `await self.producer.produce(event_to_produce=event, key=execution_id)`
 - Services orchestrate domain logic; no direct DB or HTTP calls
 - Always check `None` from repos and raise a domain-specific `NotFoundError` subclass (e.g. `ExecutionNotFoundError`, `SagaNotFoundError`); never return `None` to a route

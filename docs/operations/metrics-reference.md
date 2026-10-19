@@ -14,17 +14,13 @@ flowchart LR
     VM --> Grafana
 ```
 
-`create_app` and the worker's `main()` each call `setup_metrics` (`app/core/metrics/base.py`) once. It installs a global `MeterProvider` whose `PeriodicExportingMetricReader` exports every 60 000 ms through an OTLP gRPC exporter. The exporter targets `OTEL_EXPORTER_OTLP_ENDPOINT`, which `config.toml` sets to `http://otel-collector:4317`. It also starts the system metrics instrumentation for the process's own CPU and memory. Without an endpoint it returns early and the no-op provider stays. Each metrics class takes its meter from the global provider when DI builds it, so `setup_metrics` has to run before the container resolves anything:
-
-```python
---8<-- "backend/app/core/metrics/base.py:init"
-```
+`create_app` and the worker's `main()` each call `setup_metrics` (`app/core/metrics/base.py`) once. It installs a global `MeterProvider` whose `PeriodicExportingMetricReader` exports every 60 000 ms through an OTLP gRPC exporter. The exporter targets `OTEL_EXPORTER_OTLP_ENDPOINT`, which `config.toml` sets to `http://otel-collector:4317`. It also starts the system metrics instrumentation for the process's own CPU and memory. Without an endpoint it returns early and the no-op provider stays. The OpenTelemetry instrumentations take their meters from that provider. The app's own metrics have no meter at all: they come from spans, described next.
 
 The collector's metrics pipeline (`backend/otel-collector-config.yaml`) reads the `otlp`, `host_metrics`, `kafka_metrics` and `mongodb` receivers, runs `memory_limiter`, `batch` and `resource`, and exports with `prometheus_remote_write` to `http://victoria-metrics:8428/api/v1/write`. VictoriaMetrics keeps 30 days. The collector, VictoriaMetrics and Grafana sit in the `observability` compose profile, so none of this runs unless you start the stack with `./deploy.sh dev --observability`. Counters and histograms made from spans take another way, described next.
 
 ## Metrics made from spans
 
-Some metrics have no instrument in the code. A service puts the facts on a span, and the collector's `signaltometrics` connector (alpha in collector v0.162.0) turns them into counters, histograms and gauges, defined under `connectors` in `backend/otel-collector-config.yaml`. The SDK sends every span (`TRACING_SAMPLING_RATE = 1.0`), and the traces pipeline gives each span to the connector before `tail_sampling` decides what Jaeger keeps, so the counts don't depend on sampling. The connector emits a point only when a matching span arrives. Sent straight to VictoriaMetrics, a counter that sees one event every half hour would get one point every half hour, and `increase` and `rate` stop finding the previous point once two points are more than about 8 to 10 minutes apart (measured on v1.153.0): `increase` then counts the whole total again, and `rate` returns nothing. So counters and histograms go another way. `deltatocumulative` adds up the connector's deltas and keeps each total through 24 hours without spans (its default is 5 minutes, after which an idle counter would start again from zero). The collector's `prometheus` exporter serves the totals on `otel-collector:8889`, and VictoriaMetrics scrapes it every 15 seconds (`backend/victoria-metrics/scrape.yaml`, with `honor_labels` so each service's `job` and `instance` stay). A series the exporter hasn't updated for 24 hours drops out until its next span. Gauges still go by remote write, so a gauge goes stale when the job that reports it on a timer stops. Panels wrap counter rates in `or vector(0)` so a series that hasn't started yet reads 0. The execution, pod, queue, dead letter queue, notification, replay, security and rate limit metrics work this way so far ([#389](https://github.com/HardMax71/Integr8sCode/issues/389)).
+Some metrics have no instrument in the code. A service puts the facts on a span, and the collector's `signaltometrics` connector (alpha in collector v0.162.0) turns them into counters, histograms and gauges, defined under `connectors` in `backend/otel-collector-config.yaml`. The SDK sends every span (`TRACING_SAMPLING_RATE = 1.0`), and the traces pipeline gives each span to the connector before `tail_sampling` decides what Jaeger keeps, so the counts don't depend on sampling. The connector emits a point only when a matching span arrives. Sent straight to VictoriaMetrics, a counter that sees one event every half hour would get one point every half hour, and `increase` and `rate` stop finding the previous point once two points are more than about 8 to 10 minutes apart (measured on v1.153.0): `increase` then counts the whole total again, and `rate` returns nothing. So counters and histograms go another way. `deltatocumulative` adds up the connector's deltas and keeps each total through 24 hours without spans (its default is 5 minutes, after which an idle counter would start again from zero). The collector's `prometheus` exporter serves the totals on `otel-collector:8889`, and VictoriaMetrics scrapes it every 15 seconds (`backend/victoria-metrics/scrape.yaml`, with `honor_labels` so each service's `job` and `instance` stay). A series the exporter hasn't updated for 24 hours drops out until its next span. Gauges still go by remote write, so a gauge goes stale when the job that reports it on a timer stops. Panels wrap counter rates in `or vector(0)` so a series that hasn't started yet reads 0. Every app metric works this way since [#389](https://github.com/HardMax71/Integr8sCode/issues/389).
 
 ## Names and labels in VictoriaMetrics
 
@@ -36,7 +32,7 @@ Code names instruments with dots, and they arrive with underscores. The collecto
 
 The contract test `backend/tests/contract/test_grafana_metrics.py` applies the same rule. It fails when a dashboard or alert queries a name nothing emits, and when code defines a metric that no dashboard uses.
 
-Resource attributes become labels on every series: `job` (`integr8scode/integr8scode-backend`), `service_name`, `service_namespace`, `service_version`, `deployment_environment`, the `telemetry_sdk_*` set, and `instance` with `service_instance_id`, a fresh UUID each time the process starts. `otel_scope_name` names the metrics class, such as `KubernetesMetrics`. Since `instance` changes on every restart, wrap queries in `sum` or `max` instead of reading single series.
+Resource attributes become labels on every series: `job` (`integr8scode/integr8scode-backend`), `service_name`, `service_namespace`, `service_version`, `deployment_environment`, the `telemetry_sdk_*` set, and `instance` with `service_instance_id`, a fresh UUID each time the process starts. `otel_scope_name` names what made the series: an instrumentation such as `opentelemetry.instrumentation.fastapi`, or the collector's signaltometrics connector for every metric made from spans. Since `instance` changes on every restart, wrap queries in `sum` or `max` instead of reading single series.
 
 Gauges listed as "in process" are up-down counters the process keeps itself. They start at zero when the process starts, whatever the real state is.
 
@@ -75,28 +71,28 @@ All of these come from spans (see [Metrics made from spans](#metrics-made-from-s
 
 ### Events and idempotency
 
-| Metric | Type | Labels | Recorded in |
-|--------|------|--------|-------------|
-| `events_published_total` | counter | event_type, event_category | `UnifiedProducer.produce`, after the event is stored and published, in every process that publishes |
-| `event_processing_duration_seconds` | histogram | event_type | the same call: persisting the event and publishing it |
-| `idempotency_cache_hits_total` | counter | event_type, operation | `IdempotencyManager.check_and_reserve` |
-| `idempotency_cache_misses_total` | counter | event_type, operation | `IdempotencyManager.check_and_reserve` |
-| `idempotency_duplicates_blocked_total` | counter | event_type | `IdempotencyManager`, when the key is already completed or still processing |
-| `idempotency_check_duration_seconds` | histogram | operation | `IdempotencyManager.check_and_reserve` |
-| `idempotency_processing_duration_seconds` | histogram | event_type, status | `IdempotencyManager`: reserving the key to marking it completed or failed |
-| `idempotency_keys_active` | gauge, observed at export | none | `IdempotencyMetrics` scans `idempotency:*` in Redis |
+| Metric | Type | Labels | Recorded from |
+|--------|------|--------|---------------|
+| `events_published_total` | counter | event_type | span `publish_event` from `UnifiedProducer.produce` without an error status: the event was stored and published, in every process that publishes |
+| `event_processing_duration_seconds` | histogram | event_type | the length of those spans: persisting the event and publishing it |
+| `idempotency_cache_hits_total` | counter | idempotency_event_type, idempotency_operation | span `idempotency.check` with `idempotency.result` `hit` |
+| `idempotency_cache_misses_total` | counter | idempotency_event_type, idempotency_operation | the same span with `idempotency.result` `miss` |
+| `idempotency_duplicates_blocked_total` | counter | idempotency_event_type | span `idempotency.duplicate_blocked`, when the key is already completed or still processing |
+| `idempotency_check_duration_seconds` | histogram | idempotency_operation | the length of `idempotency.check` |
+| `idempotency_processing_duration_seconds` | histogram | idempotency_event_type, idempotency_status | `idempotency.processing_seconds` on span `idempotency.processed`: reserving the key to marking it completed or failed |
+| `idempotency_keys_active` | gauge | none | span `idempotency.keys` from the worker's job every 30 s, which counts `idempotency:*` in Redis with `SCAN` |
 
-Every Kafka publish also shows up in `messaging_publish_messages_message_total`; a publish that fails is marked on the stored event and not counted here. `event_category` equals `event_type` for the current event names. A handler that raises has no counter of its own: it's a `messaging_process_duration_seconds` sample with an `error_type` label, in the FastStream families below. `IdempotencyManager` runs in backend for `Idempotency-Key` requests and in the worker's k8s worker, result processor and saga orchestrator consumers.
+Every Kafka publish also shows up in `messaging_publish_messages_message_total`; a publish that fails is marked on the stored event and not counted here. A handler that raises has no counter of its own: it's a `messaging_process_duration_seconds` sample with an `error_type` label, in the FastStream families below. `IdempotencyManager` runs in backend for `Idempotency-Key` requests and in the worker's k8s worker, result processor and saga orchestrator consumers.
 
 ### Server-sent events (backend)
 
 `SSERedisBus.listen_execution`, `listen_notifications` and `listen_replay`.
 
-| Metric | Type | Labels | Notes |
-|--------|------|--------|-------|
-| `sse_connections_active` | gauge, in process | endpoint: executions, notifications, replay | |
-| `sse_connection_duration_seconds` | histogram | endpoint | recorded when the stream closes |
-| `sse_messages_sent_total` | counter | endpoint, event_type | each message relayed from Redis; `event_type` is the execution event type, `notification` or `replay_status` |
+| Metric | Type | Labels | Recorded from |
+|--------|------|--------|---------------|
+| `sse_connections_active` | gauge | sse_endpoint: executions, notifications, replay | span `sse.streams`, one per endpoint with zeros, from the API's job every 10 s: the streams that process has open |
+| `sse_connection_duration_seconds` | histogram | sse_endpoint | `sse.duration_seconds` on span `sse.stream_closed`, when the stream closes |
+| `sse_messages_sent_total` | counter | sse_endpoint, sse_event_type | span `sse.message` for each message relayed from Redis; the event type is the execution event type, `notification` or `replay_status` |
 
 The status snapshot a stream sends first comes from the database, not Redis, and isn't counted.
 

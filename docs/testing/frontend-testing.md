@@ -87,4 +87,4 @@ Tests don't sleep or write polling loops. They assert on what the page shows wit
 
 ## In CI
 
-CI runs `npm run test:coverage` in its frontend unit job and uploads the lcov report to Codecov. The same workflow runs the Playwright suite in two shards against the freshly built images. Frontend CI runs ESLint, Stylelint, Prettier, `svelte-check` and the production build, but no tests. See [CI/CD](../operations/cicd.md#stack-tests).
+CI runs `npm run test:coverage` in its frontend unit job and uploads the lcov report to Codecov. The same workflow runs the Playwright suite in two shards against the freshly built images. Frontend CI runs ESLint, Stylelint, Prettier, `svelte-check` and the production build, but no tests. See [CI/CD](../operations/cicd.md#e2e).

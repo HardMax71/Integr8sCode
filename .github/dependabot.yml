@@ -2,12 +2,15 @@
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
 version: 2
+# Updates merge themselves once CI passes and reach prod with the nightly deploy, so each release waits 7 days in case it gets yanked
 updates:
   # Python dependencies (uv/pip)
   - package-ecosystem: "uv"
     directory: "/backend"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "deps(python)"
     groups:
@@ -19,6 +22,8 @@ updates:
     directory: "/frontend"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "deps(npm)"
     groups:
@@ -36,6 +41,8 @@ updates:
       - "/frontend"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "deps(docker)"
     groups:
@@ -47,6 +54,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "deps(docker)"
     groups:
@@ -64,6 +73,8 @@ updates:
       - "/.github/actions/*"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "deps(actions)"
     groups:

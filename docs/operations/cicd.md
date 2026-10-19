@@ -1,6 +1,6 @@
 # CI/CD pipeline
 
-CI is six GitHub Actions workflows, two composite actions and a Dependabot config. Three of the workflows form the release chain: CI checks the code and builds and tests the images, Docker Scan & Promote scans them and moves `latest`, and Release & Deploy tags a CalVer release and deploys it. The first two run on every merge to `main`, so `latest` is always the newest build that passed both. Release & Deploy doesn't follow them: it runs once a day at 23:00 Europe/Berlin, or by hand, and releases whatever `latest` is then. A manual run of Docker Scan & Promote or Release & Deploy starts partway along the chain, without the steps before it.
+CI is seven GitHub Actions workflows, two composite actions and a Dependabot config. Three of the workflows form the release chain: CI checks the code and builds and tests the images, Docker Scan & Promote scans them and moves `latest`, and Release & Deploy tags a CalVer release and deploys it. The first two run on every merge to `main`, so `latest` is always the newest build that passed both. Release & Deploy doesn't follow them: it runs once a day at 23:00 Europe/Berlin, or by hand, and releases whatever `latest` is then. A manual run of Docker Scan & Promote or Release & Deploy starts partway along the chain, without the steps before it.
 
 ```mermaid
 graph LR
@@ -30,6 +30,7 @@ graph LR
 | SBOM & Supply Chain Security   | sbom-compliance.yml  | push to `main`; PRs to `main` that change a dependency manifest; Sundays at midnight |
 | Labels                         | labels.yml           | PRs opened or updated (`pull_request_target`), issues opened or edited  |
 | Label Sync                     | label-sync.yml       | push and PRs to `main` touching the label files or issue forms; Mondays at 03:00; manual |
+| Dependabot Auto-merge          | dependabot-auto-merge.yml | Dependabot's PRs to `main`                                         |
 
 Besides the tests, CI runs one job per check. Ruff runs `ruff check`. MyPy runs `mypy --strict` with `SECRET_KEY` from the `TEST_SECRET_KEY` secret. Grimp runs `python -m scripts.check_orphan_modules`, which fails on any module nothing imports except `app.main` and `__init__.py` files that hold only a docstring. Security Scanning runs `uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/ -ll`. Bandit parses with the Python it runs on, so on anything older it skips the files that use 3.14 syntax such as `except A, B:` without failing. The frontend job runs ESLint, Stylelint, the Prettier check, `svelte-check --fail-on-warnings` and a production build. The SBOM workflow generates SPDX SBOMs for backend and frontend with `anchore/sbom-action`, scans them with Grype through `anchore/scan-action` (cutoff `high`, `fail-build: false`) and uploads SARIF to the Security tab.
 
@@ -122,7 +123,11 @@ k3s is the `rancher/k3s:v1.37.1-k3s1` image, pinned by digest in `K3S_IMAGE` in 
 
 ## Dependabot
 
-Dependabot checks weekly and opens one grouped PR per ecosystem: uv in `backend/`, npm in `frontend/`, the three Dockerfiles, the images in docker-compose.yaml, and GitHub Actions including the composite actions. It ignores TypeScript 7 and later, because typescript-eslint and svelte-check need the compiler API that 7 dropped, and Jaeger 2.21 and later, because Grafana can't search it yet.
+Dependabot checks weekly and opens one grouped PR per ecosystem: uv in `backend/`, npm in `frontend/`, the two Dockerfiles, the images in docker-compose.yaml, and GitHub Actions including the composite actions. It ignores TypeScript 7 and later, because typescript-eslint and svelte-check need the compiler API that 7 dropped, and Jaeger 2.21 and later, because Grafana can't search it yet.
+
+Each update waits 7 days after its release (`cooldown`), so a broken or malicious release has time to get yanked before a PR picks it up. Security updates skip the wait.
+
+Dependabot Auto-merge turns on auto-merge for every Dependabot PR, majors included, so it merges once All checks pass and goes out with the next nightly release. It does that with `AUTOMERGE_TOKEN`, a fine-grained token stored as a Dependabot secret, since a merge enabled with `GITHUB_TOKEN` starts no workflows on `main`: CI wouldn't build images for it and `latest` wouldn't move. The token has Contents, Pull requests and Workflows read and write on this repo only, Workflows because the Actions group edits workflow files. When it expires, the job fails and the PRs wait for a manual merge.
 
 ## Running checks locally
 

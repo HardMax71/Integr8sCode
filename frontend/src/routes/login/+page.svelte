@@ -9,6 +9,7 @@
     import { apiForm, filled } from '#lib/forms.ts';
     import { fieldTitle } from '#lib/formatters.ts';
     import { toast } from 'svelte-sonner';
+    import { prefersReducedMotion } from 'svelte/motion';
     import { fade, fly } from 'svelte/transition';
     import Spinner from '#components/Spinner.svelte';
 
@@ -65,7 +66,10 @@
     />
 </svelte:head>
 
-<div class="min-h-[60vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8" in:fade>
+<div
+    class="min-h-[60vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8"
+    in:fade={{ duration: prefersReducedMotion.current ? 0 : 400 }}
+>
     <div class="max-w-md w-full space-y-8">
         <div class="text-center">
             <h2 class="text-3xl font-bold">Sign in to your account</h2>
@@ -81,7 +85,7 @@
                 <p
                     class="mt-0 text-sm text-danger text-center"
                     data-testid="error-message"
-                    in:fly={{ y: -10, duration: 200 }}
+                    in:fly={{ y: -10, duration: prefersReducedMotion.current ? 0 : 200 }}
                 >
                     {error}
                 </p>

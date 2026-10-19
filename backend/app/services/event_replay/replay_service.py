@@ -225,48 +225,53 @@ class EventReplayService:
         One job runs the whole loop, since APScheduler skips a run of a job whose previous run hasn't returned.
         """
         while session.status == ReplayStatus.RUNNING:
-            event = self._pop_next_event(session.session_id)
+            event = await self._next_event(session.session_id)
             if event is None:
-                if not await self._load_next_batch(session.session_id):
-                    await self._finalize_session(session, ReplayStatus.COMPLETED)
-                    return
-                event = self._pop_next_event(session.session_id)
-                if event is None:
-                    await self._finalize_session(session, ReplayStatus.COMPLETED)
-                    return
+                await self._finalize_session(session, ReplayStatus.COMPLETED)
+                return
+            await asyncio.sleep(await self._dispatch_event(session, event))
 
-            success = False
-            t0 = time.monotonic()
-            try:
-                success = await self._replay_event(session, event)
-            except Exception as e:
-                processing_time = time.monotonic() - t0
-                session.errors.append(
-                    ReplayError(timestamp=datetime.now(timezone.utc), event_id=str(event.event_id), error=str(e))
-                )
-                if not session.config.skip_errors:
-                    session.failed_events += 1
-                    self._report_event(session, event, False, processing_time, 0.0)
-                    await self._finalize_session(session, ReplayStatus.FAILED)
-                    return
-            else:
-                processing_time = time.monotonic() - t0
+    async def _next_event(self, session_id: str) -> DomainEvent | None:
+        """The session's next event, loading the next batch once the loaded one runs out."""
+        event = self._pop_next_event(session_id)
+        if event is None and await self._load_next_batch(session_id):
+            event = self._pop_next_event(session_id)
+        return event
 
-            if success:
-                session.replayed_events += 1
-            else:
+    async def _dispatch_event(self, session: ReplaySessionState, event: DomainEvent) -> float:
+        """Replay one event and return the wait before the next; a failure without skip_errors ends the session."""
+        success = False
+        t0 = time.monotonic()
+        try:
+            success = await self._replay_event(session, event)
+        except Exception as e:
+            processing_time = time.monotonic() - t0
+            session.errors.append(
+                ReplayError(timestamp=datetime.now(timezone.utc), event_id=str(event.event_id), error=str(e))
+            )
+            if not session.config.skip_errors:
                 session.failed_events += 1
-            session.last_event_at = event.timestamp
-            await self._update_session_in_db(session)
+                self._report_event(session, event, False, processing_time, 0.0)
+                await self._finalize_session(session, ReplayStatus.FAILED)
+                return 0.0
+        else:
+            processing_time = time.monotonic() - t0
 
-            next_event = self._peek_next_event(session.session_id)
-            delay = 0.0
-            if next_event and session.last_event_at and session.config.speed_multiplier < 100:
-                time_diff = (next_event.timestamp - session.last_event_at).total_seconds()
-                delay = max(time_diff / session.config.speed_multiplier, 0)
+        if success:
+            session.replayed_events += 1
+        else:
+            session.failed_events += 1
+        session.last_event_at = event.timestamp
+        await self._update_session_in_db(session)
 
-            self._report_event(session, event, success, processing_time, delay)
-            await asyncio.sleep(delay)
+        next_event = self._peek_next_event(session.session_id)
+        delay = 0.0
+        if next_event and session.last_event_at and session.config.speed_multiplier < 100:
+            time_diff = (next_event.timestamp - session.last_event_at).total_seconds()
+            delay = max(time_diff / session.config.speed_multiplier, 0)
+
+        self._report_event(session, event, success, processing_time, delay)
+        return delay
 
     def _pop_next_event(self, session_id: str) -> DomainEvent | None:
         idx = self._buffer_indices.get(session_id, 0)

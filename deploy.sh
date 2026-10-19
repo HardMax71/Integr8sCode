@@ -84,6 +84,14 @@ show_help() {
 # =============================================================================
 # LOCAL DEVELOPMENT (docker-compose)
 # =============================================================================
+# compose reads .env for every command; production writes its own from the deploy's secrets
+ensure_env_file() {
+    if [[ ! -f .env ]]; then
+        cp .env.example .env
+        print_info "Created .env from .env.example (local development values)"
+    fi
+}
+
 cmd_dev() {
     print_header "Starting Local Development Environment"
 
@@ -127,13 +135,14 @@ cmd_dev() {
         WAIT_TIMEOUT_FLAG="--wait-timeout $WAIT_TIMEOUT"
     fi
 
+    ensure_env_file
     docker compose $PROFILE_FLAGS up -d $BUILD_FLAG $NO_BUILD_FLAG $WAIT_FLAG $WAIT_TIMEOUT_FLAG
 
     echo ""
     print_success "Development environment started!"
     echo ""
     echo "Services:"
-    echo "  Backend:   https://localhost:443"
+    echo "  Backend:   http://localhost:8000"
     echo "  Frontend:  https://localhost:5001"
     if [[ "$PROFILE_FLAGS" == *"debug"* ]]; then
         echo "  Kafdrop:   http://localhost:9000"
@@ -180,6 +189,7 @@ cmd_infra() {
     fi
 
     # Start only infrastructure services (no app, no workers, no observability)
+    ensure_env_file
     docker compose up -d mongo redis kafka $WAIT_FLAG $WAIT_TIMEOUT_FLAG
 
     print_success "Infrastructure services started"

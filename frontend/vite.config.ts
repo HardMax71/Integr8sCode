@@ -15,7 +15,7 @@ function devServer(): ServerOptions {
         strictPort: true,
         https: tls ? { key: fs.readFileSync(keyFile), cert: fs.readFileSync(certFile) } : undefined,
         proxy: {
-            '/api': { target: 'https://backend:443', secure: false },
+            '/api': { target: 'http://backend:8000' },
         },
     };
 }

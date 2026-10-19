@@ -59,7 +59,7 @@
 ### Prerequisites
 
 - Docker and Docker Compose
-- Kubernetes cluster (k3s, Docker Desktop K8s, or minikube) with `kubectl` configured
+- k3s, set up as in [Getting started](https://hardmax71.github.io/Integr8sCode/getting-started/): two install flags and one link to the repo's `k8s/` folder
 
 ### Quick start
 
@@ -69,12 +69,12 @@ cd Integr8sCode
 ./deploy.sh dev
 ```
 
-Secrets (MongoDB, Redis, JWT) fall back to dev defaults, so local development needs no config. For production, set `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD` and `REDIS_PASSWORD` as env vars, plus `MONGO_MONITOR_PASSWORD` with `--observability`.
+`./deploy.sh dev` copies `.env.example` to `.env` on its first run, so local development needs no config. Compose has no defaults for secrets: anywhere else, write a `.env` with your own values, and compose refuses to start while one is missing.
 
 ### Verify
 
 ```bash
-curl -k https://localhost/api/v1/health/live
+curl -k https://localhost:5001/api/v1/health/live
 ```
 
 ### Access
@@ -82,14 +82,14 @@ curl -k https://localhost/api/v1/health/live
 | Service            | URL                                              | Notes                                         |
 |--------------------|--------------------------------------------------|-----------------------------------------------|
 | Frontend           | [https://localhost:5001](https://localhost:5001) | `user` / `user123` or `admin` / `admin123`    |
-| Backend API        | [https://localhost:443](https://localhost:443)   |                                               |
+| Backend API        | [http://localhost:8000](http://localhost:8000)   | plain http, reachable from this machine only  |
 | Grafana            | [http://localhost:3000](http://localhost:3000)   | needs `--observability`; `admin` / `admin123` |
 | Jaeger (Tracing)   | [http://localhost:16686](http://localhost:16686) | needs `--observability`                       |
 | Kafdrop (Kafka UI) | [http://localhost:9000](http://localhost:9000)   | needs `--debug`                               |
 
 `./deploy.sh dev --observability` adds Grafana, Jaeger, Victoria Metrics, Loki and the OTel Collector. `--debug` adds all of those plus Kafdrop.
 
-Self-signed TLS certs are generated automatically, so accept the browser warning.
+nginx makes a self-signed certificate when it starts, so accept the browser warning. A certificate mounted at `/etc/nginx/certs` in the frontend container is used as is.
 
 ### Run tests
 

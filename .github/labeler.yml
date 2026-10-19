@@ -76,7 +76,8 @@
           - docker-compose.yaml
           - deploy.sh
           - "**/Dockerfile*"
-          - cert-generator/**
+          - k8s/**
+          - .env.example
           - .github/workflows/docker.yml
           - .github/workflows/release-deploy.yml
 

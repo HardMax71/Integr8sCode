@@ -228,8 +228,12 @@ class KubernetesProvider(Provider):
         self, settings: Settings, logger: structlog.stdlib.BoundLogger
     ) -> AsyncIterator[k8s_client.ApiClient]:
         """Provide Kubernetes ApiClient with config loading and cleanup."""
-        await k8s_config.load_kube_config(config_file=settings.KUBERNETES_CONFIG_PATH)
-        api_client = k8s_client.ApiClient()
+        configuration = k8s_client.Configuration()
+        await k8s_config.load_kube_config(
+            config_file=settings.KUBERNETES_CONFIG_PATH, client_configuration=configuration
+        )
+        configuration.host = settings.KUBERNETES_API_SERVER
+        api_client = k8s_client.ApiClient(configuration)
         logger.info("Kubernetes API client ready", host=api_client.configuration.host)
         try:
             yield api_client

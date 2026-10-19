@@ -18,7 +18,7 @@ In the tables, the value is what applies with the shipped `config.toml`. The sou
 
 ## Secrets
 
-For each secret, `Settings` takes the environment variable if it's set and non-empty, then the TOML value, then a dev default. Compose passes all four to every backend service through the `x-backend-secrets` anchor.
+For each secret, `Settings` takes the environment variable if it's set and non-empty, then the TOML value, then a dev default. Compose passes all four to every backend service through the `x-backend-secrets` anchor and has no defaults of its own: the values come from `.env` (`./deploy.sh dev` copies `.env.example`, the production deploy writes it from the repository secrets), and compose refuses to start while one is empty.
 
 | Variable | Purpose | Dev default |
 |----------|---------|-------------|
@@ -50,8 +50,8 @@ For each secret, `Settings` takes the environment variable if it's set and non-e
 
 | Key | Value | Source | What it does |
 |-----|-------|--------|--------------|
-| `KUBERNETES_CONFIG_PATH` | `/app/kubeconfig.yaml` | config.toml | Kubeconfig for the API, k8s worker and pod monitor |
-| `KUBERNETES_CA_CERTIFICATE_PATH` | `/app/certs/k8s-ca.pem` | config.toml | Unused |
+| `KUBERNETES_CONFIG_PATH` | `/etc/rancher/k3s/k3s.yaml` | config.toml | k3s's own kubeconfig, read by the k8s worker and pod monitor |
+| `KUBERNETES_API_SERVER` | `https://host.docker.internal:6443` | default | API address the client uses instead of the kubeconfig's `127.0.0.1` |
 | `K8S_NAMESPACE` | `integr8scode` | config.toml | Namespace for executor pods; `default` is refused |
 | `K8S_POD_CPU_LIMIT` | `1000m` | config.toml | Seeds the `cpu_limit` system setting |
 | `K8S_POD_MEMORY_LIMIT` | `128Mi` | config.toml | Seeds the `memory_limit` system setting; also the base for the memory utilization metric |
@@ -156,8 +156,7 @@ In the container, the backend runs gunicorn from the Dockerfile's entrypoint, wh
 | `WEB_BACKLOG` | `2048` | config.toml | Uvicorn backlog under `python -m app.main` |
 | `WEB_THREADS` | `4` | config.toml | Unused by the app; gunicorn reads the environment variable instead |
 | `SERVER_HOST` | `0.0.0.0` | config.toml | Bind address under `python -m app.main` |
-| `SERVER_PORT` | `443` | default | Port under `python -m app.main` |
-| `SSL_KEYFILE`, `SSL_CERTFILE` | `/app/certs/server.key`, `/app/certs/server.crt` | default | TLS files under `python -m app.main` |
+| `SERVER_PORT` | `8000` | default | Port under `python -m app.main` |
 | `BCRYPT_ROUNDS` | `12` | config.toml | bcrypt cost for passwords |
 | `REDIS_MAX_CONNECTIONS` | `200` | config.toml | Redis connection pool size |
 
@@ -199,10 +198,10 @@ A few variables are read by containers other than the backend's `Settings`:
 | Variable | Default | Read by |
 |----------|---------|---------|
 | `WEB_CONCURRENCY`, `WEB_THREADS`, `WEB_TIMEOUT` | `2`, `4`, `60` | gunicorn in the backend container |
-| `DEFAULT_USER_PASSWORD`, `ADMIN_USER_PASSWORD` | `user123`, `admin123` | `user-seed`, which creates the `user` and `admin` accounts |
-| `MONGO_MONITOR_USER`, `MONGO_MONITOR_PASSWORD` | `otel-monitor`, `monitorpassword` | `mongo-monitor-user` creates this least-privilege MongoDB user, and the OTel collector's mongodb receiver logs in with it |
+| `DEFAULT_USER_PASSWORD`, `ADMIN_USER_PASSWORD` | none; `.env.example` has `user123`, `admin123` | `scripts.seed_users` in the backend container, which creates the `user` and `admin` accounts before gunicorn starts |
+| `MONGO_MONITOR_USER`, `MONGO_MONITOR_PASSWORD` | `otel-monitor`; none for the password, `.env.example` has `monitorpassword` | `scripts.seed_users` creates this least-privilege MongoDB user, and the OTel collector's mongodb receiver logs in with it |
 | `GRAFANA_ROOT_URL` | `http://localhost:3000/` | Grafana's root URL, and the frontend's `GRAFANA_PUBLIC_URL`, where `/grafana` redirects |
-| `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD` | `admin`, `admin123` | Grafana |
+| `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD` | `admin`; none for the password, `.env.example` has `admin123` | Grafana |
 | `GF_SMTP_HOST`, `MAILJET_API_KEY`, `MAILJET_SECRET_KEY` | empty | Grafana, as the SMTP server and login for alert mail. The release deploy fills the host from the `MAILJET_HOST` secret |
 | `MAILJET_FROM_ADDRESS`, `GRAFANA_ALERT_RECIPIENTS` | `noreply@integr8scode.cc` | Grafana, as the alert mail sender and recipients |
 | `IMAGE_TAG` | `latest` | Image tag for every service built from this repo |

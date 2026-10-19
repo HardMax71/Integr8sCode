@@ -24,7 +24,7 @@ The timeout and the CPU and memory limits are the admin settings `max_timeout_se
 
 The k8s worker calls `ensure_namespace_security()` when it starts. The first step is a server-side apply and the second a plain namespace patch, and both are safe to repeat.
 
-The first creates or updates the `executor-deny-all` NetworkPolicy. It selects pods labelled `component: executor`, which every executor pod has, and denies all ingress and egress. The worker is the only owner of this policy; setup-k8s.sh doesn't create it.
+The first creates or updates the `executor-deny-all` NetworkPolicy. It selects pods labelled `component: executor`, which every executor pod has, and denies all ingress and egress. The worker is the only owner of this policy; nothing in `k8s/` creates it.
 
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -45,11 +45,11 @@ The second labels the namespace with the `restricted` Pod Security Standard for 
 
 The worker also applies a `runtime-image-pre-puller` DaemonSet that pulls every runtime image onto each node, so executor pods don't wait on a pull. Its containers also follow the restricted profile.
 
-The worker reaches the cluster with the `integr8scode-sa` service account that setup-k8s.sh creates. setup-k8s.sh also writes the kubeconfig with that account's token. A Role in the namespace lets it manage pods (with logs), ConfigMaps, services, DaemonSets and NetworkPolicies, and a ClusterRole lets it get, list and patch namespaces for the labels.
+The worker reaches the cluster with k3s's own kubeconfig, mounted read-only from `/etc/rancher/k3s` into the worker container only, so it holds the cluster's admin rights. A service account limited to the namespace would not hold it back: the worker sets the namespace's Pod Security labels itself, and an account allowed to change those labels can lift the namespace out of `restricted`. The API container mounts no kubeconfig.
 
 ## Quota with Kueue
 
-Kueue caps the total CPU and memory that executor pods request, not what they use: a default pod requests 200m CPU but may use up to its 1000m limit. Neither the worker nor a ResourceQuota enforces this. The quota sits on a ClusterQueue that would admit a LocalQueue from any namespace, and only `integr8scode` has one. setup-k8s.sh installs Kueue v0.20.1 (manifest checked by SHA256) and creates the queues:
+Kueue caps the total CPU and memory that executor pods request, not what they use: a default pod requests 200m CPU but may use up to its 1000m limit. Neither the worker nor a ResourceQuota enforces this. The quota sits on a ClusterQueue that would admit a LocalQueue from any namespace, and only `integr8scode` has one. k3s applies Kueue v0.20.1 from `k8s/kueue.yaml` (its release manifest, kept byte for byte) and the queues from `k8s/integr8scode.yaml`:
 
 | Resource       | Name             | Purpose                                        |
 |----------------|------------------|------------------------------------------------|

@@ -78,15 +78,13 @@ class Settings(BaseModel):
     MONGO_PASSWORD: str = ""
     MONGODB_URL: str = ""
     KUBERNETES_CONFIG_PATH: str = "~/.kube/config"
-    KUBERNETES_CA_CERTIFICATE_PATH: str | None = None
+    # k3s writes 127.0.0.1 into its kubeconfig; a container reaches the same API through the host
+    KUBERNETES_API_SERVER: str = "https://host.docker.internal:6443"
     RATE_LIMITS: str = "100/minute"
     RATE_LIMIT_ENABLED: bool = True  # Set to False to disable rate limiting entirely
 
-    SSL_KEYFILE: str = "/app/certs/server.key"
-    SSL_CERTFILE: str = "/app/certs/server.crt"
-
     SERVER_HOST: str = "localhost"
-    SERVER_PORT: int = 443
+    SERVER_PORT: int = 8000
 
     # Kubernetes namespace for execution pods
     K8S_NAMESPACE: str = "integr8scode"
@@ -192,9 +190,6 @@ class Settings(BaseModel):
             "https://[::1]:5001",
             "https://localhost",
             "https://127.0.0.1",
-            "https://localhost:443",
-            "https://127.0.0.1:443",
-            "https://[::1]:443",
         ]
     )
 

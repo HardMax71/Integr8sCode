@@ -30,11 +30,11 @@ Integr8sCode runs user scripts in Python, Node.js, Ruby, Bash or Go, each in its
 
 ![System diagram](/assets/images/system_diagram.svg)
 
-The browser loads the SPA from the frontend container, an nginx on port 5001 that also proxies `/api` to the backend over HTTPS. The backend runs FastAPI under Gunicorn with Uvicorn workers and serves both REST and SSE. Kafka runs in KRaft mode and creates topics on first use, so there is no topic setup step. Events travel as JSON that FastStream serializes from the Pydantic models.
+The browser loads the SPA from the frontend container, an nginx that serves HTTPS on port 5001 and proxies `/api` to the backend over plain http inside the compose network. The backend runs FastAPI under Gunicorn with Uvicorn workers and serves both REST and SSE. Kafka runs in KRaft mode and creates topics on first use, so there is no topic setup step. Events travel as JSON that FastStream serializes from the Pydantic models.
 
 The worker is one more container from the same backend image, running `python -m app.worker`. Inside it, the k8s worker creates pods through the Kubernetes API, the pod monitor watches them, the result processor writes results to MongoDB, and the saga orchestrator schedules executions with a Redis-backed queue and tracks sagas in MongoDB. A DLQ job retries failed events every 10 seconds.
 
-The observability profile adds an OpenTelemetry Collector that ships traces to Jaeger, metrics to VictoriaMetrics and logs to Loki, with Grafana on top of all three. Kafdrop is under the debug profile. The cert-generator creates TLS certificates for the frontend and backend from a shared CA, and it also prepares the cluster: it creates the `integr8scode` namespace, installs Kueue, sets up a service account with RBAC and writes the kubeconfig the backend containers use.
+The observability profile adds an OpenTelemetry Collector that ships traces to Jaeger, metrics to VictoriaMetrics and logs to Loki, with Grafana on top of all three. Kafdrop is under the debug profile. No container runs once and exits. nginx makes its own TLS certificate when it starts, the backend seeds the users before it serves, and k3s applies the repo's `k8s/` folder (the `integr8scode` namespace, Kueue and its queues) by itself. The worker reads k3s's own kubeconfig.
 
 ## Backend wiring
 

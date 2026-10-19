@@ -44,7 +44,7 @@ Before it consumes anything, the worker applies two things to the executor names
 
 It also applies the `runtime-image-pre-puller` DaemonSet, which pulls every image in the runtime registry on each node. The worker doesn't wait for those pulls, so an execution that arrives before they finish still waits for its image.
 
-Executor pods also carry the label `kueue.x-k8s.io/queue-name: executor-queue`, which points at the Kueue LocalQueue that `cert-generator/setup-k8s.sh` creates in the `integr8scode` namespace. That script sets up no other namespace, so a different `K8S_NAMESPACE` needs its own LocalQueue.
+Executor pods also carry the label `kueue.x-k8s.io/queue-name: executor-queue`, which points at the Kueue LocalQueue that `k8s/integr8scode.yaml` defines in the `integr8scode` namespace. k3s applies that file by itself. It sets up no other namespace, so a different `K8S_NAMESPACE` needs its own LocalQueue there.
 
 ## Key files
 

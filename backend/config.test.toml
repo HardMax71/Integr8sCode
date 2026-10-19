@@ -7,8 +7,7 @@ PROJECT_NAME = "integr8scode"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 
-KUBERNETES_CONFIG_PATH = "/app/kubeconfig.yaml"
-KUBERNETES_CA_CERTIFICATE_PATH = "/app/certs/k8s-ca.pem"
+KUBERNETES_CONFIG_PATH = "/etc/rancher/k3s/k3s.yaml"
 K8S_POD_CPU_LIMIT = "1000m"
 K8S_POD_MEMORY_LIMIT = "128Mi"
 K8S_POD_CPU_REQUEST = "200m"
@@ -61,8 +60,6 @@ CORS_ORIGINS = [
     "https://127.0.0.1:5001",
     "https://localhost",
     "https://127.0.0.1",
-    "https://localhost:443",
-    "https://127.0.0.1:443",
 ]
 
 SERVICE_NAME = "integr8scode-backend"

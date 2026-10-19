@@ -4,56 +4,14 @@ x-logging: &logging
     max-size: "10m"
     max-file: "3"
 
+# Secrets have no defaults: ./deploy.sh dev copies .env.example to .env, and the production deploy writes .env from its secrets
 x-backend-secrets: &backend-secrets
-  SECRET_KEY: ${SECRET_KEY:-CHANGE_ME_min_32_chars_long_!!!!}
-  MONGO_USER: ${MONGO_USER:-root}
-  MONGO_PASSWORD: ${MONGO_PASSWORD:-rootpassword}
-  REDIS_PASSWORD: ${REDIS_PASSWORD:-redispassword}
+  SECRET_KEY: ${SECRET_KEY:?see .env.example}
+  MONGO_USER: ${MONGO_USER:?see .env.example}
+  MONGO_PASSWORD: ${MONGO_PASSWORD:?see .env.example}
+  REDIS_PASSWORD: ${REDIS_PASSWORD:?see .env.example}
 
 services:
-  # Shared base image for all Python backend services
-  base:
-    logging: *logging
-    image: ghcr.io/hardmax71/integr8scode/base:${IMAGE_TAG:-latest}
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.base
-
-  shared-ca:
-    logging: *logging
-    image: alpine:3.24
-    volumes:
-      - shared_ca:/shared_ca
-    command: sh -c "mkdir -p /shared_ca && chmod 777 /shared_ca && echo 'Shared CA directory ready'"
-    networks:
-      - app-network
-
-  cert-generator:
-    logging: *logging
-    image: ghcr.io/hardmax71/integr8scode/cert-generator:${IMAGE_TAG:-latest}
-    build:
-      context: ./cert-generator
-      dockerfile: Dockerfile
-    volumes:
-      - ./backend/certs:/backend-certs
-      - ./frontend/certs:/frontend-certs
-      - ~/.kube:/root/.kube
-      - /etc/rancher/k3s:/etc/rancher/k3s:ro
-      - shared_ca:/shared_ca
-      - ./backend:/backend
-    environment:
-       - SHARED_CA_DIR=/shared_ca
-       - BACKEND_CERT_DIR=/backend-certs
-       - FRONTEND_CERT_DIR=/frontend-certs
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    restart: "no"
-    networks:
-      - app-network
-    depends_on:
-      shared-ca:
-        condition: service_completed_successfully
-
   mongo:
     logging: *logging
     image: mongo:9.0.2
@@ -61,8 +19,8 @@ services:
     ports:
       - "127.0.0.1:27017:27017"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-root}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-rootpassword}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:?see .env.example}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:?see .env.example}
       MONGO_INITDB_DATABASE: integr8scode
     volumes:
       - mongo_data:/data/db
@@ -88,7 +46,7 @@ services:
     container_name: redis
     ports:
       - "127.0.0.1:6379:6379"
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save "" --requirepass ${REDIS_PASSWORD:-redispassword}
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save "" --requirepass ${REDIS_PASSWORD:?see .env.example}
     volumes:
       - redis_data:/data
     networks:
@@ -96,7 +54,7 @@ services:
     mem_limit: 300m
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redispassword}", "--no-auth-warning", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?see .env.example}", "--no-auth-warning", "ping"]
       interval: 2s
       timeout: 3s
       retries: 10
@@ -108,15 +66,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      additional_contexts:
-        base: service:base
     depends_on:
-      base:
-        condition: service_completed_successfully
-      cert-generator:
-        condition: service_completed_successfully
-      user-seed:
-        condition: service_completed_successfully
       mongo:
         condition: service_healthy
       redis:
@@ -127,27 +77,26 @@ services:
       - ./backend/app:/app/app
       - ./backend/scripts:/app/scripts
       - ./backend/tests:/app/tests:ro
-      - ./backend/certs:/app/certs:ro
       - ./backend/config.test.toml:/app/config.test.toml:ro
       - ./backend/config.toml:/app/config.toml:ro
-      - shared_ca:/shared_ca:ro
-      - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
     ports:
-      - "127.0.0.1:443:443"
+      - "127.0.0.1:8000:8000"
     networks:
       - app-network
     container_name: backend
     environment:
       <<: *backend-secrets
+      ADMIN_USER_PASSWORD: ${ADMIN_USER_PASSWORD:?see .env.example}
+      DEFAULT_USER_PASSWORD: ${DEFAULT_USER_PASSWORD:?see .env.example}
+      MONGO_MONITOR_USER: ${MONGO_MONITOR_USER:-otel-monitor}
+      MONGO_MONITOR_PASSWORD: ${MONGO_MONITOR_PASSWORD:?see .env.example}
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
       WEB_THREADS: ${WEB_THREADS:-4}
       WEB_TIMEOUT: ${WEB_TIMEOUT:-60}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     mem_limit: 768m
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -k -f -s https://localhost:443/api/v1/health/live >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -f -s http://localhost:8000/api/v1/health/live >/dev/null || exit 1"]
       interval: 2s
       timeout: 3s
       retries: 30
@@ -161,19 +110,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     depends_on:
-      cert-generator:
-        condition: service_completed_successfully
       backend:
         condition: service_started
-    volumes:
-      - ./frontend/certs:/etc/nginx/certs:ro
-      - shared_ca:/shared_ca:ro
     ports:
       - "5001:5001"
     networks:
       - app-network
     environment:
-      - BACKEND_URL=https://backend:443
+      - BACKEND_URL=http://backend:8000
       - GRAFANA_URL=${GRAFANA_URL:-http://grafana:3000}
       - GRAFANA_PUBLIC_URL=${GRAFANA_ROOT_URL:-http://localhost:3000/}
     mem_limit: 128m
@@ -233,7 +177,7 @@ services:
       - GF_LOG_LEVEL=warn
       - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000/}
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?see .env.example}
       - GF_SMTP_HOST=${GF_SMTP_HOST:-}
       - GF_SMTP_USER=${MAILJET_API_KEY:-}
       - GF_SMTP_PASSWORD=${MAILJET_SECRET_KEY:-}
@@ -328,27 +272,6 @@ services:
     networks:
       - app-network
 
-  # Seed default users (runs once after mongo is ready)
-  user-seed:
-    logging: *logging
-    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
-    container_name: user-seed
-    depends_on:
-      mongo:
-        condition: service_healthy
-    environment:
-      <<: *backend-secrets
-      DEFAULT_USER_PASSWORD: ${DEFAULT_USER_PASSWORD:-user123}
-      ADMIN_USER_PASSWORD: ${ADMIN_USER_PASSWORD:-admin123}
-    volumes:
-      - ./backend/app:/app/app:ro
-      - ./backend/scripts:/app/scripts:ro
-      - ./backend/config.toml:/app/config.toml:ro
-    command: ["python", "-m", "scripts.seed_users"]
-    networks:
-      - app-network
-    restart: "no"  # Run once and exit
-
   # Kafka consumers, the pod watch and the scheduled jobs
   worker:
     logging: *logging
@@ -357,17 +280,17 @@ services:
     mem_limit: 256m
     command: ["python", "-m", "app.worker"]
     depends_on:
-      user-seed:
-        condition: service_completed_successfully
+      # healthy means the backend has run scripts.seed_users, data fixes included
+      backend:
+        condition: service_healthy
       kafka:
         condition: service_healthy
-      mongo:
-        condition: service_started
     environment:
       <<: *backend-secrets
     volumes:
       - ./backend/app:/app/app:ro
-      - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
+      # k3s's own kubeconfig; the folder, so a missing file never turns into a directory
+      - /etc/rancher/k3s:/etc/rancher/k3s:ro
       - ./backend/config.toml:/app/config.toml:ro
       - ./backend/config.worker.toml:/app/config.worker.toml:ro
     networks:
@@ -456,8 +379,9 @@ services:
       - /proc:/hostfs/proc:ro
       - /sys:/hostfs/sys:ro
     environment:
+      # The backend creates this user on start; until then the mongodb receiver's scrapes fail and retry
       - MONGO_MONITOR_USER=${MONGO_MONITOR_USER:-otel-monitor}
-      - MONGO_MONITOR_PASSWORD=${MONGO_MONITOR_PASSWORD:-monitorpassword}
+      - MONGO_MONITOR_PASSWORD=${MONGO_MONITOR_PASSWORD:?see .env.example}
     ports:
       - "127.0.0.1:4317:4317"   # OTLP gRPC
       - "127.0.0.1:4318:4318"   # OTLP HTTP
@@ -473,48 +397,7 @@ services:
         condition: service_started
       kafka:
         condition: service_healthy
-      mongo-monitor-user:
-        condition: service_completed_successfully
     restart: unless-stopped
-
-  # Least-privilege MongoDB user for the collector's mongodb receiver (root fails $indexStats on admin.system.*)
-  mongo-monitor-user:
-    logging: *logging
-    image: mongo:9.0.2
-    container_name: mongo-monitor-user
-    profiles: ["observability"]
-    depends_on:
-      mongo:
-        condition: service_healthy
-    environment:
-      MONGO_USER: ${MONGO_USER:-root}
-      MONGO_PASSWORD: ${MONGO_PASSWORD:-rootpassword}
-      MONGO_MONITOR_USER: ${MONGO_MONITOR_USER:-otel-monitor}
-      MONGO_MONITOR_PASSWORD: ${MONGO_MONITOR_PASSWORD:-monitorpassword}
-    entrypoint:
-      - mongosh
-      - --quiet
-      - --nodb
-      - --eval
-      - |
-        const admin = connect("mongodb://mongo:27017/admin");
-        admin.auth(process.env.MONGO_USER, process.env.MONGO_PASSWORD);
-        const role = {
-          privileges: [
-            { resource: { cluster: true }, actions: ["serverStatus", "top"] },
-            { resource: { db: "integr8scode", collection: "" }, actions: ["dbStats", "indexStats", "listCollections"] },
-          ],
-          roles: [],
-        };
-        if (admin.getRole("otelMonitor")) admin.updateRole("otelMonitor", role);
-        else admin.createRole({ role: "otelMonitor", ...role });
-        const user = process.env.MONGO_MONITOR_USER;
-        const spec = { pwd: process.env.MONGO_MONITOR_PASSWORD, roles: ["otelMonitor"] };
-        if (admin.getUser(user)) admin.updateUser(user, spec);
-        else admin.createUser({ user, ...spec });
-    networks:
-      - app-network
-    restart: "no"
 
 # --8<-- [start:dev_volumes]
 volumes:
@@ -522,7 +405,6 @@ volumes:
   redis_data:
   grafana_data:
   victoria_metrics_data:
-  shared_ca:
   loki_data:
   kafka_data:
   kafka_logs:

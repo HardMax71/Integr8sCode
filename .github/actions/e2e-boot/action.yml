@@ -28,11 +28,12 @@ runs:
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
       run: |
+        cp .env.example .env
         nohup bash -c '
           IMAGE_TAG='"$IMAGE_TAG"' docker compose pull --quiet 2>&1
           echo "--- pull done, starting infra ---"
           docker compose up -d --no-build \
-            mongo redis shared-ca kafka 2>&1
+            mongo redis kafka 2>&1
           echo $? > /tmp/infra-pull.exit
         ' > /tmp/infra-pull.log 2>&1 &
         echo $! > /tmp/infra-pull.pid
@@ -40,24 +41,22 @@ runs:
     # Pods get their network interfaces inside this container, so the runner's network and the test browser never see them come and go
     - name: Start k3s in a container
       shell: bash
+      env:
+        INSTALL_KUEUE: ${{ inputs.install-kueue }}
       run: |
         sudo mkdir -p /etc/rancher/k3s
+        # k3s applies k8s/ (Kueue and its queues) by itself, as it does in production
+        MANIFESTS=()
+        if [ "$INSTALL_KUEUE" = "true" ]; then
+          MANIFESTS=(-v "$GITHUB_WORKSPACE/k8s:/var/lib/rancher/k3s/server/manifests/integr8scode:ro")
+        fi
         docker run -d --name k3s --privileged -p 6443:6443 \
-          -v /etc/rancher/k3s:/etc/rancher/k3s -e K3S_KUBECONFIG_MODE=644 \
+          -v /etc/rancher/k3s:/etc/rancher/k3s "${MANIFESTS[@]}" -e K3S_KUBECONFIG_MODE=644 \
           "$K3S_IMAGE" server --disable=traefik --disable-network-policy --tls-san host.docker.internal
 
-    - name: Pre-pull executor images and Kueue manifest (background)
+    - name: Pre-pull executor images (background)
       shell: bash
       run: |
-        KUEUE_VERSION="${KUEUE_VERSION:-v0.20.1}"
-
-        nohup bash -c '
-          curl --proto =https --tlsv1.2 -fsSL -o /tmp/kueue-manifests.yaml \
-            "https://github.com/kubernetes-sigs/kueue/releases/download/'"$KUEUE_VERSION"'/manifests.yaml"
-          echo $? > /tmp/kueue-download.exit
-        ' > /tmp/kueue-download.log 2>&1 &
-        echo $! > /tmp/kueue-download.pid
-
         # No docker exec before k3s writes its kubeconfig: one during its root cgroup evacuation kills the kubelet
         nohup bash -c '
           timeout 120 bash -c "until [ -s /etc/rancher/k3s/k3s.yaml ] && docker exec k3s crictl info >/dev/null 2>&1; do sleep 2; done"
@@ -71,10 +70,10 @@ runs:
       if: inputs.install-kueue == 'true'
       shell: bash
       run: |
-        KUEUE_VERSION="${KUEUE_VERSION:-v0.20.1}"
+        KUEUE_IMAGE=$(grep -m1 -oE 'registry\.k8s\.io/kueue/kueue:v[0-9.]+' k8s/kueue.yaml)
         nohup bash -c '
           timeout 120 bash -c "until [ -s /etc/rancher/k3s/k3s.yaml ] && docker exec k3s crictl info >/dev/null 2>&1; do sleep 2; done"
-          docker exec k3s crictl pull registry.k8s.io/kueue/kueue:'"$KUEUE_VERSION"'
+          docker exec k3s crictl pull '"$KUEUE_IMAGE"'
           echo $? > /tmp/crictl-kueue.exit
         ' > /tmp/crictl-kueue.log 2>&1 &
         echo $! > /tmp/crictl-kueue.pid

@@ -469,6 +469,8 @@ jobs:
           tags: integr8scode-frontend:latest
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
+          # A cached `apk upgrade` layer would keep OS packages from the day it was cached
+          no-cache-filters: production
 
       # ── Push all images to GHCR in parallel ────────────────────────
       - name: Push all images to GHCR

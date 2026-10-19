@@ -10,7 +10,7 @@ Findings show up in the repository's Security tab under code scanning, as `backe
 
 ## Image and code scans
 
-Docker Scan & Promote runs Trivy v0.75.0 on the `backend` and `frontend` images of every commit that passed CI on `main`. It reports `CRITICAL` and `HIGH` findings that have a fix, skips anything listed in `backend/.trivyignore`, and uploads SARIF per image as `trivy-<image>`. A finding fails the job and blocks the promote to `latest`. The images keep the count at zero by upgrading their OS packages at build time, and the backend drops pip, whose vendored packages were the only Python findings. The ignore file lists no CVE today. See [CI/CD](../operations/cicd.md#docker-scan-promote).
+Docker Scan & Promote runs Trivy v0.75.0 on the `backend` and `frontend` images of every commit that passed CI on `main`. It reports `CRITICAL` and `HIGH` findings that have a fix, skips anything listed in `backend/.trivyignore`, and uploads SARIF per image as `trivy-<image>`. A finding fails the job and blocks the promote to `latest`. The images keep the count at zero by upgrading their OS packages in a step CI never caches (the backend's last stage, the frontend's `production` stage), so a fix released after a cached build still gets in, and the backend drops pip, whose vendored packages were the only Python findings. The ignore file lists no CVE today. See [CI/CD](../operations/cicd.md#docker-scan-promote).
 
 CI's Security Scanning job runs `uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/ -ll` on pushes to `main` and on PRs that change `backend/`. `-ll` reports medium severity and up, and any finding fails the workflow.
 

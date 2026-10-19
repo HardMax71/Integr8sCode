@@ -32,7 +32,7 @@ FROM python:3.14-slim AS base
 WORKDIR /app
 
 # Runtime libs only (no -dev headers, no gcc); uv installs the app, so pip goes too, since its vendored packages trip the scan
-RUN apt-get update && apt-get upgrade -y \
+RUN apt-get update \
     && apt-get install -y --no-install-recommends \
     curl \
     liblzma5 \
@@ -56,6 +56,9 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV OTEL_SEMCONV_STABILITY_OPT_IN=http
 
 FROM base
+
+# CI caches the base stage's layers, so OS fixes released after that come in here, on every build
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 
 # Copy application files and configuration
 COPY ./app /app/app

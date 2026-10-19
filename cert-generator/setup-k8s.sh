@@ -98,7 +98,8 @@ curl --proto =https --tlsv1.2 -fsSL -o "$KUEUE_MANIFEST" "https://github.com/kub
 echo "${KUEUE_MANIFEST_SHA256}  ${KUEUE_MANIFEST}" | sha256sum -c -
 kubectl apply --server-side -f "$KUEUE_MANIFEST"
 rm -f "$KUEUE_MANIFEST"
-kubectl wait --for=condition=Available --timeout=120s \
+# Kueue's cert bootstrap answers /readyz with 404 until the kubelet mounts its new secret, which can take minutes
+kubectl wait --for=condition=Available --timeout=300s \
   deployment/kueue-controller-manager -n kueue-system
 
 # Kueue resources: ResourceFlavor + ClusterQueue + LocalQueue

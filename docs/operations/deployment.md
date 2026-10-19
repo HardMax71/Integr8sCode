@@ -101,7 +101,7 @@ The frontend gets `GRAFANA_PUBLIC_URL` from `GRAFANA_ROOT_URL` (default `http://
 
 | Image                                  | Version   |
 |----------------------------------------|-----------|
-| `mongo`                                | 9.0.2     |
+| `mongo`                                | 9.0.4     |
 | `redis`                                | 8.10.2-alpine |
 | `confluentinc/cp-kafka`                | 8.3.2     |
 | `grafana/grafana`                      | 13.2.3    |

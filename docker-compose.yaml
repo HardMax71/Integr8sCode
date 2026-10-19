@@ -56,7 +56,7 @@ services:
 
   mongo:
     logging: *logging
-    image: mongo:9.0.2
+    image: mongo:9.0.4
     command: ["mongod", "--wiredTigerCacheSizeGB", "0.4"]
     ports:
       - "127.0.0.1:27017:27017"
@@ -480,7 +480,7 @@ services:
   # Least-privilege MongoDB user for the collector's mongodb receiver (root fails $indexStats on admin.system.*)
   mongo-monitor-user:
     logging: *logging
-    image: mongo:9.0.2
+    image: mongo:9.0.4
     container_name: mongo-monitor-user
     profiles: ["observability"]
     depends_on:

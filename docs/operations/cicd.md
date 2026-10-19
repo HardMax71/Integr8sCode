@@ -5,13 +5,13 @@ CI is six GitHub Actions workflows, two composite actions and a Dependabot confi
 ```mermaid
 graph LR
     subgraph ST["CI"]
-        UB["backend unit + Grafana contract"] --> Build["build and push 4 images"]
+        UB["backend unit + Grafana contract"] --> Build["build and push 2 images"]
         UF["frontend unit"] --> Build
         Build --> EB["backend E2E"]
         Build --> EF["frontend E2E, 2 shards"]
     end
     subgraph DSP["Docker Scan & Promote"]
-        Scan["Trivy, 4 images"] --> Promote["crane: sha tag to latest"]
+        Scan["Trivy, 2 images"] --> Promote["crane: sha tag to latest"]
     end
     subgraph RD["Release & Deploy"]
         Release["CalVer tag + GitHub release"] --> Deploy["SSH deploy"]
@@ -49,7 +49,7 @@ CI is the only workflow a PR has to pass, and it runs only what the PR can affec
 |-----------------------------------------------------------------|----------------------------------------------------------------------|
 | `backend/`                                                      | ruff, mypy, grimp, bandit, backend unit tests                        |
 | `frontend/`                                                     | frontend lint and type check, frontend unit tests                    |
-| `backend/`, `frontend/`, cert-generator, compose, deploy.sh or the composite actions | the images and frontend E2E; backend E2E unless only `frontend/` changed |
+| `backend/`, `frontend/`, `.env.example`, compose, deploy.sh or the composite actions | the images and frontend E2E; backend E2E unless only `frontend/` changed |
 | `backend/`, the spec, the generated client or its generator config | Spec and client match the code                                    |
 | `docs/`, mkdocs.yml, or `backend/` and `frontend/`, since the docs include snippets of them | Docs Build                                  |
 
@@ -63,14 +63,12 @@ Stacked PRs come from `gh stack`. CI runs for every PR in a stack, each against 
 
 The backend unit job installs with `uv sync --frozen --group test --no-dev --no-install-project --no-build` and runs `pytest tests/unit` with coverage. The pytest config adds `-n auto --dist=loadgroup`, so tests run in parallel with xdist and tests that share a group stay on one worker. The same job then runs the [Grafana contract tests](../testing/contract-testing.md) with `pytest tests/contract -m grafana_contract`. The frontend unit job runs `npm ci --ignore-scripts` and `npm run test:coverage`. Coverage goes to Codecov with the flags `backend-unit`, `frontend-unit` and later `backend-e2e`.
 
-Once both pass, or are skipped because only one side changed, one job builds the four images and pushes them to GHCR as `sha-<7 chars>`:
+Once both pass, or are skipped because only one side changed, one job builds the two images and pushes them to GHCR as `sha-<7 chars>`:
 
-| Image            | Dockerfile                  | Build                                                         |
-|------------------|-----------------------------|---------------------------------------------------------------|
-| `base`           | `backend/Dockerfile.base`   | cached as a zstd tarball keyed on `Dockerfile.base`, pyproject.toml and uv.lock; GHA layer cache on a miss |
-| `backend`        | `backend/Dockerfile`        | plain `docker build` on top of the local base image           |
-| `cert-generator` | `cert-generator/Dockerfile` | GHA layer cache                                               |
-| `frontend`       | `frontend/Dockerfile`       | GHA layer cache                                               |
+| Image      | Dockerfile            | Build                                                         |
+|------------|-----------------------|---------------------------------------------------------------|
+| `backend`  | `backend/Dockerfile`  | the `base` stage (Python, system packages, locked dependencies) is built on its own and cached as a zstd tarball keyed on the Dockerfile, pyproject.toml and uv.lock, with the GHA layer cache on a miss; then `docker build --build-context base=docker-image://...` builds only the app layers on top |
+| `frontend` | `frontend/Dockerfile` | GHA layer cache                                               |
 
 The pushes run in parallel and each failure is reported on its own. Fork PRs can't push to GHCR, so for them the push and both E2E jobs are skipped. Both E2E jobs check `!cancelled()` and the build's result in their own `if`. Without a status function, GitHub skips every job below a skipped one in the `needs` chain, so a backend-only PR, which skips the frontend unit job, would skip both E2E jobs. Workers reuse the backend image, so there are no worker images.
 
@@ -78,19 +76,19 @@ The pushes run in parallel and each failure is reported on its own. Fork PRs can
 
 Each E2E job gets its own runner with k3s and the full compose stack, pulling the images it just built. Two composite actions set that up, and the frontend job installs Node and Playwright between them so that work overlaps with k3s booting.
 
-`e2e-boot` logs in to GHCR, starts `docker compose pull` and then `mongo redis shared-ca kafka` in the background, and starts k3s in a privileged container named `k3s`, from the `rancher/k3s` image, with its network policy controller off. No E2E test checks policy enforcement, and the worker still creates the NetworkPolicy object. The container publishes 6443 and mounts the runner's `/etc/rancher/k3s`, so the kubeconfig lands where the cert-generator service reads it, the same as with a host install. k3s runs in a container because its pods then get their network interfaces inside it. With k3s on the runner itself, every executor pod changed the runner's network, and Chromium aborted Playwright navigations in flight with `net::ERR_NETWORK_CHANGED`. Also in the background, it downloads the Kueue manifest and, once k3s has written its kubeconfig, pre-pulls `python:3.14-slim`, the default runtime and the only one the tests execute, into k3s with `docker exec k3s crictl`, so the first executor pods don't wait on an image pull. Nothing execs into the container before that kubeconfig exists: at startup k3s moves every process out of the container's root cgroup and then enables the cgroup controllers there, and a `docker exec` landing in between made that fail with "device or resource busy", so the kubelet exited and the node never came up. Jobs that install Kueue also pre-pull `registry.k8s.io/kueue/kueue` that way, and `e2e-ready` waits for that pull before it waits for the controller, since the image alone once took over five minutes from registry.k8s.io.
+`e2e-boot` logs in to GHCR, copies `.env.example` to `.env`, starts `docker compose pull` and then `mongo redis kafka` in the background, and starts k3s in a privileged container named `k3s`, from the `rancher/k3s` image, with its network policy controller off. No E2E test checks policy enforcement, and the worker still creates the NetworkPolicy object. The container publishes 6443 and mounts the runner's `/etc/rancher/k3s`, so the kubeconfig lands where the worker reads it, the same as with a host install. k3s runs in a container because its pods then get their network interfaces inside it. With k3s on the runner itself, every executor pod changed the runner's network, and Chromium aborted Playwright navigations in flight with `net::ERR_NETWORK_CHANGED`. Also in the background, once k3s has written its kubeconfig, it pre-pulls `python:3.14-slim`, the default runtime and the only one the tests execute, into k3s with `docker exec k3s crictl`, so the first executor pods don't wait on an image pull. Nothing execs into the container before that kubeconfig exists: at startup k3s moves every process out of the container's root cgroup and then enables the cgroup controllers there, and a `docker exec` landing in between made that fail with "device or resource busy", so the kubelet exited and the node never came up.
 
-`e2e-ready` copies k3s's kubeconfig for the runner's kubectl, waits for the node, writes `backend/kubeconfig.yaml` pointing at `host.docker.internal:6443` and creates the `integr8scode` namespace. Unless `install-kueue` is `false`, it applies the Kueue manifest, waits for the controller and creates the `ResourceFlavor`, `ClusterQueue` and `LocalQueue` (`kueue.x-k8s.io/v1beta2`), then waits for the image pre-pulls. Kueue starts with a certificate bootstrap that answers `/readyz` with 404 until the kubelet has mounted its new certificate secret, and it checks for the file with an exponential backoff, so on a slow run the controller takes over two minutes. If it isn't Available within 300 seconds, the step prints the `kueue-system` pods, their descriptions, events and the controller's last 300 log lines before it fails. It copies config.test.toml over config.toml, waits for the background infra start, runs `docker compose up -d --no-build` and polls `/api/v1/health/live` (and the frontend, when asked). It then waits until the five Kafka consumer groups report `Stable` in `kafka-consumer-groups --describe --state`. On a fresh Kafka most of them start at the newest message, so a request sent while they were still joining would never be read, and an execution test would time out.
+`e2e-ready` copies k3s's kubeconfig for the runner's kubectl, waits for the node and then for the image pre-pull. The worker creates the `integr8scode` namespace, its NetworkPolicy and its ResourceQuota itself when it starts. It copies config.test.toml over config.toml, waits for the background infra start, runs `docker compose up -d --no-build` and polls `/api/v1/health/live` (and the frontend, when asked). It then waits until the five Kafka consumer groups report `Stable` in `kafka-consumer-groups --describe --state`. On a fresh Kafka most of them start at the newest message, so a request sent while they were still joining would never be read, and an execution test would time out.
 
-The backend E2E job runs `pytest tests/e2e` inside the backend container after `uv sync --group test --no-dev --frozen --no-install-project --no-build`. The frontend E2E job runs as two shards. It caches Playwright browsers by package-lock.json, always runs `npm run test:e2e:deps`, runs `npm run test:e2e:browsers` on a cache miss, skips Kueue, and runs `npm run test:e2e -- --shard=N/2`. On failure both jobs upload compose logs, the k3s container's log and `kubectl describe nodes`; the backend one adds `kubectl get events`.
+The backend E2E job runs `pytest tests/e2e` inside the backend container after `uv sync --group test --no-dev --frozen --no-install-project --no-build`. The frontend E2E job runs as two shards. It caches Playwright browsers by package-lock.json, always runs `npm run test:e2e:deps`, runs `npm run test:e2e:browsers` on a cache miss, and runs `npm run test:e2e -- --shard=N/2`. On failure both jobs upload compose logs, the k3s container's log and `kubectl describe nodes`; the backend one adds `kubectl get events`.
 
 ## Docker Scan & Promote
 
-The jobs run only when CI succeeded on `main`, or on a manual run. A matrix scans `base`, `backend`, `frontend` and `cert-generator` with Trivy v0.75.0 (`CRITICAL,HIGH`, unfixed ignored, `backend/.trivyignore`) and uploads SARIF to the Security tab. A finding fails the scan job, and `promote` needs every scan to pass, so an image with a fixable `CRITICAL` or `HIGH` vulnerability never becomes `latest`. `limit-severities-for-sarif` keeps the SARIF to those two levels; without it the action drops the severity filter for SARIF and the gate would trip on everything. The promote job then copies each `sha-` tag to `latest` with `crane copy`, a registry-side manifest copy with no rebuild.
+The jobs run only when CI succeeded on `main`, or on a manual run. A matrix scans `backend` and `frontend` with Trivy v0.75.0 (`CRITICAL,HIGH`, unfixed ignored, `backend/.trivyignore`) and uploads SARIF to the Security tab. A finding fails the scan job, and `promote` needs every scan to pass, so an image with a fixable `CRITICAL` or `HIGH` vulnerability never becomes `latest`. `limit-severities-for-sarif` keeps the SARIF to those two levels; without it the action drops the severity filter for SARIF and the gate would trip on everything. The promote job then copies each `sha-` tag to `latest` with `crane copy`, a registry-side manifest copy with no rebuild.
 
 ## Release & Deploy
 
-The release job first finds the commit `latest` was built from, by matching the digest of `backend:latest` against the `sha-` tags of the last 100 commits on `main`. That commit can be behind `main`'s head when a later merge is still in CI or failed it. If the commit already has a CalVer tag, nothing new passed since the last release: a scheduled run stops there, and a manual run deploys that release again. Otherwise the job computes a CalVer version `YYYY.M.PATCH`, where `PATCH` is one more than the highest tag of the current month, starting at 0. It copies the commit's `sha-` images to that tag for all four images with crane, pushes an annotated git tag on that commit and creates a GitHub release with generated notes.
+The release job first finds the commit `latest` was built from, by matching the digest of `backend:latest` against the `sha-` tags of the last 100 commits on `main`. That commit can be behind `main`'s head when a later merge is still in CI or failed it. If the commit already has a CalVer tag, nothing new passed since the last release: a scheduled run stops there, and a manual run deploys that release again. Otherwise the job computes a CalVer version `YYYY.M.PATCH`, where `PATCH` is one more than the highest tag of the current month, starting at 0. It copies the commit's `sha-` images to that tag for both images with crane, pushes an annotated git tag on that commit and creates a GitHub release with generated notes.
 
 The deploy job runs `appleboy/ssh-action` against the production server. It's skipped on a manual run with `skip_deploy`, and on a scheduled run with nothing new. What it runs on the server is in [Deployment](deployment.md#production).
 
@@ -103,7 +101,7 @@ The deploy job runs `appleboy/ssh-action` against the production server. It's sk
 | `MONGO_USER`, `MONGO_PASSWORD`                 | Release & Deploy            | MongoDB root credentials                    |
 | `MONGO_MONITOR_PASSWORD`                       | Release & Deploy            | password of the collector's MongoDB user    |
 | `REDIS_PASSWORD`                               | Release & Deploy            | Redis password                              |
-| `ADMIN_USER_PASSWORD`, `DEFAULT_USER_PASSWORD` | Release & Deploy            | passwords the seed job sets for `admin` and `user` |
+| `ADMIN_USER_PASSWORD`, `DEFAULT_USER_PASSWORD` | Release & Deploy            | passwords the backend sets for `admin` and `user` on start |
 | `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD` | Release & Deploy            | Grafana admin login                         |
 | `MAILJET_HOST`, `MAILJET_API_KEY`, `MAILJET_SECRET_KEY`, `MAILJET_FROM_ADDRESS` | Release & Deploy | Grafana alert mail over SMTP |
 | `GRAFANA_ALERT_RECIPIENTS`                     | Release & Deploy            | who gets alert mail                         |
@@ -118,7 +116,7 @@ Every action, the composite ones included, is pinned to a full commit SHA with t
 
 Tools are pinned exactly: mkdocs 1.6.1 with material 9.7.7, mermaid2 1.2.3 and swagger-ui-tag 0.8.1; bandit 1.9.4; Trivy v0.75.0. Python installs use `uv sync --frozen` with `--no-build`, so only wheels from the lockfile get installed, and `--no-install-project`. `uvx` calls also pass `--no-build`. npm installs use `npm ci --ignore-scripts`, in CI and in the frontend image.
 
-k3s is the `rancher/k3s:v1.37.1-k3s1` image, pinned by digest in `K3S_IMAGE` in ci.yml. The Kueue manifest (`v0.20.1`) is checked against its SHA256 before it's applied. All these downloads use `curl --proto =https --tlsv1.2`.
+k3s is the `rancher/k3s:v1.37.1-k3s1` image, pinned by digest in `K3S_IMAGE` in ci.yml.
 
 `latest` is only ever set by the promote job, so after an automatic promote it points at images that passed the tests and the Trivy scan. A manual promote still needs the scan but can pick a SHA whose E2E jobs failed, since the build job pushes the `sha-` tags before E2E runs. Any build stays pullable by its `sha-` tag.
 

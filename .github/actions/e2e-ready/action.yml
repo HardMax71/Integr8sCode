@@ -9,10 +9,6 @@ inputs:
     description: 'Also wait for frontend health check (default: false)'
     required: false
     default: 'false'
-  install-kueue:
-    description: 'Install Kueue CRDs for executor pods (default: true)'
-    required: false
-    default: 'true'
 
 runs:
   using: 'composite'
@@ -27,72 +23,11 @@ runs:
         export KUBECONFIG=/home/runner/.kube/config
         # kubectl wait fails at once while the node isn't registered yet, so retry until it is
         timeout 120 bash -c 'until kubectl wait --for=condition=Ready node --all --timeout=5s >/dev/null 2>&1; do sleep 2; done'
-        kubectl create namespace integr8scode --dry-run=client -o yaml | kubectl apply -f -
-        sed -E 's#https://(127\.0\.0\.1|0\.0\.0\.0):6443#https://host.docker.internal:6443#g' \
-          /home/runner/.kube/config > backend/kubeconfig.yaml
-        chmod 644 backend/kubeconfig.yaml
 
-    - name: Install Kueue and wait for executor image pulls
-      if: inputs.install-kueue == 'true'
+    - name: Wait for the executor image pull
       shell: bash
       run: |
         set -e
-
-        KUEUE_VERSION="${KUEUE_VERSION:-v0.20.1}"
-        KUEUE_MANIFEST_SHA256="${KUEUE_MANIFEST_SHA256:-c48514295365aae0c7dc578c70330befdd0015fec57cb4a06ba872bbef8750dd}"
-        KUEUE_MANIFEST="/tmp/kueue-manifests.yaml"
-
-        timeout 120 tail --pid="$(cat /tmp/kueue-download.pid)" -f /dev/null 2>/dev/null || true
-        cat /tmp/kueue-download.log 2>/dev/null || true
-        [ "$(cat /tmp/kueue-download.exit)" = "0" ]
-
-        echo "${KUEUE_MANIFEST_SHA256}  ${KUEUE_MANIFEST}" | sha256sum -c -
-        timeout 600 tail --pid="$(cat /tmp/crictl-kueue.pid)" -f /dev/null 2>/dev/null || true
-        cat /tmp/crictl-kueue.log 2>/dev/null || true
-        [ "$(cat /tmp/crictl-kueue.exit)" = "0" ]
-
-        kubectl apply --server-side -f "$KUEUE_MANIFEST"
-        rm -f "$KUEUE_MANIFEST"
-        # Kueue's cert bootstrap answers /readyz with 404 until the kubelet mounts its new secret, which can take minutes
-        if ! kubectl wait --for=condition=Available --timeout=300s deployment/kueue-controller-manager -n kueue-system; then
-          kubectl -n kueue-system get pods -o wide
-          kubectl -n kueue-system describe pods
-          kubectl -n kueue-system get events --sort-by=.lastTimestamp
-          kubectl -n kueue-system logs deployment/kueue-controller-manager --all-containers --tail=300
-          exit 1
-        fi
-
-        kubectl apply --server-side -f - <<'EOF'
-        apiVersion: kueue.x-k8s.io/v1beta2
-        kind: ResourceFlavor
-        metadata:
-          name: default-flavor
-        ---
-        apiVersion: kueue.x-k8s.io/v1beta2
-        kind: ClusterQueue
-        metadata:
-          name: executor-queue
-        spec:
-          namespaceSelector: {}
-          resourceGroups:
-          - coveredResources: ["cpu", "memory"]
-            flavors:
-            - name: default-flavor
-              resources:
-              - name: cpu
-                nominalQuota: "32"
-              - name: memory
-                nominalQuota: "4Gi"
-        ---
-        apiVersion: kueue.x-k8s.io/v1beta2
-        kind: LocalQueue
-        metadata:
-          name: executor-queue
-          namespace: integr8scode
-        spec:
-          clusterQueue: executor-queue
-        EOF
-
         timeout 120 tail --pid="$(cat /tmp/crictl-python.pid)" -f /dev/null 2>/dev/null || true
         cat /tmp/crictl-python.log 2>/dev/null || true
         [ "$(cat /tmp/crictl-python.exit)" = "0" ]

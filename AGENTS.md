@@ -88,7 +88,7 @@ npm run test:e2e          # Playwright E2E, needs the running stack
 ./deploy.sh types                # regenerate frontend/src/lib/api/ from that spec
 ```
 
-`npm run dev` serves HTTPS when ./certs/server.key and server.crt exist and proxies /api to `https://backend:443`, a hostname that only resolves inside the compose network, so on the host the API calls fail. The compose `frontend` service already serves a production build on :5001; rebuild it with `./deploy.sh dev --build` after frontend changes.
+`npm run dev` serves HTTPS when ./certs/server.key and server.crt exist and proxies /api to `https://backend:443` with the certificate checked, so it needs `NODE_EXTRA_CA_CERTS` pointing at the backend's `server.crt` (the `backend_tls_cert` volume). `backend` only resolves inside the compose network, so on the host the API calls fail. The compose `frontend` service already serves a production build on :5001; rebuild it with `./deploy.sh dev --build` after frontend changes.
 
 Plain `uv run pytest` also collects tests/e2e, which needs the full stack, so always pass a path. E2E tests run inside the backend container against a running stack, the way CI does it (CI copies config.test.toml over config.toml before starting the stack):
 
@@ -477,7 +477,7 @@ settings: FromDishka[Settings]
 Config load order (each overrides the previous):
 1. `config.toml`: base settings (committed)
 2. `config.worker.toml`: the worker's override (optional)
-3. Secrets: `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `REDIS_PASSWORD`. Each one is read from the env var first, then the TOML value, then a dev default, so a missing secret never raises. Production must set all four: the deploy workflow stops when one of their GitHub secrets is empty, since compose would otherwise fall back to the public defaults. `MONGODB_URL` is built from the Mongo values
+3. Secrets: `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `REDIS_PASSWORD`. Each one is read from the env var first, then the TOML value, then a dev default, so a missing secret never raises in `Settings`. Compose has no defaults for them: `./deploy.sh dev` copies `.env.example` to `.env`, the deploy writes `.env` from the GitHub secrets, and compose refuses to start while one is empty. `MONGODB_URL` is built from the Mongo values
 
 ```python
 Settings()                                               # config.toml + secrets
@@ -830,7 +830,7 @@ vi.mock('#lib/api/index.ts', async (importOriginal) => ({
 - Run through npm scripts: `npm run test:e2e:deps` and `npm run test:e2e:browsers` once, then `npm run test:e2e` against the compose stack on :5001 (`npm run dev` can't reach the API from the host)
 - `frontend/e2e/fixtures.ts` registers one account per worker through the API and signs in the seeded `admin` (password from `ADMIN_USER_PASSWORD`, default `admin123`). Each test gets a fresh context: `page` (guest), `userPage` or `adminPage`; `api` is a client signed in as the worker's user and `execution` starts an execution through it
 - Specs are flat `test()` calls with no `describe` wrappers or helpers defined inside functions. Assert with retrying `expect`, never `waitForTimeout` or a polling loop; hold a request with `page.route(url, holdRequest)` to see a loading state. Labels come from `fieldTitle` and option lists from the generated enums and schemas
-- Users are seeded by the `user-seed` compose service (`scripts/seed_users.py`) on every `./deploy.sh dev`; rerun it with `docker compose run --rm user-seed`. For manual checks log in as `user` / `user123` or `admin` / `admin123`
+- The backend container seeds the users (`scripts/seed_users.py`) before gunicorn starts; rerun it with `docker compose exec backend python -m scripts.seed_users`. For manual checks log in as `user` / `user123` or `admin` / `admin123`
 
 ## CI Gates (All Must Pass)
 

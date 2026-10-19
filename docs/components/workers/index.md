@@ -39,7 +39,7 @@ cd backend
 uv run python -m app.worker
 ```
 
-The worker reads the same `config.toml` as the container, so it connects to the compose hostnames `mongo`, `redis` and `kafka`. Map those to `127.0.0.1` in `/etc/hosts`, since compose publishes their ports on localhost. It also reads the kubeconfig from `KUBERNETES_CONFIG_PATH`, which is `/app/kubeconfig.yaml`, a path that exists only inside the container. Set it in `config.worker.toml` to a kubeconfig the host can use, such as `~/.kube/config`.
+The worker reads the same `config.toml` as the container, so it connects to the compose hostnames `mongo`, `redis` and `kafka`. Map those to `127.0.0.1` in `/etc/hosts`, since compose publishes their ports on localhost. It also reads the kubeconfig from `KUBERNETES_CONFIG_PATH` (`/etc/rancher/k3s/k3s.yaml`) and sends requests to `KUBERNETES_API_SERVER` (`https://host.docker.internal:6443`). On the host, set the second to `https://127.0.0.1:6443` in `config.worker.toml`.
 
 ## Scaling
 

@@ -32,10 +32,8 @@ jobs:
       fail-fast: false
       matrix:
         image:
-          - base
           - backend
           - frontend
-          - cert-generator
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
@@ -108,10 +106,8 @@ jobs:
           echo "Promoting tag: $TAG → latest"
           echo ""
 
-          crane copy "$REGISTRY/$PREFIX/base:$TAG" "$REGISTRY/$PREFIX/base:latest"
           crane copy "$REGISTRY/$PREFIX/backend:$TAG" "$REGISTRY/$PREFIX/backend:latest"
           crane copy "$REGISTRY/$PREFIX/frontend:$TAG" "$REGISTRY/$PREFIX/frontend:latest"
-          crane copy "$REGISTRY/$PREFIX/cert-generator:$TAG" "$REGISTRY/$PREFIX/cert-generator:latest"
 
   summary:
     name: Summary
@@ -138,9 +134,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Image | Pull Command |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Base | \`docker pull $REGISTRY/$PREFIX/base:latest\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Backend | \`docker pull $REGISTRY/$PREFIX/backend:latest\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Frontend | \`docker pull $REGISTRY/$PREFIX/frontend:latest\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Security Scans" >> $GITHUB_STEP_SUMMARY
-          echo "All 4 images scanned with Trivy (CRITICAL + HIGH, unfixed ignored)." >> $GITHUB_STEP_SUMMARY
+          echo "Both images scanned with Trivy (CRITICAL + HIGH, unfixed ignored)." >> $GITHUB_STEP_SUMMARY

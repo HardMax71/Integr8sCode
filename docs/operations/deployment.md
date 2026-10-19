@@ -1,8 +1,8 @@
 # Deployment
 
-Everything runs from one docker-compose.yaml: the backend, the frontend, the worker, MongoDB, Redis, Kafka and the optional observability stack. The worker reuses the backend image with a different `command:`, so there is one application image to build. Kubernetes only runs the executor pods; the backend and the worker reach it through a kubeconfig that the cert-generator container writes.
+Everything runs from one docker-compose.yaml: the backend, the frontend, the worker, MongoDB, Redis, Kafka and the optional observability stack. The worker reuses the backend image with a different `command:`, so there is one application image to build. Kubernetes only runs the executor pods. The worker reads k3s's own kubeconfig from `/etc/rancher/k3s`, reaches the API at `host.docker.internal:6443` and on start creates the `integr8scode` namespace with its Pod Security labels, NetworkPolicy and ResourceQuota.
 
-`backend/Dockerfile.base` is a two-stage build on `python:3.14-slim`. The builder stage runs `uv sync --locked --no-dev --no-install-project --no-build`, and the final stage copies only the virtualenv plus a few runtime libraries. `backend/Dockerfile` adds the application code on top and starts gunicorn with uvicorn workers on port 443. The frontend image builds the Svelte app with `node:26-alpine` and serves it from `nginx:1.31-alpine`, see [Nginx configuration](nginx-configuration.md).
+`backend/Dockerfile` builds on `python:3.14-slim` in three stages. The builder stage runs `uv sync --locked --no-dev --no-install-project --no-build`, the `base` stage copies only the virtualenv plus a few runtime libraries, and the last stage adds the application code. On first start the container makes a self-signed certificate and keeps it in the `backend_tls_key` and `backend_tls_cert` volumes, then it seeds the default users and starts gunicorn with uvicorn workers on port 443 over TLS. nginx mounts the certificate volume and verifies the backend against it. The frontend image builds the Svelte app with `node:26-alpine` and serves it from `nginx:1.31-alpine`, see [Nginx configuration](nginx-configuration.md).
 
 ## deploy.sh
 
@@ -22,7 +22,7 @@ Everything runs from one docker-compose.yaml: the backend, the frontend, the wor
 ./deploy.sh dev --debug          # all of the above plus Kafdrop
 ```
 
-The core stack is MongoDB, Redis, Kafka (KRaft, no ZooKeeper), the backend, the frontend and the worker. A few one-shot containers run first and exit: `shared-ca` prepares the shared CA volume, `cert-generator` writes TLS certs and `backend/kubeconfig.yaml`, and `user-seed` creates the default accounts. Kafka creates topics on first use (`KAFKA_AUTO_CREATE_TOPICS_ENABLE`). Topic names are the event types themselves, such as `execution_requested`, with no prefix.
+The core stack is MongoDB, Redis, Kafka (KRaft, no ZooKeeper), the backend, the frontend and the worker. No container runs once and exits. Secrets come from `.env`, which `./deploy.sh dev` copies from `.env.example` on its first run; compose has no defaults for them and refuses to start while one is empty. Kafka creates topics on first use (`KAFKA_AUTO_CREATE_TOPICS_ENABLE`). Topic names are the event types themselves, such as `execution_requested`, with no prefix.
 
 | Service            | URL                     | Needs                         |
 |--------------------|-------------------------|-------------------------------|
@@ -39,11 +39,7 @@ The core stack is MongoDB, Redis, Kafka (KRaft, no ZooKeeper), the backend, the 
 
 Inside the compose network Kafka is `kafka:29092`. From the host use `localhost:9092`, since that's the listener advertised for host clients.
 
-The seed job creates `user` / `user123` and `admin` / `admin123`, and every run sets the passwords of accounts that already exist again. Override the passwords with env vars:
-
-```bash
-DEFAULT_USER_PASSWORD=mypass ADMIN_USER_PASSWORD=myadmin ./deploy.sh dev
-```
+Every time the backend starts, it creates `user` / `user123` and `admin` / `admin123` with `scripts/seed_users.py`, and sets the passwords of accounts that already exist again. The passwords are `DEFAULT_USER_PASSWORD` and `ADMIN_USER_PASSWORD` in `.env`.
 
 There's no hot reload. Gunicorn runs without `--reload` and the frontend is an nginx production build. The backend and the worker bind-mount `backend/app`, so a Python change needs `docker compose restart backend worker`. A frontend change needs `docker compose up -d --build frontend`.
 
@@ -62,7 +58,7 @@ Data lives in named volumes:
 | MongoDB          | `mongosh` ping, with the root credentials read from the container env       |
 | Redis            | `redis-cli -a $REDIS_PASSWORD ping`                                         |
 | Kafka            | `kafka-broker-api-versions --bootstrap-server localhost:9092`               |
-| Backend          | `curl -k https://localhost:443/api/v1/health/live`                          |
+| Backend          | `curl --cacert /app/certs/cert/server.crt https://localhost:443/api/v1/health/live` |
 | Frontend         | `curl -k https://localhost:5001`                                            |
 | Grafana          | `curl localhost:3000/api/health`                                            |
 | Victoria Metrics | `wget http://127.0.0.1:8428/-/healthy`                                      |
@@ -91,7 +87,7 @@ Kafdrop runs with `-Xmx512M` and no limit. All services above except Jaeger have
 
 ## Observability profile
 
-The `observability` profile adds a one-shot `mongo-monitor-user` container. It connects as root and creates (or updates) an `otelMonitor` role with `serverStatus`, `top`, `dbStats`, `indexStats` and `listCollections`, plus a user with only that role. The collector's mongodb receiver logs in as that user, since root fails `$indexStats` on `admin.system.*`. Set the credentials with `MONGO_MONITOR_USER` (default `otel-monitor`) and `MONGO_MONITOR_PASSWORD` (default `monitorpassword`).
+The backend's start creates (or updates) an `otelMonitor` role with `serverStatus`, `top`, `dbStats`, `indexStats` and `listCollections`, plus a user with only that role. The collector's mongodb receiver logs in as that user, since root fails `$indexStats` on `admin.system.*`. The credentials are `MONGO_MONITOR_USER` (default `otel-monitor`) and `MONGO_MONITOR_PASSWORD` in `.env`. Until the backend has run, the receiver's scrapes fail and retry.
 
 Grafana starts through a small entrypoint. It resets the admin password from `GF_SECURITY_ADMIN_PASSWORD`, starts Grafana without the alert rules, waits until the dashboard provider has created the `integr8scode` folder, then copies the rules back and calls the alerting reload API. Loaded first, the rules would create their own folder with a random UID. See [Grafana integration](grafana-integration.md).
 
@@ -125,7 +121,7 @@ docker compose exec mongo sh -c 'mongosh -u "$MONGO_INITDB_ROOT_USERNAME" -p "$M
 |-----------------------|------------------------------------|-------------------------------------------------------------|
 | Unknown topic errors  | Kafka not ready yet                | `docker compose logs kafka`                                 |
 | MongoDB auth errors   | Volume created with other credentials | `MONGO_USER`/`MONGO_PASSWORD` must match what the volume was initialized with |
-| Worker can't reach k8s | Stale kubeconfig after the cluster was reinstalled or its API address changed | `docker compose restart cert-generator`, then restart the worker |
+| Worker can't reach k8s | k3s was reinstalled and wrote a new kubeconfig | `docker compose restart worker` |
 
 List topics from inside the broker:
 
@@ -145,20 +141,19 @@ sudo systemctl stop k3s
 sudo rm -rf /var/lib/rancher/k3s/server/db/ /var/lib/rancher/k3s/server/tls/
 sudo systemctl start k3s
 
-# regenerate the kubeconfig and reconnect the worker
-docker compose restart cert-generator
+# reconnect the worker with the new kubeconfig
 docker compose restart worker
 ```
 
-The cluster comes back empty, so Kueue and the `integr8scode` namespace are recreated by cert-generator on that restart. With NordVPN, `nordvpn set lan-discovery enabled` keeps the host reachable from containers. See [k3s#277](https://github.com/k3s-io/k3s/issues/277) and the [k3s certificate docs](https://docs.k3s.io/cli/certificate).
+The cluster comes back empty, and the worker recreates the `integr8scode` namespace, its NetworkPolicy and ResourceQuota when it restarts. With NordVPN, `nordvpn set lan-discovery enabled` keeps the host reachable from containers. See [k3s#277](https://github.com/k3s-io/k3s/issues/277) and the [k3s certificate docs](https://docs.k3s.io/cli/certificate).
 
 ### k3s certificates expired
 
-k3s issues its certificates for a year and renews them only when it starts. On a server that runs longer than that without a restart, kubectl and the worker fail with `x509: certificate has expired`, and `sudo systemctl restart k3s` fixes it. If k3s then hangs in `activating` and its journal repeats `dynamiclistener [::]:6443: failed to update cert with connection local address: EOF`, the cached serving certificate in /var/lib/rancher/k3s/server/tls/dynamic-cert.json is empty, which happens when the disk fills up. Move that file aside and start k3s again; it writes a new one.
+k3s issues its certificates for a year and renews them only when it starts. On a server that runs longer than that without a restart, kubectl and the worker fail with `x509: certificate has expired`. `sudo systemctl restart k3s` renews them, then `docker compose restart worker`, since the worker reads k3s's kubeconfig, client certificate included, only when it starts. If k3s then hangs in `activating` and its journal repeats `dynamiclistener [::]:6443: failed to update cert with connection local address: EOF`, the cached serving certificate in /var/lib/rancher/k3s/server/tls/dynamic-cert.json is empty, which happens when the disk fills up. Move that file aside and start k3s again; it writes a new one.
 
 ## Pre-built images
 
-CI builds `base`, `backend`, `frontend` and `cert-generator` and pushes them to GHCR as `sha-<7 chars>`. On `main`, after the Trivy scan job, they're also tagged `latest`, and each release adds a CalVer tag such as `2026.10.0`. To run them instead of building:
+CI builds `backend` and `frontend` and pushes them to GHCR as `sha-<7 chars>`. On `main`, after the Trivy scan job, they're also tagged `latest`, and each release adds a CalVer tag such as `2026.10.0`. To run them instead of building:
 
 ```bash
 IMAGE_TAG=sha-abc1234 docker compose up -d --no-build
@@ -166,7 +161,7 @@ IMAGE_TAG=sha-abc1234 docker compose up -d --no-build
 
 ## Production
 
-Production gets one release a day. Every merge to `main` goes through CI and Docker Scan & Promote, which moves `latest`; at 23:00 Europe/Berlin [Release & Deploy](cicd.md#release-deploy) releases whatever `latest` is and deploys it, and skips the night when nothing new passed. The deploy job SSHes into the server, removes images no container uses, checks out the release's git tag in `/opt/Integr8sCode` (so the compose file and config match the images) and exports the secrets from the repo (`SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `MONGO_MONITOR_PASSWORD`, `REDIS_PASSWORD`, `ADMIN_USER_PASSWORD`, `DEFAULT_USER_PASSWORD`, the Grafana and Mailjet values) together with `COMPOSE_PROFILES=observability` and `GRAFANA_ROOT_URL=https://grafana.integr8scode.cc/`. Then it runs:
+Production gets one release a day. Every merge to `main` goes through CI and Docker Scan & Promote, which moves `latest`; at 23:00 Europe/Berlin [Release & Deploy](cicd.md#release-deploy) releases whatever `latest` is and deploys it, and skips the night when nothing new passed. The deploy job SSHes into the server, removes images no container uses, checks out the release's git tag in `/opt/Integr8sCode` (so the compose file and config match the images) and writes `/opt/Integr8sCode/.env` (mode 600) from the repo's secrets (`SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `MONGO_MONITOR_PASSWORD`, `REDIS_PASSWORD`, `ADMIN_USER_PASSWORD`, `DEFAULT_USER_PASSWORD`, the Grafana and Mailjet values) together with `IMAGE_TAG`, `COMPOSE_PROFILES=observability` and `GRAFANA_ROOT_URL=https://grafana.integr8scode.cc/`. Compose reads that file for every command, so the backup cron and commands run by hand on the server use the same values, and a secret that came through empty stops compose before anything starts. The values sit in single quotes, so a secret can't contain one. Then it runs:
 
 ```bash
 docker compose pull
@@ -174,7 +169,7 @@ docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
 docker image prune -af
 ```
 
-Pruning before the pull and after the deploy keeps only the images the running stack uses. To roll back by hand, check out an older CalVer tag, set `IMAGE_TAG` to it and run the same `pull` and `up`; the old images come back from GHCR. Export the same variables the deploy job does first. Without them compose recreates the containers with the dev defaults.
+Pruning before the pull and after the deploy keeps only the images the running stack uses. To roll back by hand, check out an older CalVer tag, set `IMAGE_TAG` in `.env` to it and run the same `pull` and `up`; the old images come back from GHCR.
 
 The images on GHCR are public, so the server pulls them without logging in. To set up the server and the repository secrets, see [Required secrets](cicd.md#required-secrets).
 

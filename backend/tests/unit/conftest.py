@@ -26,8 +26,6 @@ from app.core.metrics import (
     ConnectionMetrics,
     EventMetrics,
     IdempotencyMetrics,
-    RateLimitMetrics,
-    SecurityMetrics,
 )
 from app.domain.enums import ExecutionStatus, QueuePriority
 from app.domain.execution import DomainExecution
@@ -235,16 +233,6 @@ def idempotency_metrics(test_settings: Settings) -> IdempotencyMetrics:
 @pytest.fixture
 def event_metrics(test_settings: Settings) -> EventMetrics:
     return EventMetrics(test_settings)
-
-
-@pytest.fixture
-def rate_limit_metrics(test_settings: Settings) -> RateLimitMetrics:
-    return RateLimitMetrics(test_settings)
-
-
-@pytest.fixture
-def security_metrics(test_settings: Settings) -> SecurityMetrics:
-    return SecurityMetrics(test_settings)
 
 
 @pytest.fixture

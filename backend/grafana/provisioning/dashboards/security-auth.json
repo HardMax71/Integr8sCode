@@ -486,8 +486,8 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum by (reason) (rate(token_validation_failures_total[5m]))",
-          "legendFormat": "{{reason}}",
+          "expr": "sum by (auth_reason) (rate(token_validation_failures_total[5m]))",
+          "legendFormat": "{{auth_reason}}",
           "refId": "C",
           "datasource": "Victoria Metrics"
         }
@@ -567,8 +567,8 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum by (reason) (rate(csrf_validation_failures_total[5m]))",
-          "legendFormat": "{{reason}}",
+          "expr": "sum by (auth_reason) (rate(csrf_validation_failures_total[5m]))",
+          "legendFormat": "{{auth_reason}}",
           "refId": "B",
           "datasource": "Victoria Metrics"
         }

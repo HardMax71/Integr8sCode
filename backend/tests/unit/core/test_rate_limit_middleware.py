@@ -3,10 +3,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 from dishka import AsyncContainer
+from opentelemetry import trace
 from starlette.responses import PlainTextResponse
 from starlette.types import Message, Receive, Scope, Send
 
-from app.core.metrics import SecurityMetrics
 from app.core.middlewares import RateLimitMiddleware
 from app.core.security import SecurityService
 from app.domain.rate_limit import RateLimitStatus
@@ -80,19 +80,17 @@ def _middleware(service: AsyncMock, security: SecurityService, settings: Setting
     ],
 )
 async def test_only_health_and_auth_routes_skip_rate_limiting(
-    test_settings: Settings, security_metrics: SecurityMetrics, path: str, expected_status: int, checked: bool
+    test_settings: Settings, tracer: trace.Tracer, path: str, expected_status: int, checked: bool
 ) -> None:
     service = _rate_limit_service(allowed=False)
-    middleware = _middleware(service, SecurityService(test_settings, security_metrics), test_settings)
+    middleware = _middleware(service, SecurityService(test_settings, tracer), test_settings)
 
     assert await _request(middleware, path) == expected_status
     assert service.check_rate_limit.await_count == int(checked)
 
 
-async def test_a_valid_token_keys_the_request_by_user_id(
-    test_settings: Settings, security_metrics: SecurityMetrics
-) -> None:
-    security = SecurityService(test_settings, security_metrics)
+async def test_a_valid_token_keys_the_request_by_user_id(test_settings: Settings, tracer: trace.Tracer) -> None:
+    security = SecurityService(test_settings, tracer)
     token = security.create_access_token({"sub": "u", "user_id": "user-1"}, expires_delta=timedelta(minutes=5))
     service = _rate_limit_service(allowed=True)
 
@@ -104,10 +102,10 @@ async def test_a_valid_token_keys_the_request_by_user_id(
 
 @pytest.mark.parametrize("cookies", ["access_token=forged.token.value", ""], ids=["forged_token", "anonymous"])
 async def test_other_requests_are_keyed_by_client_ip(
-    test_settings: Settings, security_metrics: SecurityMetrics, cookies: str
+    test_settings: Settings, tracer: trace.Tracer, cookies: str
 ) -> None:
     service = _rate_limit_service(allowed=True)
-    middleware = _middleware(service, SecurityService(test_settings, security_metrics), test_settings)
+    middleware = _middleware(service, SecurityService(test_settings, tracer), test_settings)
 
     assert await _request(middleware, "/api/v1/execute", cookies) == 200
     service.check_rate_limit.assert_awaited_once_with(user_id="ip:203.0.113.7", endpoint="/api/v1/execute")

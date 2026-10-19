@@ -9,9 +9,10 @@ from datetime import datetime, timedelta, timezone
 
 import redis.asyncio as redis
 import structlog
+from opentelemetry import trace
+from opentelemetry.util.types import AttributeValue
 from pydantic import Json, TypeAdapter
 
-from app.core.metrics import RateLimitMetrics
 from app.domain.rate_limit import (
     EndpointUsageStats,
     RateLimitAlgorithm,
@@ -34,19 +35,27 @@ class RateLimitService:
         self,
         redis_client: redis.Redis,
         settings: Settings,
-        metrics: RateLimitMetrics,
+        tracer: trace.Tracer,
         logger: structlog.stdlib.BoundLogger,
     ):
         self.redis = redis_client
         self.settings = settings
         self.logger = logger
         self.prefix = settings.RATE_LIMIT_REDIS_PREFIX
-        self.metrics = metrics
+        self._tracer = tracer
         self._pattern_cache: dict[str, re.Pattern[str]] = {}
 
         # Patterns to match IDs and replace with *
         self._uuid_pattern = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
         self._id_pattern = re.compile(r"/[0-9a-zA-Z]{20,}(?=/|$)")
+
+    def _report_request(self, endpoint: str, authenticated: bool, algorithm: str) -> None:
+        attributes: dict[str, AttributeValue] = {
+            "rate_limit.endpoint": endpoint,
+            "rate_limit.authenticated": authenticated,
+            "rate_limit.algorithm": algorithm,
+        }
+        self._tracer.start_span("rate_limit.request", attributes=attributes).end()
 
     def _index_key(self, user_id: str) -> str:
         """Key of the Redis set that indexes all per-user rate limit state keys."""
@@ -88,9 +97,7 @@ class RateLimitService:
             return await self._check(user_id, endpoint, await self._get_config())
         except redis.RedisError as e:
             self.logger.error("Rate limit check failed, allowing the request", endpoint=endpoint, error=str(e))
-            self.metrics.record_request(
-                self._normalize_endpoint(endpoint), not user_id.startswith("ip:"), "redis_error"
-            )
+            self._report_request(self._normalize_endpoint(endpoint), not user_id.startswith("ip:"), "redis_error")
             return self._unlimited()
 
     async def _check(self, user_id: str, endpoint: str, config: RateLimitConfig) -> RateLimitStatus:
@@ -102,21 +109,20 @@ class RateLimitService:
 
         user_config = self._user_limit(config, user_id)
         if user_config.bypass_rate_limit:
-            self.metrics.record_bypass(normalized_endpoint)
-            self.metrics.record_request(normalized_endpoint, authenticated, "bypassed")
+            self._report_request(normalized_endpoint, authenticated, "bypassed")
             return self._unlimited()
 
         for rule in self._matching_rules(endpoint, user_config, config):
             return await self._apply_rule(user_id, endpoint, rule, user_config.global_multiplier)
 
-        self.metrics.record_request(normalized_endpoint, authenticated, "no_limit")
+        self._report_request(normalized_endpoint, authenticated, "no_limit")
         return self._unlimited()
 
     async def _apply_rule(self, user_id: str, endpoint: str, rule: RateLimitRule, multiplier: float) -> RateLimitStatus:
         normalized_endpoint = self._normalize_endpoint(endpoint)
         effective_limit = int(rule.requests * multiplier)
 
-        self.metrics.record_request(normalized_endpoint, not user_id.startswith("ip:"), rule.algorithm)
+        self._report_request(normalized_endpoint, not user_id.startswith("ip:"), rule.algorithm)
 
         if rule.algorithm == RateLimitAlgorithm.TOKEN_BUCKET:
             status = await self._check_token_bucket(
@@ -125,10 +131,12 @@ class RateLimitService:
         else:
             status = await self._check_sliding_window(user_id, endpoint, effective_limit, rule.window_seconds, rule)
 
-        if status.allowed:
-            self.metrics.record_allowed(normalized_endpoint, rule.group)
-        else:
-            self.metrics.record_rejected(normalized_endpoint, rule.group)
+        attributes: dict[str, AttributeValue] = {
+            "rate_limit.endpoint": normalized_endpoint,
+            "rate_limit.group": rule.group,
+            "rate_limit.allowed": status.allowed,
+        }
+        self._tracer.start_span("rate_limit.decision", attributes=attributes).end()
 
         return status
 

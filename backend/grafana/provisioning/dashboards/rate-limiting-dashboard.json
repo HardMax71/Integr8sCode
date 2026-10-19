@@ -364,13 +364,13 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum(rate(rate_limit_requests_total{endpoint!~\"/api/v1/result/.*\"}[5m])) by (endpoint)",
-          "legendFormat": "{{endpoint}}",
+          "expr": "sum(rate(rate_limit_requests_total{rate_limit_endpoint!~\"/api/v1/result/.*\"}[5m])) by (rate_limit_endpoint)",
+          "legendFormat": "{{rate_limit_endpoint}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "sum(rate(rate_limit_requests_total{endpoint=~\"/api/v1/result/.*\"}[5m]))",
+          "expr": "sum(rate(rate_limit_requests_total{rate_limit_endpoint=~\"/api/v1/result/.*\"}[5m]))",
           "legendFormat": "/api/v1/result/*",
           "refId": "B",
           "datasource": "Victoria Metrics"
@@ -451,8 +451,8 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum(rate(rate_limit_requests_total[5m])) by (authenticated)",
-          "legendFormat": "authenticated={{authenticated}}",
+          "expr": "sum(rate(rate_limit_requests_total[5m])) by (rate_limit_authenticated)",
+          "legendFormat": "authenticated={{rate_limit_authenticated}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -535,8 +535,8 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum(increase(rate_limit_requests_total[1h])) by (algorithm)",
-          "legendFormat": "{{algorithm}}",
+          "expr": "sum(increase(rate_limit_requests_total[1h])) by (rate_limit_algorithm)",
+          "legendFormat": "{{rate_limit_algorithm}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -616,14 +616,14 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum(rate(rate_limit_allowed_total[5m])) by (group)",
-          "legendFormat": "allowed: {{group}}",
+          "expr": "sum(rate(rate_limit_allowed_total[5m])) by (rate_limit_group)",
+          "legendFormat": "allowed: {{rate_limit_group}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "sum(rate(rate_limit_rejected_total[5m])) by (group)",
-          "legendFormat": "rejected: {{group}}",
+          "expr": "sum(rate(rate_limit_rejected_total[5m])) by (rate_limit_group)",
+          "legendFormat": "rejected: {{rate_limit_group}}",
           "refId": "B",
           "datasource": "Victoria Metrics"
         }
@@ -717,8 +717,8 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum(rate(rate_limit_bypass_total[5m])) by (endpoint)",
-          "legendFormat": "{{endpoint}}",
+          "expr": "sum(rate(rate_limit_bypass_total[5m])) by (rate_limit_endpoint)",
+          "legendFormat": "{{rate_limit_endpoint}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -798,8 +798,8 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum(rate(rate_limit_rejected_total[5m])) by (endpoint)",
-          "legendFormat": "{{endpoint}}",
+          "expr": "sum(rate(rate_limit_rejected_total[5m])) by (rate_limit_endpoint)",
+          "legendFormat": "{{rate_limit_endpoint}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }

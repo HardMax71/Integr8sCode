@@ -3,8 +3,9 @@ from typing import NoReturn
 
 import structlog
 from fastapi import Request
+from opentelemetry import trace
+from opentelemetry.util.types import AttributeValue
 
-from app.core.metrics import SecurityMetrics
 from app.core.security import SecurityService
 from app.db import UserRepository
 from app.domain.enums import LoginMethod, UserRole
@@ -43,7 +44,7 @@ class AuthService:
         self,
         user_repo: UserRepository,
         security_service: SecurityService,
-        security_metrics: SecurityMetrics,
+        tracer: trace.Tracer,
         logger: structlog.stdlib.BoundLogger,
         lockout_service: LoginLockoutService,
         runtime_settings: RuntimeSettingsLoader,
@@ -52,7 +53,7 @@ class AuthService:
     ):
         self.user_repo = user_repo
         self.security_service = security_service
-        self.security_metrics = security_metrics
+        self._tracer = tracer
         self.logger = logger
         self._lockout = lockout_service
         self._runtime_settings = runtime_settings
@@ -84,12 +85,13 @@ class AuthService:
 
     async def get_admin(self, request: Request) -> User:
         user = await self.get_current_user(request)
-        self.security_metrics.record_authorization_check(
-            "/admin",
-            request.method,
-            user.role == UserRole.ADMIN,
-            user_role=user.role,
-        )
+        attributes: dict[str, AttributeValue] = {
+            "auth.resource": "/admin",
+            "auth.action": request.method,
+            "auth.allowed": user.role == UserRole.ADMIN,
+            "auth.user_role": user.role,
+        }
+        self._tracer.start_span("auth.authorization", attributes=attributes).end()
         if user.role != UserRole.ADMIN:
             self.logger.warning("Admin access denied", username=user.username, role=user.role)
             raise AdminAccessRequiredError(user.username)
@@ -121,7 +123,7 @@ class AuthService:
             key=username,
         )
         if locked:
-            self.security_metrics.record_account_locked("brute_force")
+            self._tracer.start_span("auth.account_locked", attributes={"auth.reason": "brute_force"}).end()
             raise AccountLockedError("Account locked due to too many failed attempts")
         raise InvalidCredentialsError()
 
@@ -133,10 +135,11 @@ class AuthService:
         user_agent: str | None,
     ) -> LoginResult:
         if await self._lockout.check_locked(username):
-            self.security_metrics.record_brute_force_attempt()
+            self._tracer.start_span("auth.locked_login").end()
             raise AccountLockedError("Account temporarily locked due to too many failed attempts")
 
-        with self.security_metrics.track_authentication("login"):
+        login_attributes: dict[str, AttributeValue] = {"auth.method": "login", "auth.success": False}
+        with self._tracer.start_as_current_span("auth.login", attributes=login_attributes) as span:
             user = await self.user_repo.get_user(username)
 
             if not user:
@@ -186,6 +189,7 @@ class AuthService:
                 key=user.username,
             )
 
+            span.set_attribute("auth.success", True)
             return LoginResult(
                 username=user.username,
                 role=user.role,
@@ -205,7 +209,7 @@ class AuthService:
         effective = await self._runtime_settings.get_effective_settings()
         min_len = effective.password_min_length
         if len(password) < min_len:
-            self.security_metrics.record_weak_password_attempt("too_short")
+            self._tracer.start_span("auth.weak_password", attributes={"auth.weakness_type": "too_short"}).end()
             raise ValidationError(f"Password must be at least {min_len} characters")
 
         existing = await self.user_repo.get_user(username)

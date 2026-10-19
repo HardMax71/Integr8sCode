@@ -620,6 +620,164 @@ connectors:
           - span.name == "replay.report"
         gauge:
           value: Int(span.attributes["replay.queued_events"])
+      - name: authentication.attempts
+        description: Password logins, by success
+        unit: "{attempt}"
+        attributes:
+          - key: auth.method
+          - key: auth.success
+        conditions:
+          - span.name == "auth.login"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: authentication.failures
+        description: Password logins that failed
+        unit: "{attempt}"
+        attributes:
+          - key: auth.method
+        conditions:
+          - span.name == "auth.login" and span.attributes["auth.success"] == false
+        sum:
+          value: "1"
+          monotonic: true
+      - name: authentication.duration
+        description: Time to check a password login
+        unit: s
+        attributes:
+          - key: auth.method
+        conditions:
+          - span.name == "auth.login"
+        histogram:
+          buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5]
+          value: Seconds(span.end_time - span.start_time)
+      - name: token.validation.failures
+        description: Access tokens rejected, by reason
+        unit: "{token}"
+        attributes:
+          - key: auth.reason
+        conditions:
+          - span.name == "auth.token_rejected"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: csrf.validation.failures
+        description: Requests rejected by the CSRF check, by reason
+        unit: "{request}"
+        attributes:
+          - key: auth.reason
+        conditions:
+          - span.name == "auth.csrf_rejected"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: authorization.checks
+        description: Admin route checks, by result
+        unit: "{check}"
+        attributes:
+          - key: auth.resource
+          - key: auth.action
+          - key: auth.allowed
+          - key: auth.user_role
+        conditions:
+          - span.name == "auth.authorization"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: authorization.denials
+        description: Admin route checks that denied access
+        unit: "{check}"
+        attributes:
+          - key: auth.resource
+          - key: auth.action
+          - key: auth.user_role
+        conditions:
+          - span.name == "auth.authorization" and span.attributes["auth.allowed"] == false
+        sum:
+          value: "1"
+          monotonic: true
+      - name: password.reset.requests
+        description: Password resets
+        unit: "{reset}"
+        attributes:
+          - key: auth.method
+        conditions:
+          - span.name == "auth.password_reset"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: weak.password.attempts
+        description: Registrations refused for a weak password
+        unit: "{attempt}"
+        attributes:
+          - key: auth.weakness_type
+        conditions:
+          - span.name == "auth.weak_password"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: brute.force.attempts
+        description: Logins against an account that is already locked
+        unit: "{attempt}"
+        conditions:
+          - span.name == "auth.locked_login"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: accounts.locked
+        description: Accounts locked after too many failed logins
+        unit: "{account}"
+        attributes:
+          - key: auth.reason
+        conditions:
+          - span.name == "auth.account_locked"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: rate_limit.requests
+        description: Requests the rate limiter checked, by algorithm
+        unit: "{request}"
+        attributes:
+          - key: rate_limit.endpoint
+          - key: rate_limit.authenticated
+          - key: rate_limit.algorithm
+        conditions:
+          - span.name == "rate_limit.request"
+        sum:
+          value: "1"
+          monotonic: true
+      - name: rate_limit.allowed
+        description: Requests a rate limit rule let through
+        unit: "{request}"
+        attributes:
+          - key: rate_limit.endpoint
+          - key: rate_limit.group
+        conditions:
+          - span.name == "rate_limit.decision" and span.attributes["rate_limit.allowed"] == true
+        sum:
+          value: "1"
+          monotonic: true
+      - name: rate_limit.rejected
+        description: Requests a rate limit rule rejected
+        unit: "{request}"
+        attributes:
+          - key: rate_limit.endpoint
+          - key: rate_limit.group
+        conditions:
+          - span.name == "rate_limit.decision" and span.attributes["rate_limit.allowed"] == false
+        sum:
+          value: "1"
+          monotonic: true
+      - name: rate_limit.bypass
+        description: Requests from users who bypass rate limits
+        unit: "{request}"
+        attributes:
+          - key: rate_limit.endpoint
+        conditions:
+          - span.name == "rate_limit.request" and span.attributes["rate_limit.algorithm"] == "bypassed"
+        sum:
+          value: "1"
+          monotonic: true
 
 processors:
   batch:

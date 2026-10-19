@@ -97,7 +97,7 @@ class EventReplayService:
         self._schedulers[session_id] = scheduler
         scheduler.start()
         scheduler.add_job(
-            self._dispatch_next,
+            self._dispatch_events,
             trigger="date",
             run_date=datetime.now(timezone.utc),
             args=[session],
@@ -143,7 +143,7 @@ class EventReplayService:
         scheduler = self._schedulers.get(session_id)
         if scheduler:
             scheduler.add_job(
-                self._dispatch_next,
+                self._dispatch_events,
                 trigger="date",
                 run_date=datetime.now(timezone.utc),
                 args=[session],
@@ -219,63 +219,54 @@ class EventReplayService:
             attributes["replay.delay_seconds"] = delay
         self._tracer.start_span("replay.event", attributes=attributes).end()
 
-    async def _dispatch_next(self, session: ReplaySessionState) -> None:
-        if session.status != ReplayStatus.RUNNING:
-            return
+    async def _dispatch_events(self, session: ReplaySessionState) -> None:
+        """Replay the session's events in order, waiting out each delay, until it stops running or runs out.
 
-        event = self._pop_next_event(session.session_id)
-        if event is None:
-            if not await self._load_next_batch(session.session_id):
-                await self._finalize_session(session, ReplayStatus.COMPLETED)
-                return
+        One job runs the whole loop, since APScheduler skips a run of a job whose previous run hasn't returned.
+        """
+        while session.status == ReplayStatus.RUNNING:
             event = self._pop_next_event(session.session_id)
             if event is None:
-                await self._finalize_session(session, ReplayStatus.COMPLETED)
-                return
+                if not await self._load_next_batch(session.session_id):
+                    await self._finalize_session(session, ReplayStatus.COMPLETED)
+                    return
+                event = self._pop_next_event(session.session_id)
+                if event is None:
+                    await self._finalize_session(session, ReplayStatus.COMPLETED)
+                    return
 
-        success = False
-        t0 = time.monotonic()
-        try:
-            success = await self._replay_event(session, event)
-        except Exception as e:
-            processing_time = time.monotonic() - t0
-            session.errors.append(
-                ReplayError(timestamp=datetime.now(timezone.utc), event_id=str(event.event_id), error=str(e))
-            )
-            if not session.config.skip_errors:
+            success = False
+            t0 = time.monotonic()
+            try:
+                success = await self._replay_event(session, event)
+            except Exception as e:
+                processing_time = time.monotonic() - t0
+                session.errors.append(
+                    ReplayError(timestamp=datetime.now(timezone.utc), event_id=str(event.event_id), error=str(e))
+                )
+                if not session.config.skip_errors:
+                    session.failed_events += 1
+                    self._report_event(session, event, False, processing_time, 0.0)
+                    await self._finalize_session(session, ReplayStatus.FAILED)
+                    return
+            else:
+                processing_time = time.monotonic() - t0
+
+            if success:
+                session.replayed_events += 1
+            else:
                 session.failed_events += 1
-                self._report_event(session, event, False, processing_time, 0.0)
-                await self._finalize_session(session, ReplayStatus.FAILED)
-                return
-        else:
-            processing_time = time.monotonic() - t0
+            session.last_event_at = event.timestamp
+            await self._update_session_in_db(session)
 
-        if success:
-            session.replayed_events += 1
-        else:
-            session.failed_events += 1
-        session.last_event_at = event.timestamp
-        await self._update_session_in_db(session)
+            next_event = self._peek_next_event(session.session_id)
+            delay = 0.0
+            if next_event and session.last_event_at and session.config.speed_multiplier < 100:
+                time_diff = (next_event.timestamp - session.last_event_at).total_seconds()
+                delay = max(time_diff / session.config.speed_multiplier, 0)
 
-        next_event = self._peek_next_event(session.session_id)
-        delay = 0.0
-        if next_event and session.last_event_at and session.config.speed_multiplier < 100:
-            time_diff = (next_event.timestamp - session.last_event_at).total_seconds()
-            delay = max(time_diff / session.config.speed_multiplier, 0)
-
-        self._report_event(session, event, success, processing_time, delay)
-
-        scheduler = self._schedulers.get(session.session_id)
-        if scheduler and scheduler.running and session.status == ReplayStatus.RUNNING:
-            scheduler.add_job(
-                self._dispatch_next,
-                trigger="date",
-                run_date=datetime.now(timezone.utc) + timedelta(seconds=delay),
-                args=[session],
-                id=f"dispatch_{session.session_id}",
-                replace_existing=True,
-                misfire_grace_time=None,
-            )
+            self._report_event(session, event, success, processing_time, delay)
+            await asyncio.sleep(delay)
 
     def _pop_next_event(self, session_id: str) -> DomainEvent | None:
         idx = self._buffer_indices.get(session_id, 0)
@@ -394,7 +385,7 @@ class EventReplayService:
         except _DISPATCH_ERRORS:
             return False
         finally:
-            # Unexpected errors still propagate to _dispatch_next, but count against the target first
+            # Unexpected errors still propagate to _dispatch_events, but count against the target first
             attributes: dict[str, AttributeValue] = {"replay.target": config.target, "replay.target_success": success}
             self._tracer.start_span("replay.target", attributes=attributes).end()
         return True

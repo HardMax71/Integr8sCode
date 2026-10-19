@@ -5,6 +5,10 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
+
+  # Every container's stdout and stderr, from Docker's fluentd log driver; the tag is the container name
+  fluent_forward:
+    endpoint: 0.0.0.0:24224
   
   # Collect host metrics
   host_metrics:
@@ -940,6 +944,24 @@ processors:
         value: integr8scode
         action: insert
 
+  # The backend and worker send their structlog JSON over OTLP already, so only their other output (gunicorn, tracebacks) comes from stdout
+  filter/app_json_stdout:
+    error_mode: ignore
+    logs:
+      log_record:
+        - IsMatch(log.attributes["fluent.tag"], "^(backend|worker)$") and IsMatch(log.body, "^\\{")
+
+  # One resource per container, named after it, so Loki labels each container's lines with their own service_name
+  groupbyattrs/container:
+    keys: [fluent.tag]
+
+  transform/container:
+    error_mode: ignore
+    log_statements:
+      - context: resource
+        statements:
+          - set(resource.attributes["service.name"], resource.attributes["fluent.tag"]) where resource.attributes["fluent.tag"] != nil
+
 exporters:
   # Export to Jaeger for traces via OTLP
   otlp_grpc/jaeger:
@@ -1018,6 +1040,6 @@ service:
       exporters: [prometheus_remote_write]
     
     logs:
-      receivers: [otlp]
-      processors: [memory_limiter, batch, resource]
+      receivers: [otlp, fluent_forward]
+      processors: [memory_limiter, filter/app_json_stdout, groupbyattrs/container, transform/container, batch, resource]
       exporters: [otlp_http/loki, debug]

@@ -1,8 +1,13 @@
 x-logging: &logging
-  driver: local
+  driver: fluentd
   options:
-    max-size: "10m"
-    max-file: "3"
+    # async: a container still starts, and buffers its lines, while the collector is down or not in the profile
+    fluentd-address: localhost:24224
+    fluentd-async: "true"
+    tag: "{{.Name}}"
+    # docker logs reads Docker's local cache of the same lines, kept as small as the old local driver's files
+    cache-max-size: "10m"
+    cache-max-file: "3"
 
 # Secrets have no defaults: ./deploy.sh dev copies .env.example to .env, and the production deploy writes .env from its secrets
 x-backend-secrets: &backend-secrets
@@ -372,7 +377,12 @@ services:
 
   # OpenTelemetry Collector
   otel-collector:
-    logging: *logging
+    # Its own output stays local: sent to itself, the debug exporter's lines would come back forever
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
     image: otel/opentelemetry-collector-contrib:0.162.0
     container_name: otel-collector
     profiles: ["observability"]
@@ -380,7 +390,6 @@ services:
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./backend/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /proc:/hostfs/proc:ro
       - /sys:/hostfs/sys:ro
     environment:
@@ -391,6 +400,7 @@ services:
       - "127.0.0.1:4317:4317"   # OTLP gRPC
       - "127.0.0.1:4318:4318"   # OTLP HTTP
       - "127.0.0.1:13133:13133" # Health check
+      - "127.0.0.1:24224:24224" # Fluent forward, where Docker's log driver sends every container's output
     networks:
       - app-network
     depends_on:

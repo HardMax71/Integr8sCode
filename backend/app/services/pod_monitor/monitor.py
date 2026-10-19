@@ -223,7 +223,7 @@ class PodMonitor:
     async def _delete_pod(self, pod: k8s_client.V1Pod) -> None:
         """Delete a pod after its data has been fully extracted.
 
-        Frees the Kueue quota slot so gated executor pods can be admitted.
+        Frees its share of the namespace's ResourceQuota.
         The ConfigMap is garbage-collected automatically via ownerReference.
         """
         pod_name = pod.metadata.name

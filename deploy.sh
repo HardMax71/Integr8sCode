@@ -142,7 +142,7 @@ cmd_dev() {
     print_success "Development environment started!"
     echo ""
     echo "Services:"
-    echo "  Backend:   http://localhost:8000"
+    echo "  Backend:   https://localhost:443"
     echo "  Frontend:  https://localhost:5001"
     if [[ "$PROFILE_FLAGS" == *"debug"* ]]; then
         echo "  Kafdrop:   http://localhost:9000"

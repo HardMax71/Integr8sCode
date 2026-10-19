@@ -250,4 +250,4 @@ sum by (auth_reason) (rate(token_validation_failures_total[5m]))
 sum(rate(mongodb_cache_operations_total{type="hit"}[5m])) / sum(rate(mongodb_cache_operations_total[5m]))
 ```
 
-`sum(pods_by_phase{pod_phase="Pending"})` shows executor pods waiting for a node or a Kueue slot.
+`sum(pods_by_phase{pod_phase="Pending"})` shows executor pods waiting for a node or an image pull.

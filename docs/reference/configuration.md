@@ -53,6 +53,7 @@ For each secret, `Settings` takes the environment variable if it's set and non-e
 | `KUBERNETES_CONFIG_PATH` | `/etc/rancher/k3s/k3s.yaml` | config.toml | k3s's own kubeconfig, read by the k8s worker and pod monitor |
 | `KUBERNETES_API_SERVER` | `https://host.docker.internal:6443` | default | API address the client uses instead of the kubeconfig's `127.0.0.1` |
 | `K8S_NAMESPACE` | `integr8scode` | config.toml | Namespace for executor pods; `default` is refused |
+| `K8S_NAMESPACE_CPU_QUOTA`, `K8S_NAMESPACE_MEMORY_QUOTA` | `32`, `4Gi` | default | ResourceQuota on what all pods in that namespace request together |
 | `K8S_POD_CPU_LIMIT` | `1000m` | config.toml | Seeds the `cpu_limit` system setting |
 | `K8S_POD_MEMORY_LIMIT` | `128Mi` | config.toml | Seeds the `memory_limit` system setting; also the base for the memory utilization metric |
 | `K8S_POD_EXECUTION_TIMEOUT` | `5` | config.toml | Seeds the `max_timeout_seconds` system setting |
@@ -156,7 +157,8 @@ In the container, the backend runs gunicorn from the Dockerfile's entrypoint, wh
 | `WEB_BACKLOG` | `2048` | config.toml | Uvicorn backlog under `python -m app.main` |
 | `WEB_THREADS` | `4` | config.toml | Unused by the app; gunicorn reads the environment variable instead |
 | `SERVER_HOST` | `0.0.0.0` | config.toml | Bind address under `python -m app.main` |
-| `SERVER_PORT` | `8000` | default | Port under `python -m app.main` |
+| `SERVER_PORT` | `443` | default | Port under `python -m app.main` |
+| `SSL_KEYFILE`, `SSL_CERTFILE` | `/app/certs/key/server.key`, `/app/certs/cert/server.crt` | default | TLS files under `python -m app.main`; the container's entrypoint makes them on first start |
 | `BCRYPT_ROUNDS` | `12` | config.toml | bcrypt cost for passwords |
 | `REDIS_MAX_CONNECTIONS` | `200` | config.toml | Redis connection pool size |
 

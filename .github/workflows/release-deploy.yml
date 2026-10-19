@@ -190,9 +190,6 @@ jobs:
             GRAFANA_ALERT_RECIPIENTS='$GRAFANA_ALERT_RECIPIENTS'
             EOF
 
-            # k3s applies k8s/ (Kueue and its queues) by itself, and again whenever a release changes it
-            ln -sfn /opt/Integr8sCode/k8s /var/lib/rancher/k3s/server/manifests/integr8scode
-
             docker compose pull
             docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
 

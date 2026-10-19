@@ -79,8 +79,10 @@ services:
       - ./backend/tests:/app/tests:ro
       - ./backend/config.test.toml:/app/config.test.toml:ro
       - ./backend/config.toml:/app/config.toml:ro
+      - backend_tls_key:/app/certs/key
+      - backend_tls_cert:/app/certs/cert
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:443:443"
     networks:
       - app-network
     container_name: backend
@@ -96,7 +98,7 @@ services:
     mem_limit: 768m
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f -s http://localhost:8000/api/v1/health/live >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -f -s --cacert /app/certs/cert/server.crt https://localhost:443/api/v1/health/live >/dev/null || exit 1"]
       interval: 2s
       timeout: 3s
       retries: 30
@@ -110,14 +112,17 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     depends_on:
+      # nginx loads the backend's certificate when it starts, so the backend has to have made it
       backend:
-        condition: service_started
+        condition: service_healthy
+    volumes:
+      - backend_tls_cert:/etc/nginx/backend:ro
     ports:
       - "5001:5001"
     networks:
       - app-network
     environment:
-      - BACKEND_URL=http://backend:8000
+      - BACKEND_URL=https://backend:443
       - GRAFANA_URL=${GRAFANA_URL:-http://grafana:3000}
       - GRAFANA_PUBLIC_URL=${GRAFANA_ROOT_URL:-http://localhost:3000/}
     mem_limit: 128m
@@ -403,6 +408,8 @@ services:
 volumes:
   mongo_data:
   redis_data:
+  backend_tls_key:
+  backend_tls_cert:
   grafana_data:
   victoria_metrics_data:
   loki_data:

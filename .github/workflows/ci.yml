@@ -50,7 +50,6 @@ jobs:
               - 'frontend/**'
             infra:
               - *workflow
-              - 'k8s/**'
               - '.env.example'
               - 'docker-compose.yaml'
               - 'deploy.sh'
@@ -593,7 +592,6 @@ jobs:
         with:
           image-tag: ${{ needs.build-images.outputs.sha-tag }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          install-kueue: 'false'
 
       # Phase 2: Node + Playwright setup (overlaps with k3s boot + image pull)
       - name: Setup Node.js
@@ -629,7 +627,6 @@ jobs:
         with:
           image-tag: ${{ needs.build-images.outputs.sha-tag }}
           wait-for-frontend: 'true'
-          install-kueue: 'false'
 
       - name: Run Playwright tests
         timeout-minutes: 10

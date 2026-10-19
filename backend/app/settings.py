@@ -83,11 +83,17 @@ class Settings(BaseModel):
     RATE_LIMITS: str = "100/minute"
     RATE_LIMIT_ENABLED: bool = True  # Set to False to disable rate limiting entirely
 
+    SSL_KEYFILE: str = "/app/certs/key/server.key"
+    SSL_CERTFILE: str = "/app/certs/cert/server.crt"
+
     SERVER_HOST: str = "localhost"
-    SERVER_PORT: int = 8000
+    SERVER_PORT: int = 443
 
     # Kubernetes namespace for execution pods
     K8S_NAMESPACE: str = "integr8scode"
+    # ResourceQuota on what all pods in that namespace may request together
+    K8S_NAMESPACE_CPU_QUOTA: str = "32"
+    K8S_NAMESPACE_MEMORY_QUOTA: str = "4Gi"
 
     # Settings for Kubernetes resource limits and requests
     K8S_POD_CPU_LIMIT: str = "1000m"
@@ -190,6 +196,9 @@ class Settings(BaseModel):
             "https://[::1]:5001",
             "https://localhost",
             "https://127.0.0.1",
+            "https://localhost:443",
+            "https://127.0.0.1:443",
+            "https://[::1]:443",
         ]
     )
 

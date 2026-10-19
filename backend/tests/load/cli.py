@@ -65,7 +65,7 @@ async def _run(cfg: LoadConfig) -> int:
 def main(argv: list[str] | None = None) -> int:
     argv = argv or sys.argv[1:]
     p = argparse.ArgumentParser(description="Load and monkey test runner")
-    p.add_argument("--base-url", default=None, help="Base URL (default https://localhost:5001)")
+    p.add_argument("--base-url", default=None, help="Base URL (default https://[::1]:443)")
     p.add_argument("--mode", choices=["monkey", "user", "both"], default=None, help="Run mode")
     p.add_argument("--clients", type=int, default=None, help="Total virtual clients")
     p.add_argument("--concurrency", type=int, default=None, help="Max concurrent tasks")

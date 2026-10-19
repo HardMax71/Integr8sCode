@@ -8,7 +8,7 @@ Mode = Literal["monkey", "user", "both"]
 
 
 class LoadConfig(BaseModel):
-    base_url: str = "https://localhost:5001"
+    base_url: str = "https://[::1]:443"
     api_prefix: str = "/api/v1"
     verify_tls: bool = False
     generate_plots: bool = False

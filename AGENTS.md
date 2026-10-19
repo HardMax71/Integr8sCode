@@ -88,7 +88,7 @@ npm run test:e2e          # Playwright E2E, needs the running stack
 ./deploy.sh types                # regenerate frontend/src/lib/api/ from that spec
 ```
 
-`npm run dev` serves HTTPS when ./certs/server.key and server.crt exist and proxies /api to `http://backend:8000`, a hostname that only resolves inside the compose network, so on the host the API calls fail. The compose `frontend` service already serves a production build on :5001; rebuild it with `./deploy.sh dev --build` after frontend changes.
+`npm run dev` serves HTTPS when ./certs/server.key and server.crt exist and proxies /api to `https://backend:443` with the certificate checked, so it needs `NODE_EXTRA_CA_CERTS` pointing at the backend's `server.crt` (the `backend_tls_cert` volume). `backend` only resolves inside the compose network, so on the host the API calls fail. The compose `frontend` service already serves a production build on :5001; rebuild it with `./deploy.sh dev --build` after frontend changes.
 
 Plain `uv run pytest` also collects tests/e2e, which needs the full stack, so always pass a path. E2E tests run inside the backend container against a running stack, the way CI does it (CI copies config.test.toml over config.toml before starting the stack):
 

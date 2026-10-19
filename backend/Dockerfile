@@ -62,11 +62,20 @@ COPY ./app /app/app
 COPY ./scripts /app/scripts
 COPY config.toml /app/config.toml
 
+# Mount points for the key (backend only) and the certificate (nginx verifies the backend against it)
+RUN mkdir -p /app/certs/key /app/certs/cert
+
 # Create entrypoint script inline (BuildKit heredoc)
-# The users and the data fixes go in before the API serves, and the worker waits for this container's health
+# The certificate is made once and kept in its volume, since nginx loads it only when nginx starts
 COPY <<'EOF' /entrypoint.sh
 #!/bin/bash
 set -e
+
+if [ ! -s /app/certs/key/server.key ] || [ ! -s /app/certs/cert/server.crt ]; then
+  openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -quiet -subj "/CN=backend" \
+    -addext "subjectAltName=DNS:backend,DNS:localhost,IP:127.0.0.1" \
+    -keyout /app/certs/key/server.key -out /app/certs/cert/server.crt
+fi
 
 python -m scripts.seed_users
 
@@ -74,7 +83,7 @@ echo "Starting application..."
 
 exec gunicorn 'app.main:create_app()' \
   -k uvicorn_worker.UvicornWorker \
-  --bind 0.0.0.0:8000 \
+  --bind 0.0.0.0:443 \
   --workers "${WEB_CONCURRENCY:-2}" \
   --threads "${WEB_THREADS:-4}" \
   --timeout "${WEB_TIMEOUT:-60}" \
@@ -83,7 +92,9 @@ exec gunicorn 'app.main:create_app()' \
   --backlog 2048 \
   --log-level info \
   --access-logfile - \
-  --error-logfile -
+  --error-logfile - \
+  --keyfile /app/certs/key/server.key \
+  --certfile /app/certs/cert/server.crt
 EOF
 
 RUN chmod +x /entrypoint.sh

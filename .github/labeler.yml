@@ -76,7 +76,6 @@
           - docker-compose.yaml
           - deploy.sh
           - "**/Dockerfile*"
-          - k8s/**
           - .env.example
           - .github/workflows/docker.yml
           - .github/workflows/release-deploy.yml

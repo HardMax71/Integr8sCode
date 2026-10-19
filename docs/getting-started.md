@@ -12,13 +12,7 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --bind-addres
 
 CI also passes `--disable-network-policy` to dodge the iptables race under [Troubleshooting](#troubleshooting). Leave it out here: without the policy controller, k3s doesn't enforce the NetworkPolicy that cuts executor pods off the network.
 
-Then link the repo's `k8s/` folder into k3s, once, from the repo root:
-
-```bash
-sudo ln -s "$PWD/k8s" /var/lib/rancher/k3s/server/manifests/integr8scode
-```
-
-k3s applies every manifest in that folder on start and whenever a file in it changes: the `integr8scode` namespace, Kueue and Kueue's queues. Kueue takes a minute or two on a fresh cluster, and until it's up, executions fail when their pod is created. The worker reads k3s's own kubeconfig from `/etc/rancher/k3s/k3s.yaml` and talks to `https://host.docker.internal:6443`, the name the `--tls-san` flag puts on k3s's certificate.
+That's all the cluster needs. The worker reads k3s's own kubeconfig from `/etc/rancher/k3s/k3s.yaml`, talks to `https://host.docker.internal:6443` (the name the `--tls-san` flag puts on k3s's certificate) and on start creates the `integr8scode` namespace with its Pod Security labels, NetworkPolicy and ResourceQuota.
 
 ## Start the stack
 
@@ -72,11 +66,11 @@ Kafdrop, Grafana and Jaeger aren't part of the default stack. `./deploy.sh dev -
 
 ## Troubleshooting
 
-If scripts stay queued, check `docker compose logs worker`, which logs the Kubernetes error when it can't reach k3s, and `kubectl -n kueue-system get pods`, which shows whether Kueue is up. A k3s that stopped after a VPN or IP change is covered in [Deployment](operations/deployment.md).
+If scripts stay queued, check `docker compose logs worker`, which logs the Kubernetes error when it can't reach k3s. A k3s that stopped after a VPN or IP change is covered in [Deployment](operations/deployment.md).
 
 If every service times out talking to mongo or kafka right after k3s started or restarted, k3s's policy sync probably wiped Docker's iptables rules ([kube-router#1248](https://github.com/cloudnativelabs/kube-router/issues/1248)). `docker compose down` followed by `./deploy.sh dev` recreates the network and its rules.
 
-If a service fails to start, `docker compose logs <service>` usually says why. The usual causes are a port already in use (5001, or 8000, 27017, 6379 and 9092 on localhost) or Docker running out of memory.
+If a service fails to start, `docker compose logs <service>` usually says why. The usual causes are a port already in use (443, 5001, or 27017, 6379 and 9092 on localhost) or Docker running out of memory.
 
 ## Stop the stack
 

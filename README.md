@@ -59,7 +59,7 @@
 ### Prerequisites
 
 - Docker and Docker Compose
-- k3s, set up as in [Getting started](https://hardmax71.github.io/Integr8sCode/getting-started/): two install flags and one link to the repo's `k8s/` folder
+- k3s, installed with the flags in [Getting started](https://hardmax71.github.io/Integr8sCode/getting-started/)
 
 ### Quick start
 
@@ -74,7 +74,7 @@ cd Integr8sCode
 ### Verify
 
 ```bash
-curl -k https://localhost:5001/api/v1/health/live
+curl -k https://localhost/api/v1/health/live
 ```
 
 ### Access
@@ -82,14 +82,14 @@ curl -k https://localhost:5001/api/v1/health/live
 | Service            | URL                                              | Notes                                         |
 |--------------------|--------------------------------------------------|-----------------------------------------------|
 | Frontend           | [https://localhost:5001](https://localhost:5001) | `user` / `user123` or `admin` / `admin123`    |
-| Backend API        | [http://localhost:8000](http://localhost:8000)   | plain http, reachable from this machine only  |
+| Backend API        | [https://localhost:443](https://localhost:443)   |                                               |
 | Grafana            | [http://localhost:3000](http://localhost:3000)   | needs `--observability`; `admin` / `admin123` |
 | Jaeger (Tracing)   | [http://localhost:16686](http://localhost:16686) | needs `--observability`                       |
 | Kafdrop (Kafka UI) | [http://localhost:9000](http://localhost:9000)   | needs `--debug`                               |
 
 `./deploy.sh dev --observability` adds Grafana, Jaeger, Victoria Metrics, Loki and the OTel Collector. `--debug` adds all of those plus Kafdrop.
 
-nginx makes a self-signed certificate when it starts, so accept the browser warning. A certificate mounted at `/etc/nginx/certs` in the frontend container is used as is.
+nginx and the backend each make a self-signed certificate when they first start, so accept the browser warning. nginx verifies the backend's certificate on every proxied request. A certificate mounted at `/etc/nginx/certs` in the frontend container is used as is.
 
 ### Run tests
 

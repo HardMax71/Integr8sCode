@@ -1,8 +1,8 @@
 # Deployment
 
-Everything runs from one docker-compose.yaml: the backend, the frontend, the worker, MongoDB, Redis, Kafka and the optional observability stack. The worker reuses the backend image with a different `command:`, so there is one application image to build. Kubernetes only runs the executor pods. The worker reads k3s's own kubeconfig from `/etc/rancher/k3s` and reaches the API at `host.docker.internal:6443`, and k3s applies the repo's `k8s/` folder (the `integr8scode` namespace, Kueue and its queues) by itself.
+Everything runs from one docker-compose.yaml: the backend, the frontend, the worker, MongoDB, Redis, Kafka and the optional observability stack. The worker reuses the backend image with a different `command:`, so there is one application image to build. Kubernetes only runs the executor pods. The worker reads k3s's own kubeconfig from `/etc/rancher/k3s`, reaches the API at `host.docker.internal:6443` and on start creates the `integr8scode` namespace with its Pod Security labels, NetworkPolicy and ResourceQuota.
 
-`backend/Dockerfile` builds on `python:3.14-slim` in three stages. The builder stage runs `uv sync --locked --no-dev --no-install-project --no-build`, the `base` stage copies only the virtualenv plus a few runtime libraries, and the last stage adds the application code. The container seeds the default users, then starts gunicorn with uvicorn workers on port 8000, plain http inside the compose network. The frontend image builds the Svelte app with `node:26-alpine` and serves it from `nginx:1.31-alpine`, see [Nginx configuration](nginx-configuration.md).
+`backend/Dockerfile` builds on `python:3.14-slim` in three stages. The builder stage runs `uv sync --locked --no-dev --no-install-project --no-build`, the `base` stage copies only the virtualenv plus a few runtime libraries, and the last stage adds the application code. On first start the container makes a self-signed certificate and keeps it in the `backend_tls_key` and `backend_tls_cert` volumes, then it seeds the default users and starts gunicorn with uvicorn workers on port 443 over TLS. nginx mounts the certificate volume and verifies the backend against it. The frontend image builds the Svelte app with `node:26-alpine` and serves it from `nginx:1.31-alpine`, see [Nginx configuration](nginx-configuration.md).
 
 ## deploy.sh
 
@@ -27,7 +27,7 @@ The core stack is MongoDB, Redis, Kafka (KRaft, no ZooKeeper), the backend, the 
 | Service            | URL                     | Needs                         |
 |--------------------|-------------------------|-------------------------------|
 | Frontend           | https://localhost:5001  |                               |
-| Backend API        | http://localhost:8000   |                               |
+| Backend API        | https://localhost:443   |                               |
 | Kafka (host)       | localhost:9092          |                               |
 | MongoDB            | 127.0.0.1:27017         |                               |
 | Redis              | 127.0.0.1:6379          |                               |
@@ -58,7 +58,7 @@ Data lives in named volumes:
 | MongoDB          | `mongosh` ping, with the root credentials read from the container env       |
 | Redis            | `redis-cli -a $REDIS_PASSWORD ping`                                         |
 | Kafka            | `kafka-broker-api-versions --bootstrap-server localhost:9092`               |
-| Backend          | `curl http://localhost:8000/api/v1/health/live`                             |
+| Backend          | `curl --cacert /app/certs/cert/server.crt https://localhost:443/api/v1/health/live` |
 | Frontend         | `curl -k https://localhost:5001`                                            |
 | Grafana          | `curl localhost:3000/api/health`                                            |
 | Victoria Metrics | `wget http://127.0.0.1:8428/-/healthy`                                      |
@@ -145,7 +145,7 @@ sudo systemctl start k3s
 docker compose restart worker
 ```
 
-The cluster comes back empty. k3s applies the manifests in /var/lib/rancher/k3s/server/manifests again on start, so Kueue and the `integr8scode` namespace come back by themselves. With NordVPN, `nordvpn set lan-discovery enabled` keeps the host reachable from containers. See [k3s#277](https://github.com/k3s-io/k3s/issues/277) and the [k3s certificate docs](https://docs.k3s.io/cli/certificate).
+The cluster comes back empty, and the worker recreates the `integr8scode` namespace, its NetworkPolicy and ResourceQuota when it restarts. With NordVPN, `nordvpn set lan-discovery enabled` keeps the host reachable from containers. See [k3s#277](https://github.com/k3s-io/k3s/issues/277) and the [k3s certificate docs](https://docs.k3s.io/cli/certificate).
 
 ### k3s certificates expired
 
@@ -161,7 +161,7 @@ IMAGE_TAG=sha-abc1234 docker compose up -d --no-build
 
 ## Production
 
-Production gets one release a day. Every merge to `main` goes through CI and Docker Scan & Promote, which moves `latest`; at 23:00 Europe/Berlin [Release & Deploy](cicd.md#release-deploy) releases whatever `latest` is and deploys it, and skips the night when nothing new passed. The deploy job SSHes into the server, removes images no container uses, checks out the release's git tag in `/opt/Integr8sCode` (so the compose file and config match the images) and writes `/opt/Integr8sCode/.env` (mode 600) from the repo's secrets (`SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `MONGO_MONITOR_PASSWORD`, `REDIS_PASSWORD`, `ADMIN_USER_PASSWORD`, `DEFAULT_USER_PASSWORD`, the Grafana and Mailjet values) together with `IMAGE_TAG`, `COMPOSE_PROFILES=observability` and `GRAFANA_ROOT_URL=https://grafana.integr8scode.cc/`. Compose reads that file for every command, so the backup cron and commands run by hand on the server use the same values, and a secret that came through empty stops compose before anything starts. The values sit in single quotes, so a secret can't contain one. The job also links `/opt/Integr8sCode/k8s` into k3s's manifests folder, so k3s applies Kueue and its queues from the release. Then it runs:
+Production gets one release a day. Every merge to `main` goes through CI and Docker Scan & Promote, which moves `latest`; at 23:00 Europe/Berlin [Release & Deploy](cicd.md#release-deploy) releases whatever `latest` is and deploys it, and skips the night when nothing new passed. The deploy job SSHes into the server, removes images no container uses, checks out the release's git tag in `/opt/Integr8sCode` (so the compose file and config match the images) and writes `/opt/Integr8sCode/.env` (mode 600) from the repo's secrets (`SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `MONGO_MONITOR_PASSWORD`, `REDIS_PASSWORD`, `ADMIN_USER_PASSWORD`, `DEFAULT_USER_PASSWORD`, the Grafana and Mailjet values) together with `IMAGE_TAG`, `COMPOSE_PROFILES=observability` and `GRAFANA_ROOT_URL=https://grafana.integr8scode.cc/`. Compose reads that file for every command, so the backup cron and commands run by hand on the server use the same values, and a secret that came through empty stops compose before anything starts. The values sit in single quotes, so a secret can't contain one. Then it runs:
 
 ```bash
 docker compose pull

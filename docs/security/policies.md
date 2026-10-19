@@ -1,6 +1,6 @@
 # Pod and namespace security
 
-User code runs in executor pods in the `integr8scode` namespace. The pod builder locks down each pod, the k8s worker locks down the namespace at startup, and Kueue caps how much CPU and memory the pods can request in total.
+User code runs in executor pods in the `integr8scode` namespace. The pod builder locks down each pod, the k8s worker locks down the namespace at startup, and a ResourceQuota caps how much CPU and memory the pods can request in total.
 
 ## Executor pods
 
@@ -22,9 +22,9 @@ The timeout and the CPU and memory limits are the admin settings `max_timeout_se
 
 ## Namespace
 
-The k8s worker calls `ensure_namespace_security()` when it starts. The first step is a server-side apply and the second a plain namespace patch, and both are safe to repeat.
+The k8s worker calls `ensure_namespace_security()` when it starts. It server-side applies three objects, so each step is safe to repeat: the namespace with its Pod Security labels, the NetworkPolicy and the ResourceQuota.
 
-The first creates or updates the `executor-deny-all` NetworkPolicy. It selects pods labelled `component: executor`, which every executor pod has, and denies all ingress and egress. The worker is the only owner of this policy; nothing in `k8s/` creates it.
+The first creates or updates the `executor-deny-all` NetworkPolicy. It selects pods labelled `component: executor`, which every executor pod has, and denies all ingress and egress. The worker is the only owner of this policy.
 
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -47,17 +47,11 @@ The worker also applies a `runtime-image-pre-puller` DaemonSet that pulls every 
 
 The worker reaches the cluster with k3s's own kubeconfig, mounted read-only from `/etc/rancher/k3s` into the worker container only, so it holds the cluster's admin rights. A service account limited to the namespace would not hold it back: the worker sets the namespace's Pod Security labels itself, and an account allowed to change those labels can lift the namespace out of `restricted`. The API container mounts no kubeconfig.
 
-## Quota with Kueue
+## Quota
 
-Kueue caps the total CPU and memory that executor pods request, not what they use: a default pod requests 200m CPU but may use up to its 1000m limit. Neither the worker nor a ResourceQuota enforces this. The quota sits on a ClusterQueue that would admit a LocalQueue from any namespace, and only `integr8scode` has one. k3s applies Kueue v0.20.1 from `k8s/kueue.yaml` (its release manifest, kept byte for byte) and the queues from `k8s/integr8scode.yaml`:
+The `executor-quota` ResourceQuota caps the total CPU and memory that pods in the namespace request, not what they use: a default pod requests 200m CPU but may use up to its 1000m limit. The worker applies it with `requests.cpu` from `K8S_NAMESPACE_CPU_QUOTA` (32) and `requests.memory` from `K8S_NAMESPACE_MEMORY_QUOTA` (4Gi). The API server refuses a pod that would go over it with `403 Forbidden`, and the worker publishes `pod_creation_failed` for its execution.
 
-| Resource       | Name             | Purpose                                        |
-|----------------|------------------|------------------------------------------------|
-| ResourceFlavor | `default-flavor` | the cluster's default resources                |
-| ClusterQueue   | `executor-queue` | quota of 32 CPU and 4Gi memory                 |
-| LocalQueue     | `executor-queue` | queue in `integr8scode`, bound to the ClusterQueue |
-
-Executor pods carry `kueue.x-k8s.io/queue-name: executor-queue`. When the quota is used up, Kueue holds new pods behind a scheduling gate instead of rejecting them the way a ResourceQuota would, and releases them as quota frees up. `activeDeadlineSeconds` only starts once a pod is running on a node, so time spent gated doesn't eat into the execution timeout. How many executions run at once is still decided by the saga orchestrator's queue; Kueue is the backstop for total resource requests.
+How many executions run at once is decided by the saga orchestrator's queue (`max_concurrent_executions`, 10 by default). Every pod requests 200m CPU and 128Mi, Go's included, since Go raises only its limits, so 10 executions request 2 CPU and 1.25Gi. The memory quota fills at 32 pods, which makes it a backstop that refuses pods only when the admin settings allow more than that at once.
 
 ## Network policy enforcement
 

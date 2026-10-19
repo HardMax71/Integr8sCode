@@ -9,10 +9,6 @@ inputs:
     description: 'Also wait for frontend health check (default: false)'
     required: false
     default: 'false'
-  install-kueue:
-    description: 'Wait for Kueue, which k3s installs from k8s/ when e2e-boot mounts it (default: true)'
-    required: false
-    default: 'true'
 
 runs:
   using: 'composite'
@@ -27,32 +23,11 @@ runs:
         export KUBECONFIG=/home/runner/.kube/config
         # kubectl wait fails at once while the node isn't registered yet, so retry until it is
         timeout 120 bash -c 'until kubectl wait --for=condition=Ready node --all --timeout=5s >/dev/null 2>&1; do sleep 2; done'
-        kubectl create namespace integr8scode --dry-run=client -o yaml | kubectl apply -f -
 
-    - name: Wait for Kueue and executor image pulls
-      if: inputs.install-kueue == 'true'
+    - name: Wait for the executor image pull
       shell: bash
       run: |
         set -e
-
-        timeout 600 tail --pid="$(cat /tmp/crictl-kueue.pid)" -f /dev/null 2>/dev/null || true
-        cat /tmp/crictl-kueue.log 2>/dev/null || true
-        [ "$(cat /tmp/crictl-kueue.exit)" = "0" ]
-
-        # k3s scans its manifests folder every 15 s, so the deployment shows up shortly after the node is ready
-        timeout 60 bash -c 'until kubectl -n kueue-system get deployment/kueue-controller-manager >/dev/null 2>&1; do sleep 2; done'
-        # Kueue's cert bootstrap answers /readyz with 404 until the kubelet mounts its new secret, which can take minutes
-        if ! kubectl wait --for=condition=Available --timeout=300s deployment/kueue-controller-manager -n kueue-system; then
-          kubectl -n kueue-system get pods -o wide
-          kubectl -n kueue-system describe pods
-          kubectl -n kueue-system get events --sort-by=.lastTimestamp
-          kubectl -n kueue-system logs deployment/kueue-controller-manager --all-containers --tail=300
-          exit 1
-        fi
-
-        # k3s retries the queues every 15 s until Kueue's webhook answers
-        timeout 60 bash -c 'until kubectl -n integr8scode get localqueue executor-queue >/dev/null 2>&1; do sleep 2; done'
-
         timeout 120 tail --pid="$(cat /tmp/crictl-python.pid)" -f /dev/null 2>/dev/null || true
         cat /tmp/crictl-python.log 2>/dev/null || true
         [ "$(cat /tmp/crictl-python.exit)" = "0" ]
@@ -79,7 +54,7 @@ runs:
         WAIT_FOR_FRONTEND: ${{ inputs.wait-for-frontend }}
       run: |
         echo "Waiting for backend health..."
-        timeout 120 bash -c 'until curl -sf http://localhost:8000/api/v1/health/live 2>/dev/null; do sleep 1; done'
+        timeout 120 bash -c 'until curl -ksf https://localhost/api/v1/health/live 2>/dev/null; do sleep 1; done'
         echo "Backend ready"
         # Most groups start at the newest message on a fresh Kafka, so anything sent before they join is never read
         for group in k8s-worker result-processor saga-orchestrator notification-service sse-bridge-pool; do

@@ -16,7 +16,7 @@ CI's Security Scanning job runs `uvx --no-build --python 3.14 bandit==1.9.4 -r b
 
 ## Pinning
 
-Every GitHub Action, including those used inside the composite actions, is pinned to a full commit SHA with the version in a comment. The Trivy action is pinned to the commit of v0.36.0, since its older tags were deleted upstream. Tools are pinned to exact versions (bandit, Trivy, mkdocs and its plugins), Python installs are `uv sync --frozen --no-build` from the lockfile, and npm installs are `npm ci --ignore-scripts`. The k3s install script and the Kueue manifest are fetched over HTTPS only and checked against a SHA256 before use.
+Every GitHub Action, including those used inside the composite actions, is pinned to a full commit SHA with the version in a comment. The Trivy action is pinned to the commit of v0.36.0, since its older tags were deleted upstream. Tools are pinned to exact versions (bandit, Trivy, mkdocs and its plugins), Python installs are `uv sync --frozen --no-build` from the lockfile, and npm installs are `npm ci --ignore-scripts`. The k3s image is pinned by digest.
 
 Dependabot opens one grouped PR per ecosystem every week, for uv, npm, the Dockerfiles, the compose images and the GitHub Actions, and updates SHA and version comment together. Details are in [CI/CD](../operations/cicd.md#dependabot).
 

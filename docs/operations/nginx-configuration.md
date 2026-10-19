@@ -56,9 +56,9 @@ Text types only. Images other than SVG and icons are already compressed.
 --8<-- "frontend/nginx.conf.template:sse_proxy"
 ```
 
-The backend's address goes through a variable and Docker's resolver, like Grafana's below, so nginx looks `backend` up again every 30 seconds. With a plain `proxy_pass http://backend:8000`, nginx resolves it once at startup. A backend that comes back with a new IP, for example after a Docker restart, then gets 502 until the frontend restarts too.
+The backend's address goes through a variable and Docker's resolver, like Grafana's below, so nginx looks `backend` up again every 30 seconds. With a plain `proxy_pass https://backend:443`, nginx resolves it once at startup. A backend that comes back with a new IP, for example after a Docker restart, then gets 502 until the frontend restarts too.
 
-The backend speaks plain http, and only on the internal compose network; TLS ends at nginx.
+`proxy_ssl_verify on` checks the backend's certificate on every request. The backend makes that certificate when it first starts and keeps it in the `backend_tls_cert` volume, nginx mounts the volume read-only, and `proxy_ssl_trusted_certificate` trusts exactly that file, so a different server answering as `backend` gets a 502. The frontend waits for the backend's healthcheck, since nginx reads the file only when it starts.
 
 The SSE location under `/api/v1/events/` speaks HTTP/1.1 with an empty `Connection` header, turns off buffering and caching, and raises both timeouts to 24 hours so long-lived streams aren't cut after the default 60 seconds. `proxy_buffering off` alone is enough to pass each event through as it arrives.
 
@@ -92,7 +92,7 @@ The nginx image runs `envsubst` on `/etc/nginx/templates/*.template` at startup 
 
 | Variable             | Compose value                                     | Used for                     |
 |----------------------|---------------------------------------------------|------------------------------|
-| `BACKEND_URL`        | `http://backend:8000`                             | `/api/` proxy                |
+| `BACKEND_URL`        | `https://backend:443`                             | `/api/` proxy                |
 | `GRAFANA_URL`        | `${GRAFANA_URL:-http://grafana:3000}`             | Grafana server upstream      |
 | `GRAFANA_PUBLIC_URL` | `${GRAFANA_ROOT_URL:-http://localhost:3000/}`     | `/grafana` redirect target   |
 

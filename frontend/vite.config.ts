@@ -15,7 +15,8 @@ function devServer(): ServerOptions {
         strictPort: true,
         https: tls ? { key: fs.readFileSync(keyFile), cert: fs.readFileSync(certFile) } : undefined,
         proxy: {
-            '/api': { target: 'http://backend:8000' },
+            // Node trusts the backend's self-signed certificate once NODE_EXTRA_CA_CERTS points at it
+            '/api': { target: 'https://backend:443', secure: true },
         },
     };
 }

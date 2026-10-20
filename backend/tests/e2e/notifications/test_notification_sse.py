@@ -6,7 +6,7 @@ import pytest
 import redis.asyncio as redis
 
 from app.domain.enums import NotificationChannel, NotificationSeverity
-from app.domain.notification import DomainSubscriptionUpdate
+from app.domain.notification import SubscriptionChanges
 from app.services.notification_service import NotificationService
 from app.services.sse import SSERedisBus
 
@@ -21,7 +21,7 @@ async def test_in_app_notification_published_to_sse(
 
     # Enable IN_APP subscription for the user to allow delivery
     await notification_service.update_subscription(
-        user_id, NotificationChannel.IN_APP, DomainSubscriptionUpdate(enabled=True)
+        user_id, NotificationChannel.IN_APP, SubscriptionChanges(enabled=True)
     )
 
     async with aclosing(sse_redis_bus.listen_notifications(user_id)) as messages, asyncio.timeout(5.0):

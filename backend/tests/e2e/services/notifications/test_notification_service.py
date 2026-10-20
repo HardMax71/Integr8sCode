@@ -5,10 +5,9 @@ import pytest
 from app.db.repositories import NotificationRepository
 from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus
 from app.domain.notification import (
-    DomainNotificationListResult,
-    DomainSubscriptionUpdate,
     NotificationNotFoundError,
     NotificationValidationError,
+    SubscriptionChanges,
 )
 from app.services.notification_service import NotificationService
 
@@ -219,7 +218,6 @@ class TestListNotifications:
         # List with pagination
         result = await notification_service.list_notifications(user_id, limit=3, offset=0)
 
-        assert isinstance(result, DomainNotificationListResult)
         assert len(result.notifications) == 3
         assert result.total == 5
 
@@ -319,7 +317,7 @@ class TestSubscriptions:
         subscription = await notification_service.update_subscription(
             user_id=user_id,
             channel=NotificationChannel.IN_APP,
-            update_data=DomainSubscriptionUpdate(enabled=True),
+            changes=SubscriptionChanges(enabled=True),
         )
 
         assert subscription.channel == NotificationChannel.IN_APP
@@ -338,14 +336,14 @@ class TestSubscriptions:
         await notification_service.update_subscription(
             user_id=user_id,
             channel=NotificationChannel.IN_APP,
-            update_data=DomainSubscriptionUpdate(enabled=True),
+            changes=SubscriptionChanges(enabled=True),
         )
 
         # Then disable
         subscription = await notification_service.update_subscription(
             user_id=user_id,
             channel=NotificationChannel.IN_APP,
-            update_data=DomainSubscriptionUpdate(enabled=False),
+            changes=SubscriptionChanges(enabled=False),
         )
 
         assert subscription.enabled is False
@@ -357,7 +355,7 @@ class TestSubscriptions:
         subscription = await notification_service.update_subscription(
             user_id=user_id,
             channel=NotificationChannel.IN_APP,
-            update_data=DomainSubscriptionUpdate(
+            changes=SubscriptionChanges(
                 enabled=True,
                 severities=[NotificationSeverity.HIGH, NotificationSeverity.URGENT],
             ),
@@ -375,7 +373,7 @@ class TestSubscriptions:
             await notification_service.update_subscription(
                 user_id=user_id,
                 channel=NotificationChannel.WEBHOOK,
-                update_data=DomainSubscriptionUpdate(enabled=True),
+                changes=SubscriptionChanges(enabled=True),
             )
 
     async def test_update_webhook_with_url(self, notification_service: NotificationService) -> None:
@@ -385,7 +383,7 @@ class TestSubscriptions:
         subscription = await notification_service.update_subscription(
             user_id=user_id,
             channel=NotificationChannel.WEBHOOK,
-            update_data=DomainSubscriptionUpdate(enabled=True, webhook_url="https://example.com/webhook"),
+            changes=SubscriptionChanges(enabled=True, webhook_url="https://example.com/webhook"),
         )
 
         assert subscription.enabled is True
@@ -399,14 +397,13 @@ class TestSubscriptions:
         await notification_service.update_subscription(
             user_id=user_id,
             channel=NotificationChannel.IN_APP,
-            update_data=DomainSubscriptionUpdate(enabled=True),
+            changes=SubscriptionChanges(enabled=True),
         )
 
         # Get all
         result = await notification_service.get_subscriptions(user_id)
 
-        assert isinstance(result.subscriptions, list)
-        channels = [s.channel for s in result.subscriptions]
+        channels = [s.channel for s in result]
         assert NotificationChannel.IN_APP in channels
 
 
@@ -484,7 +481,7 @@ class TestNotificationIntegration:
         await notification_service.update_subscription(
             user_id=user_id,
             channel=NotificationChannel.IN_APP,
-            update_data=DomainSubscriptionUpdate(enabled=True, severities=[NotificationSeverity.HIGH]),
+            changes=SubscriptionChanges(enabled=True, severities=[NotificationSeverity.HIGH]),
         )
 
         # Create HIGH severity notification - should be delivered

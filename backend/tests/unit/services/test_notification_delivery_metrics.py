@@ -8,8 +8,9 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from tenacity import wait_none
 
 from app.db import NotificationRepository
+from app.db.docs import NotificationDocument, NotificationSubscriptionDocument
 from app.domain.enums import NotificationChannel, NotificationSeverity
-from app.domain.notification import DomainNotification, DomainNotificationSubscription, DomainSubscriptionUpdate
+from app.domain.notification import SubscriptionChanges
 from app.events import UnifiedProducer
 from app.services.notification_service import NotificationService, SystemConfig, ThrottleCache
 from app.services.sse import SSERedisBus
@@ -21,7 +22,7 @@ pytestmark = pytest.mark.unit
 def _service(test_settings: Settings, tracer: trace.Tracer, bus: SSERedisBus) -> NotificationService:
     repo = AsyncMock(spec=NotificationRepository)
     repo.try_claim_pending.return_value = True
-    repo.get_subscription.return_value = DomainNotificationSubscription(
+    repo.get_subscription.return_value = NotificationSubscriptionDocument(
         user_id="u1", channel=NotificationChannel.IN_APP
     )
     return NotificationService(
@@ -46,7 +47,16 @@ async def test_retried_delivery_counts_the_retry(
     bus.publish_notification.side_effect = [ConnectionError("redis down"), None]
     svc = _service(test_settings, tracer, bus)
 
-    delivered = await svc._deliver_notification(DomainNotification(user_id="u1", tags=["execution"], max_retries=2))
+    delivered = await svc._deliver_notification(
+        NotificationDocument(
+            user_id="u1",
+            channel=NotificationChannel.IN_APP,
+            subject="s",
+            body="b",
+            tags=["execution"],
+            max_retries=2,
+        )
+    )
 
     assert delivered is True
     (retry_name, retry), (deliver_name, deliver) = _spans(span_exporter)
@@ -71,7 +81,16 @@ async def test_failed_delivery_labels_the_error_by_type(
     bus.publish_notification.side_effect = ConnectionError("redis down at 10.0.0.1:6379")
     svc = _service(test_settings, tracer, bus)
 
-    delivered = await svc._deliver_notification(DomainNotification(user_id="u1", tags=["execution"], max_retries=1))
+    delivered = await svc._deliver_notification(
+        NotificationDocument(
+            user_id="u1",
+            channel=NotificationChannel.IN_APP,
+            subject="s",
+            body="b",
+            tags=["execution"],
+            max_retries=1,
+        )
+    )
 
     assert delivered is False
     [(name, attributes)] = _spans(span_exporter)
@@ -79,17 +98,24 @@ async def test_failed_delivery_labels_the_error_by_type(
     assert (attributes["notification.result"], attributes["notification.error"]) == ("failed", "ConnectionError")
 
 
-@pytest.mark.parametrize(("enabled", "action"), [(True, "enabled"), (False, "disabled"), (None, "updated")])
+@pytest.mark.parametrize(
+    ("changes", "action"),
+    [
+        (SubscriptionChanges(enabled=True), "enabled"),
+        (SubscriptionChanges(enabled=False), "disabled"),
+        (SubscriptionChanges(), "updated"),
+    ],
+)
 async def test_subscription_change_reports_its_action(
     test_settings: Settings,
     tracer: trace.Tracer,
     span_exporter: InMemorySpanExporter,
-    enabled: bool | None,
+    changes: SubscriptionChanges,
     action: str,
 ) -> None:
     svc = _service(test_settings, tracer, AsyncMock(spec=SSERedisBus))
 
-    await svc.update_subscription("u1", NotificationChannel.IN_APP, DomainSubscriptionUpdate(enabled=enabled))
+    await svc.update_subscription("u1", NotificationChannel.IN_APP, changes)
 
     assert _spans(span_exporter) == [
         ("notification.subscription_change", {"notification.channel": "in_app", "notification.action": action})

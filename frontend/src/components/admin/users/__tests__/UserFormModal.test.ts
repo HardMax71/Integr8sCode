@@ -6,14 +6,14 @@ import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import {
     createUserApiV1AdminUsersPost,
     updateUserApiV1AdminUsersUserIdPut,
-    zUserCreate,
+    zUserCreateWritable,
     type UserResponse,
 } from '#lib/api/index.ts';
 import UserFormModal from '#components/admin/users/UserFormModal.svelte';
 
-const defaultRole = zUserCreate.shape.role.parse(undefined);
-const defaultIsActive = zUserCreate.shape.is_active.parse(undefined);
-const passwordMinLength = z.toJSONSchema(zUserCreate.shape.password).minLength!;
+const defaultRole = zUserCreateWritable.shape.role.parse(undefined);
+const defaultIsActive = zUserCreateWritable.shape.is_active.parse(undefined);
+const passwordMinLength = z.toJSONSchema(zUserCreateWritable.shape.password).minLength!;
 const shortPassword = 'x'.repeat(passwordMinLength - 1);
 
 function renderModal(mode: { kind: 'create' } | { kind: 'edit'; user: UserResponse } = { kind: 'create' }) {

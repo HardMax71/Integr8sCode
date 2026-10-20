@@ -7,14 +7,14 @@
     import * as z from 'zod/mini';
     import { createMutation } from '@tanstack/svelte-query';
     import { Control, Field, FieldErrors, Label } from 'formsnap';
-    import { registerApiV1AuthRegisterPostMutation, zUserCreate } from '#lib/api/index.ts';
+    import { registerApiV1AuthRegisterPostMutation, zUserCreateWritable } from '#lib/api/index.ts';
     import { apiForm, filled } from '#lib/forms.ts';
     import { fieldTitle } from '#lib/formatters.ts';
     import Spinner from '#components/Spinner.svelte';
 
     const zRegister = z
-        .extend(z.pick(zUserCreate, { email: true, password: true }), {
-            username: filled(zUserCreate.shape.username),
+        .extend(z.pick(zUserCreateWritable, { email: true, password: true }), {
+            username: filled(zUserCreateWritable.shape.username),
             confirm_password: z.string(),
         })
         .check(

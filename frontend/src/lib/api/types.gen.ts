@@ -5068,10 +5068,6 @@ export type UserCreate = {
      * Is Active
      */
     is_active?: boolean;
-    /**
-     * Password
-     */
-    password: string;
 };
 
 /**
@@ -5551,7 +5547,7 @@ export type UserUpdate = {
     /**
      * Password
      */
-    password?: string | null;
+    password?: null;
 };
 
 /**
@@ -5692,6 +5688,56 @@ export type SessionSummaryWritable = {
     completed_at: string | null;
 };
 
+/**
+ * UserCreate
+ *
+ * Model for creating a new user
+ */
+export type UserCreateWritable = {
+    /**
+     * Username
+     */
+    username: string;
+    /**
+     * Email
+     */
+    email: string;
+    role?: UserRole;
+    /**
+     * Is Active
+     */
+    is_active?: boolean;
+    /**
+     * Password
+     */
+    password: string;
+};
+
+/**
+ * UserUpdate
+ *
+ * Model for updating a user
+ */
+export type UserUpdateWritable = {
+    /**
+     * Username
+     */
+    username?: string | null;
+    /**
+     * Email
+     */
+    email?: string | null;
+    role?: UserRole | null;
+    /**
+     * Is Active
+     */
+    is_active?: boolean | null;
+    /**
+     * Password
+     */
+    password?: string | null;
+};
+
 export type LoginApiV1AuthLoginPostData = {
     body: BodyLoginApiV1AuthLoginPost;
     path?: never;
@@ -5730,7 +5776,7 @@ export type LoginApiV1AuthLoginPostResponses = {
 export type LoginApiV1AuthLoginPostResponse = LoginApiV1AuthLoginPostResponses[keyof LoginApiV1AuthLoginPostResponses];
 
 export type RegisterApiV1AuthRegisterPostData = {
-    body: UserCreate;
+    body: UserCreateWritable;
     path?: never;
     query?: never;
     url: '/api/v1/auth/register';
@@ -7321,7 +7367,7 @@ export type ListUsersApiV1AdminUsersGetResponses = {
 export type ListUsersApiV1AdminUsersGetResponse = ListUsersApiV1AdminUsersGetResponses[keyof ListUsersApiV1AdminUsersGetResponses];
 
 export type CreateUserApiV1AdminUsersPostData = {
-    body: UserCreate;
+    body: UserCreateWritable;
     path?: never;
     query?: never;
     url: '/api/v1/admin/users/';
@@ -7429,7 +7475,7 @@ export type GetUserApiV1AdminUsersUserIdGetResponses = {
 export type GetUserApiV1AdminUsersUserIdGetResponse = GetUserApiV1AdminUsersUserIdGetResponses[keyof GetUserApiV1AdminUsersUserIdGetResponses];
 
 export type UpdateUserApiV1AdminUsersUserIdPutData = {
-    body: UserUpdate;
+    body: UserUpdateWritable;
     path: {
         /**
          * User Id

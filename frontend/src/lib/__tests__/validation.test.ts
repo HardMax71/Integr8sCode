@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as z from 'zod/mini';
-import { zSystemSettingsSchemaInput, zUserCreate } from '#lib/api/index.ts';
+import { zSystemSettingsSchemaInput, zUserCreateWritable } from '#lib/api/index.ts';
 import { firstIssue } from '#lib/validation.ts';
 
 const maxTimeout = z.toJSONSchema(zSystemSettingsSchemaInput.shape.max_timeout_seconds).maximum!;
@@ -15,12 +15,12 @@ describe('firstIssue', () => {
     it.each([
         [
             'a short password',
-            zUserCreate.safeParse({ username: 'u', email: 'u@example.com', password: 'short' }),
+            zUserCreateWritable.safeParse({ username: 'u', email: 'u@example.com', password: 'short' }),
             'Password must be at least 8 characters',
         ],
         [
             'an invalid email',
-            zUserCreate.safeParse({ username: 'u', email: 'nope', password: 'password123' }),
+            zUserCreateWritable.safeParse({ username: 'u', email: 'nope', password: 'password123' }),
             'Email must be a valid email',
         ],
         [
@@ -35,7 +35,7 @@ describe('firstIssue', () => {
         ],
         [
             'a missing required field',
-            zUserCreate.safeParse({ email: 'u@example.com', password: 'password123' }),
+            zUserCreateWritable.safeParse({ email: 'u@example.com', password: 'password123' }),
             'Username is required',
         ],
     ])('phrases %s from the generated schema', (_name, result, expected) => {

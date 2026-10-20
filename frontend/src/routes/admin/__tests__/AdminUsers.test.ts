@@ -21,7 +21,7 @@ import {
     UserRole,
     zDeleteUserResponse,
     zRateLimitUpdateRequest,
-    zUserCreate,
+    zUserCreateWritable,
     type UserRateLimitConfigResponse,
 } from '#lib/api/index.ts';
 
@@ -249,7 +249,7 @@ describe('AdminUsers', () => {
         });
 
         it('shows a short password under the field, from the API schema, before calling the API', async () => {
-            const { minLength } = z.toJSONSchema(zUserCreate.shape.password);
+            const { minLength } = z.toJSONSchema(zUserCreateWritable.shape.password);
             await renderWithUsers();
             const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
             await user.click(createButton!);

@@ -55,7 +55,7 @@ The API and the worker talk through Kafka, one topic per event type. Every event
 
     ---
 
-    Workers, SSE, the execution saga, the DLQ and MongoDB indexes
+    Workers, SSE, the DLQ and MongoDB indexes
 
 -   :material-wrench: **[Operations](operations/deployment.md)**
 

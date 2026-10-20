@@ -11,10 +11,20 @@ from kubernetes_asyncio.client.rest import ApiException
 from opentelemetry import trace
 
 from app.core.utils import StringEnum
+from app.domain.events import (
+    ExecutionCompletedEvent,
+    ExecutionFailedEvent,
+    ExecutionTimeoutEvent,
+    PodRunningEvent,
+    PodScheduledEvent,
+    PodTerminatedEvent,
+)
 from app.events import UnifiedProducer
 from app.infrastructure.kafka.topics import EXECUTION_TERMINAL_EVENT_TYPES
+from app.services.execution_scheduler import ExecutionScheduler
 from app.services.pod_monitor.config import PodMonitorConfig
-from app.services.pod_monitor.event_mapper import PodEventMapper, WatchEventType
+from app.services.pod_monitor.event_mapper import PodEventMapper, PodMonitorEvent, WatchEventType
+from app.services.result_processor import ResultProcessor
 
 _POD_PHASES = ("Pending", "Running", "Succeeded", "Failed", "Unknown")
 
@@ -38,7 +48,7 @@ class PodEvent:
 
 class PodMonitor:
     """
-    Monitors Kubernetes pods and publishes lifecycle events.
+    Monitors Kubernetes pods, stores what they report and publishes lifecycle events.
 
     Uses the list-then-watch pattern:
     - On first call (or after 410 Gone), LISTs all pods to get current state
@@ -55,6 +65,8 @@ class PodMonitor:
         logger: structlog.stdlib.BoundLogger,
         api_client: k8s_client.ApiClient,
         event_mapper: PodEventMapper,
+        results: ResultProcessor,
+        scheduler: ExecutionScheduler,
         tracer: trace.Tracer,
     ) -> None:
         self.logger = logger
@@ -67,6 +79,8 @@ class PodMonitor:
         # Components
         self._event_mapper = event_mapper
         self._producer = producer
+        self._results = results
+        self._scheduler = scheduler
 
         # Watch cursor — set from LIST on first run or after 410 Gone
         self._last_resource_version: str | None = None
@@ -179,7 +193,7 @@ class PodMonitor:
             try:
                 app_events = await self._event_mapper.map_pod_event(event.pod, event.event_type)
                 for app_event in app_events:
-                    await self._producer.produce(event_to_produce=app_event, key=app_event.execution_id)
+                    await self._handle(app_event)
             except Exception:
                 self.logger.error("Error processing pod event", exc_info=True)
                 span.set_attribute("pod_monitor.error_type", ErrorType.PROCESSING_ERROR)
@@ -200,6 +214,7 @@ class PodMonitor:
 
         if terminal:
             await self._delete_pod(event.pod)
+            await self._scheduler.finish(app_events[0].execution_id)
 
         if app_events:
             pod_name = event.pod.metadata.name if event.pod.metadata else "unknown"
@@ -210,6 +225,21 @@ class PodMonitor:
                 phase=pod_phase or "Unknown",
                 published=len(app_events),
             )
+
+    async def _handle(self, event: PodMonitorEvent) -> None:
+        """Store a finished execution's result, or publish a pod event and store the status it implies."""
+        match event:
+            case ExecutionCompletedEvent():
+                await self._results.handle_execution_completed(event)
+            case ExecutionFailedEvent():
+                await self._results.handle_execution_failed(event)
+            case ExecutionTimeoutEvent():
+                await self._results.handle_execution_timeout(event)
+            case PodScheduledEvent() | PodRunningEvent():
+                await self._producer.produce(event_to_produce=event, key=event.execution_id)
+                await self._results.handle_pod_progress(event)
+            case PodTerminatedEvent():
+                await self._producer.produce(event_to_produce=event, key=event.execution_id)
 
     def _track_pod_phase(self, event_type: WatchEventType, pod: k8s_client.V1Pod, phase: str | None) -> None:
         """Keep the per-phase pod count current for the pods.by.phase gauge."""

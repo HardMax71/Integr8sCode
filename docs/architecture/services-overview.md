@@ -10,8 +10,8 @@ Route handlers get these from Dishka. They hold the business logic, talk to Mong
 |--------|--------------|
 | `auth_service.py`, `login_lockout.py` | Login, registration, the current user from the JWT cookie, lockout after repeated failed logins. See [Authentication](authentication.md). |
 | `execution_service.py` | The facade behind `/execute`. Checks the runtime registry, stores the execution, publishes `ExecutionRequestedEvent`, and publishes `ExecutionCancelledEvent` on cancel or delete. Handles the `Idempotency-Key` header. |
-| `execution_queue.py` | `ExecutionQueueService`, the Redis priority queue the saga orchestrator schedules from. See [Execution Queue](execution-queue.md). |
-| `saga/` | `SagaOrchestrator`, `ExecutionSaga` and its steps, and `SagaService`, the read side behind the saga routes with ownership checks. |
+| `execution_queue.py` | `ExecutionQueueService`, the Redis priority queue the execution scheduler starts executions from. See [Execution Queue](execution-queue.md). |
+| `execution_scheduler.py` | `ExecutionScheduler`, which starts queued executions while slots are free, cancels them and frees their slots. |
 | `event_service.py` | Reading stored events. Publishing goes through `UnifiedProducer` directly. |
 | `event_replay/` | `EventReplayService`, which re-publishes stored events for admins. |
 | `sse/` | `SSERedisBus` and `SSEService`. See [SSE](../components/sse/sse-architecture.md). |
@@ -28,39 +28,33 @@ The API process is a Kafka consumer too. Its lifespan registers two subscriber g
 
 ## Worker
 
-The worker runs in its own container from the same backend image as the API, with the command `python -m app.worker`. Its entry point is `app/worker.py`, and every subscriber is registered in `app/events/handlers.py`.
+The worker runs in its own container from the same backend image as the API, with the command `python -m app.worker`. Its entry point is `app/worker.py`, and its one Kafka router is in `app/events/handlers.py`. The parts call each other directly.
 
 | Part | Consumes | Publishes |
 |--------|----------|-----------|
-| Saga orchestrator | `execution_requested`, `execution_completed`, `execution_failed`, `execution_timeout`, `execution_cancelled` | `create_pod_command`, `delete_pod_command`, `saga_started`, `saga_cancelled` |
-| K8s worker | `create_pod_command`, `delete_pod_command` | `pod_created`, or `execution_failed` when pod creation fails |
-| Pod monitor | nothing, it watches the Kubernetes API | `pod_scheduled`, `pod_running`, `pod_terminated`, `execution_completed`, `execution_failed`, `execution_timeout` |
-| Result processor | `execution_completed`, `execution_failed`, `execution_timeout` | `result_stored`, or `result_failed` when storing fails |
+| Execution scheduler | `execution_requested`, `execution_cancelled` | nothing itself |
+| K8s worker | nothing, the scheduler calls it | `pod_created` |
+| Pod monitor | nothing, it watches the Kubernetes API | `pod_scheduled`, `pod_running`, `pod_terminated` |
+| Result processor | nothing, the pod monitor and the scheduler call it | `execution_completed`, `execution_failed`, `execution_timeout`, then `result_stored`, or `result_failed` when storing fails |
 | DLQ processor | nothing | retried events and `dlq_message_retried` |
 
-The saga orchestrator puts each request into the execution queue and runs the saga once a slot is free. The saga steps are `validate_execution` and `create_pod`; the second one publishes the pod command. If a step fails, the compensations of the steps that already ran go in reverse order, and `delete_pod` publishes `delete_pod_command`. Terminal execution events mark the saga done and release the queue slot. `execution_cancelled` takes a queued request out of the queue and marks the saga cancelled, but it doesn't delete a pod that is already running. Two APScheduler jobs run next to the consumers: `check_timeouts` every 30 seconds and `try_schedule_from_queue` every 10 seconds.
+The execution scheduler puts each request into the execution queue and has the k8s worker create the pod once a slot is free. A pod that can't be created ends the execution as `failed`. `execution_cancelled` takes the execution out of the queue, stores it as `cancelled`, deletes its pod and frees its slots. An APScheduler job runs `schedule_pending` every 10 seconds next to the consumers.
 
 The k8s worker creates a ConfigMap holding the script and the entrypoint, then the pod, then sets the pod as the ConfigMap's owner so Kubernetes deletes both together. The pod runs as user 1000 with a read-only root filesystem, all capabilities dropped, seccomp `RuntimeDefault`, no service account token, no service links and no host namespaces. The worker refuses to start if `K8S_NAMESPACE` is `default`.
 
-The pod monitor lists and then watches pods labelled `app=integr8s,component=executor`. Each watch window lasts up to 30 seconds, and an APScheduler job checks every 5 seconds and opens the next one once the last has ended. It maps pod phases to events, reads the exit code, resource usage and output from the termination message and logs, and deletes the pod once it has published a terminal execution event. Deleting the pod frees its share of the ResourceQuota for the next one.
+The pod monitor lists and then watches pods labelled `app=integr8s,component=executor`. Each watch window lasts up to 30 seconds, and an APScheduler job checks every 5 seconds and opens the next one once the last has ended. It maps pod phases to events, reads the exit code, resource usage and output from the termination message and logs, hands a finished execution to the result processor, deletes the pod and tells the scheduler, so the next execution starts. Deleting the pod frees its share of the ResourceQuota for the next one.
 
-The result processor writes the final status, output and resource usage to MongoDB and records execution metrics. It doesn't touch Kubernetes.
+The result processor writes the final status, output and resource usage to MongoDB, records execution metrics and only then publishes the terminal event. If the execution already ended, a cancel for example, it publishes nothing. It doesn't touch Kubernetes.
 
 Replay sessions run inside the API process, which owns the `EventReplayService` the admin routes use. MongoDB drops finished sessions 48 hours after they complete.
 
-The DLQ processor runs `process_monitoring_cycle` every 10 seconds, which republishes due messages from the `dlq_messages` collection to their original topic for the consumer group that failed on them. The k8s worker, result processor, saga orchestrator and notification routers save their failed events there. See [Dead Letter Queue](../components/dead-letter-queue.md).
+The DLQ processor runs `process_monitoring_cycle` every 10 seconds, which republishes due messages from the `dlq_messages` collection to their original topic for the consumer group that failed on them. The execution scheduler and notification routers save their failed events there. See [Dead Letter Queue](../components/dead-letter-queue.md).
 
 ## Idempotent consumers
 
-Three workers put `IdempotencyMiddleware` from `app/events/middlewares.py` on their `KafkaRouter`. It reserves a key in Redis, runs the handler and marks the key completed or failed. A duplicate delivery finds the key and is skipped.
+The execution scheduler's router carries `IdempotencyMiddleware` from `app/events/middlewares.py`, with the `EVENT_BASED` strategy and a 1 hour TTL. It reserves a key in Redis, runs the handler and marks the key completed or failed. A duplicate delivery finds the key and is skipped, so a redelivered `execution_requested` doesn't queue the execution again.
 
-| Consumer | Key strategy | TTL |
-|----------|--------------|-----|
-| Saga orchestrator, all five events | `EVENT_BASED` | 1 hour |
-| K8s worker, both commands | `CONTENT_HASH` | 1 hour |
-| Result processor, all three events | `CONTENT_HASH` | 2 hours |
-
-`EVENT_BASED` keys on event type and ID, so it catches a redelivered message. `CONTENT_HASH` hashes the event without its ID, timestamp and metadata, so it also catches the same command published twice. When a caller doesn't pass a strategy, `IdempotencyManager.check_and_reserve` uses `EVENT_BASED`.
+`EVENT_BASED` keys on event type and ID, so it catches a redelivered message. When a caller doesn't pass a strategy, `IdempotencyManager.check_and_reserve` uses `EVENT_BASED`.
 
 ## Network isolation
 

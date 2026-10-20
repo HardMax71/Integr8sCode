@@ -161,13 +161,12 @@ class TestExecutionCancel:
     async def test_cancel_running_execution(
         self, test_user: AsyncClient, long_running_execution_request: ExecutionRequest
     ) -> None:
-        """Running execution can be cancelled."""
+        """A cancelled execution ends as cancelled at once, instead of running its 30 seconds to completion."""
         response = await test_user.post("/api/v1/execute", json=long_running_execution_request.model_dump())
         assert response.status_code == 200
 
         exec_response = ExecutionResponse.model_validate(response.json())
 
-        # Wait for pod creation (saga started + command dispatched) instead of blind sleep
         await wait_for_event(exec_response.execution_id, EventType.POD_CREATED)
 
         cancel_req = CancelExecutionRequest(reason="Test cancellation")
@@ -181,6 +180,11 @@ class TestExecutionCancel:
         assert cancel_result.execution_id == exec_response.execution_id
         assert cancel_result.status == "cancellation_requested"
         assert cancel_result.message
+
+        await wait_for_event(exec_response.execution_id, EventType.RESULT_STORED, timeout=15.0)
+        result_response = await test_user.get(f"/api/v1/executions/{exec_response.execution_id}/result")
+        assert result_response.status_code == 200
+        assert ExecutionResult.model_validate(result_response.json()).status == ExecutionStatus.CANCELLED
 
     async def test_cancel_completed_execution_fails(self, test_user: AsyncClient) -> None:
         """Cannot cancel already completed execution."""

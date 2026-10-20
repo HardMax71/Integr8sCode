@@ -16,7 +16,6 @@ The frontend uses SvelteKit's filesystem router. Each page is a `+page.svelte` u
 | `/admin`            | `routes/admin/+page.ts`, redirects to `/admin/events` | login, admin |
 | `/admin/events`     | `routes/admin/events/+page.svelte`      | login, admin |
 | `/admin/executions` | `routes/admin/executions/+page.svelte`  | login, admin |
-| `/admin/sagas`      | `routes/admin/sagas/+page.svelte`       | login, admin |
 | `/admin/users`      | `routes/admin/users/+page.svelte`       | login, admin |
 | `/admin/settings`   | `routes/admin/settings/+page.svelte`    | login, admin |
 

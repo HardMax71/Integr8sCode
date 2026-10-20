@@ -1,31 +1,31 @@
 # Worker
 
-One background process runs next to the API: `python -m app.worker`, in the `worker` container built from the backend image. Four parts of it carry an execution from request to stored result, and a fifth retries dead-lettered events. They share one broker connection and one Dishka container, but each consumer keeps its own Kafka consumer group, so every part still gets every event it subscribes to.
+One background process runs next to the API: `python -m app.worker`, in the `worker` container built from the backend image. It runs executions: it takes them from the queue when a slot is free, creates their pods, watches the pods and stores what they print. A DLQ job retries events whose handler failed.
 
-The parts talk to each other only through Kafka, one topic per event type, even inside the one process. The event names on the arrows below travel as those topics. MongoDB holds the durable state and Redis holds the execution queue and idempotency keys.
+The parts are plain services in one process, and they call each other directly. Only the requests come in over Kafka: `execution_requested` and `execution_cancelled`, in the `saga-orchestrator` consumer group. The group keeps the name from before the saga was removed, so its committed offsets carried over. Everything the worker learns goes out as events for the API's SSE stream, its notifications and the event history. MongoDB holds the executions and Redis holds the queue and idempotency keys.
 
 ```mermaid
 graph LR
-    API[API] -->|execution_requested| Saga[Saga orchestrator]
-    Saga -->|create_pod_command| K8s[K8s worker]
-    K8s -->|pod_created| Kafka[(Kafka)]
+    API[API] -->|execution_requested / cancelled| Sched[Execution scheduler]
+    Sched --> Queue[(Redis queue)]
+    Sched --> K8s[K8s worker]
     K8s --> Pod[Executor pod]
     Pod -.watch.-> PodMon[Pod monitor]
-    PodMon -->|execution_completed / failed / timeout| Result[Result processor]
-    PodMon -->|same events| Saga
-    Result -->|result_stored| Kafka
+    PodMon --> Result[Result processor]
+    PodMon -->|slot free| Sched
     Result --> Mongo[(MongoDB)]
+    Result -->|execution_completed, result_stored| Kafka[(Kafka)]
 ```
 
 | Part | What it does | How it runs |
 |------|--------------|-------------|
-| [Saga orchestrator](saga_orchestrator.md) | Queues executions, runs the execution saga, sends pod commands | `saga-orchestrator` group; `try_schedule_from_queue` every 10s, `check_timeouts` every 30s |
-| [K8s worker](k8s_worker.md) | Creates the script ConfigMap and the executor pod | `k8s-worker` group |
-| [Pod monitor](pod_monitor.md) | Watches executor pods and publishes pod and execution events | watch cycle every 5s |
-| [Result processor](result_processor.md) | Writes the result onto the execution document | `result-processor` group |
+| [Execution scheduler](execution_scheduler.md) | Queues executions, starts them while slots are free, cancels them | `saga-orchestrator` group; `schedule_pending` every 10s |
+| [K8s worker](k8s_worker.md) | Creates the script ConfigMap and the executor pod, deletes a cancelled pod | called by the scheduler |
+| [Pod monitor](pod_monitor.md) | Watches executor pods, hands what they report to the result processor, deletes finished pods | watch cycle every 5s |
+| [Result processor](result_processor.md) | Writes the status and result onto the execution document, then publishes the events | called by the pod monitor and the scheduler |
 | [DLQ processor](dlq_processor.md) | Republishes DLQ rows whose retry time has come | job every 10s |
 
-The entry point is [`backend/app/worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/worker.py). It loads `config.toml` plus the `config.worker.toml` override, initializes Beanie, builds the container with `create_worker_container`, registers the three routers and starts the FastStream app. On startup it applies the executor NetworkPolicy and the image pre-puller DaemonSet, then starts the scheduler.
+The entry point is [`backend/app/worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/worker.py). It loads `config.toml` plus the `config.worker.toml` override, initializes Beanie, builds the container with `create_worker_container`, registers the scheduler's router and starts the FastStream app. On startup it applies the executor namespace, NetworkPolicy, ResourceQuota and the image pre-puller DaemonSet, then starts the scheduled jobs.
 
 Replays run in the API, not here. See [Event replay](../event-replay.md).
 
@@ -43,6 +43,6 @@ The worker reads the same `config.toml` as the container, so it connects to the 
 
 ## Scaling
 
-Compose runs one worker, and it has to stay at one. The pod monitor keeps the last seen phase of each pod in memory, so a second replica would watch the same pods and publish every event twice, and the scheduled jobs would run once per replica. The consumers alone would scale, since they go through consumer groups and guard each handler with a Redis idempotency key. The saga orchestrator keeps saga state in MongoDB and the queue in Redis, so both survive a restart, but nothing resumes a saga that was halfway through its steps when the process died.
+Compose runs one worker, and it has to stay at one. The pod monitor keeps the last seen phase of each pod in memory, so a second replica would watch the same pods and store every result twice, and the scheduled jobs would run once per replica. The queue lives in Redis and the results in MongoDB, so both survive a restart. A pod that finished while the worker was down is picked up by the pod monitor's first list after the restart.
 
 A crash in any part restarts the whole container (`restart: unless-stopped`), and the consumers pick up from their committed offsets.

@@ -39,7 +39,6 @@ class UserDeleteResult:
     notifications: int = 0
     user_settings: int = 0
     events: int = 0
-    sagas: int = 0
 
 
 @dataclass

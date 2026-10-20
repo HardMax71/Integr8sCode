@@ -85,7 +85,7 @@ async def produce(self, event_to_produce: DomainEvent, key: str) -> None:
 graph TB
     subgraph Producers
         API[API services]
-        Workers[Saga orchestrator, k8s worker,<br/>pod monitor, result processor]
+        Workers[Worker: k8s worker,<br/>pod monitor, result processor]
     end
 
     API --> Producer[UnifiedProducer]
@@ -94,19 +94,15 @@ graph TB
     Producer --> Transport[KafkaEventTransport] --> Kafka[(Kafka)]
 
     subgraph Consumers
-        Saga[Saga orchestrator]
-        K8s[K8s worker]
-        Result[Result processor]
+        Sched[Worker: execution scheduler]
         APIc["API: sse-bridge-pool,<br/>notification-service"]
     end
 
-    Kafka --> Saga
-    Kafka --> K8s
-    Kafka --> Result
+    Kafka --> Sched
     Kafka --> APIc
 ```
 
-The pod monitor only publishes. The DLQ manager is the one place that skips the outbox: it calls `broker.publish` directly for retries and its `dlq_message_*` status events. See [Kafka Topics](kafka-topic-architecture.md) for the consumer groups.
+The worker consumes only `execution_requested` and `execution_cancelled`; inside it, the parts call each other directly. The DLQ manager is the one place that skips the outbox: it calls `broker.publish` directly for retries and its `dlq_message_*` status events. See [Kafka Topics](kafka-topic-architecture.md) for the consumer groups.
 
 ## Adding an event type
 

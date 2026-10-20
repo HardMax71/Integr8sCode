@@ -30,6 +30,7 @@
     });
 
     const queryClient = useQueryClient();
+    // --8<-- [start:list]
     const list = createQuery(() => ({
         ...listExecutionsApiV1AdminExecutionsGetOptions({
             query: { ...filters, user_id: filters.user_id || null, limit: pageSize, skip: pageIndex * pageSize },
@@ -37,6 +38,7 @@
         placeholderData: keepPreviousData,
         refetchInterval: POLL_INTERVAL_MS,
     }));
+    // --8<-- [end:list]
     const queue = createQuery(() => ({
         ...getQueueStatusApiV1AdminExecutionsQueueGetOptions(),
         refetchInterval: POLL_INTERVAL_MS,

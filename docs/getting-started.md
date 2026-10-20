@@ -36,7 +36,7 @@ curl -k https://localhost:5001/api/v1/health/live
 
 ## Log in and run a script
 
-Open [https://localhost:5001](https://localhost:5001) and accept the self-signed certificate. Log in with username `user` and password `user123`. For the admin pages (events, executions, sagas, users, system settings) use `admin` / `admin123`. The backend creates both accounts, or resets their passwords, every time it starts. Anywhere that isn't your laptop, put your own values in `.env`.
+Open [https://localhost:5001](https://localhost:5001) and accept the self-signed certificate. Log in with username `user` and password `user123`. For the admin pages (events, executions, users, system settings) use `admin` / `admin123`. The backend creates both accounts, or resets their passwords, every time it starts. Anywhere that isn't your laptop, put your own values in `.env`.
 
 After login you land in the editor, which starts with a small Python script. Click **Run Script** and the editor shows the status while the pod runs, then the output once it finishes. The language picker offers what the runtime registry lists: Python 3.14, 3.13, 3.12 and 3.11, Node 26, 24 and 22, Ruby 4.0, 3.4 and 3.3, Go 1.27 and 1.26, and Bash 5.3.
 
@@ -46,10 +46,10 @@ Limits are system-wide, not per execution. An execution request carries only the
 
 1. The frontend posts the script, language and version to `POST /api/v1/execute`.
 2. The API checks the version is offered, writes an execution document and publishes `execution_requested` to Kafka.
-3. The saga orchestrator puts the execution in a Redis priority queue. When fewer than 10 executions are active (an admin setting), it runs the saga, which publishes `create_pod_command`.
+3. The worker's execution scheduler puts the execution in a Redis priority queue. When fewer than 10 executions are active (an admin setting), it starts it.
 4. The k8s worker creates a ConfigMap with the script and a locked-down pod.
-5. The pod monitor sees the pod finish, reads its output and publishes `execution_completed`, `execution_failed` or `execution_timeout`, then deletes the pod.
-6. The result processor writes the result onto the execution document and publishes `result_stored`.
+5. The pod monitor sees the pod finish, reads its output and hands it to the result processor, then deletes the pod and frees the slot.
+6. The result processor writes the result onto the execution document and publishes `execution_completed`, `execution_failed` or `execution_timeout`, then `result_stored`.
 7. The API forwards these events from Kafka through Redis to your browser over Server-Sent Events.
 
 [Workers](components/workers/index.md) and [Execution SSE flow](components/sse/execution-sse-flow.md) go through each step.

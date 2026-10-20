@@ -9,12 +9,16 @@ class ExecutionNotFoundError(NotFoundError):
         super().__init__("Execution", execution_id)
 
 
+# --8<-- [start:ExecutionAccessDeniedError]
 class ExecutionAccessDeniedError(ForbiddenError):
     """Raised when a non-admin user accesses another user's execution."""
 
     def __init__(self, execution_id: str) -> None:
         self.execution_id = execution_id
         super().__init__(f"Access denied to execution '{execution_id}'")
+
+
+# --8<-- [end:ExecutionAccessDeniedError]
 
 
 class ExecutionNotRetryableError(InvalidStateError):

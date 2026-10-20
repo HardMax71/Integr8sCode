@@ -94,8 +94,7 @@ export const zDeleteUserResponse = z.object({
     saved_scripts: z._default(z.int(), 0),
     notifications: z._default(z.int(), 0),
     user_settings: z._default(z.int(), 0),
-    events: z._default(z.int(), 0),
-    sagas: z._default(z.int(), 0)
+    events: z._default(z.int(), 0)
 });
 
 /**
@@ -201,21 +200,6 @@ export const zEventMetadata = z.object({
 });
 
 /**
- * AllocateResourcesCommandEvent
- */
-export const zAllocateResourcesCommandEvent = z.object({
-    event_id: z.string(),
-    event_type: z._default(z.literal('allocate_resources_command'), 'allocate_resources_command'),
-    event_version: z._default(z.string(), '1.0'),
-    timestamp: z.iso.datetime(),
-    aggregate_id: z.nullish(z.string()),
-    metadata: zEventMetadata,
-    execution_id: z.optional(z.string()),
-    cpu_request: z.optional(z.string()),
-    memory_request: z.optional(z.string())
-});
-
-/**
  * AuthFailedEvent
  */
 export const zAuthFailedEvent = z.object({
@@ -228,23 +212,6 @@ export const zAuthFailedEvent = z.object({
     username: z.nullish(z.string()),
     reason: z.optional(z.string()),
     ip_address: z.nullish(z.string())
-});
-
-/**
- * DeletePodCommandEvent
- */
-export const zDeletePodCommandEvent = z.object({
-    event_id: z.string(),
-    event_type: z._default(z.literal('delete_pod_command'), 'delete_pod_command'),
-    event_version: z._default(z.string(), '1.0'),
-    timestamp: z.iso.datetime(),
-    aggregate_id: z.nullish(z.string()),
-    metadata: zEventMetadata,
-    saga_id: z.optional(z.string()),
-    execution_id: z.optional(z.string()),
-    reason: z.optional(z.string()),
-    pod_name: z.nullish(z.string()),
-    namespace: z.nullish(z.string())
 });
 
 /**
@@ -311,16 +278,6 @@ export const zEventType = z.enum([
     'service_recovered',
     'result_stored',
     'result_failed',
-    'saga_started',
-    'saga_completed',
-    'saga_failed',
-    'saga_cancelled',
-    'saga_compensating',
-    'saga_compensated',
-    'create_pod_command',
-    'delete_pod_command',
-    'allocate_resources_command',
-    'release_resources_command',
     'dlq_message_received',
     'dlq_message_retried',
     'dlq_message_discarded'
@@ -1045,32 +1002,6 @@ export const zAdminExecutionListResponse = z.object({
 });
 
 /**
- * CreatePodCommandEvent
- */
-export const zCreatePodCommandEvent = z.object({
-    event_id: z.string(),
-    event_type: z._default(z.literal('create_pod_command'), 'create_pod_command'),
-    event_version: z._default(z.string(), '1.0'),
-    timestamp: z.iso.datetime(),
-    aggregate_id: z.nullish(z.string()),
-    metadata: zEventMetadata,
-    saga_id: z.optional(z.string()),
-    execution_id: z.optional(z.string()),
-    script: z.optional(z.string()),
-    language: z.optional(z.string()),
-    language_version: z.optional(z.string()),
-    runtime_image: z.optional(z.string()),
-    runtime_command: z.optional(z.array(z.string())),
-    runtime_filename: z.optional(z.string()),
-    timeout_seconds: z.optional(z.int()),
-    cpu_limit: z.optional(z.string()),
-    memory_limit: z.optional(z.string()),
-    cpu_request: z.optional(z.string()),
-    memory_request: z.optional(z.string()),
-    priority: z._default(z.optional(zQueuePriority), 'normal')
-});
-
-/**
  * ExecutionAcceptedEvent
  */
 export const zExecutionAcceptedEvent = z.object({
@@ -1235,21 +1166,6 @@ export const zRateLimitUpdateRequest = z.object({
     global_multiplier: z._default(z.optional(z.number().check(z.gt(0))), 1),
     rules: z._default(z.optional(z.array(zRateLimitRuleRequest)), []),
     notes: z._default(z.optional(z.string()), '')
-});
-
-/**
- * ReleaseResourcesCommandEvent
- */
-export const zReleaseResourcesCommandEvent = z.object({
-    event_id: z.string(),
-    event_type: z._default(z.literal('release_resources_command'), 'release_resources_command'),
-    event_version: z._default(z.string(), '1.0'),
-    timestamp: z.iso.datetime(),
-    aggregate_id: z.nullish(z.string()),
-    metadata: zEventMetadata,
-    execution_id: z.optional(z.string()),
-    cpu_request: z.optional(z.string()),
-    memory_request: z.optional(z.string())
 });
 
 /**
@@ -1614,166 +1530,6 @@ export const zSseExecutionEventSchema = z.object({
     event_id: z.nullable(z.string()),
     status: z.nullable(zExecutionStatus),
     result: z.nullable(zExecutionResult)
-});
-
-/**
- * SagaCancellationResponse
- *
- * Response schema for saga cancellation
- */
-export const zSagaCancellationResponse = z.object({
-    success: z.boolean(),
-    message: z.string(),
-    saga_id: z.string()
-});
-
-/**
- * SagaCancelledEvent
- */
-export const zSagaCancelledEvent = z.object({
-    event_id: z.string(),
-    event_type: z._default(z.literal('saga_cancelled'), 'saga_cancelled'),
-    event_version: z._default(z.string(), '1.0'),
-    timestamp: z.iso.datetime(),
-    aggregate_id: z.nullish(z.string()),
-    metadata: zEventMetadata,
-    saga_id: z.optional(z.string()),
-    saga_name: z.optional(z.string()),
-    execution_id: z.optional(z.string()),
-    reason: z.optional(z.string()),
-    completed_steps: z.optional(z.array(z.string())),
-    compensated_steps: z.optional(z.array(z.string())),
-    cancelled_at: z.nullish(z.iso.datetime()),
-    cancelled_by: z.nullish(z.string())
-});
-
-/**
- * SagaCompensatedEvent
- */
-export const zSagaCompensatedEvent = z.object({
-    event_id: z.string(),
-    event_type: z._default(z.literal('saga_compensated'), 'saga_compensated'),
-    event_version: z._default(z.string(), '1.0'),
-    timestamp: z.iso.datetime(),
-    aggregate_id: z.nullish(z.string()),
-    metadata: zEventMetadata,
-    saga_id: z.optional(z.string()),
-    saga_name: z.optional(z.string()),
-    execution_id: z.optional(z.string()),
-    compensated_steps: z.optional(z.array(z.string()))
-});
-
-/**
- * SagaCompensatingEvent
- */
-export const zSagaCompensatingEvent = z.object({
-    event_id: z.string(),
-    event_type: z._default(z.literal('saga_compensating'), 'saga_compensating'),
-    event_version: z._default(z.string(), '1.0'),
-    timestamp: z.iso.datetime(),
-    aggregate_id: z.nullish(z.string()),
-    metadata: zEventMetadata,
-    saga_id: z.optional(z.string()),
-    saga_name: z.optional(z.string()),
-    execution_id: z.optional(z.string()),
-    compensating_step: z.optional(z.string())
-});
-
-/**
- * SagaCompletedEvent
- */
-export const zSagaCompletedEvent = z.object({
-    event_id: z.string(),
-    event_type: z._default(z.literal('saga_completed'), 'saga_completed'),
-    event_version: z._default(z.string(), '1.0'),
-    timestamp: z.iso.datetime(),
-    aggregate_id: z.nullish(z.string()),
-    metadata: zEventMetadata,
-    saga_id: z.optional(z.string()),
-    saga_name: z.optional(z.string()),
-    execution_id: z.optional(z.string()),
-    completed_steps: z.optional(z.array(z.string()))
-});
-
-/**
- * SagaFailedEvent
- */
-export const zSagaFailedEvent = z.object({
-    event_id: z.string(),
-    event_type: z._default(z.literal('saga_failed'), 'saga_failed'),
-    event_version: z._default(z.string(), '1.0'),
-    timestamp: z.iso.datetime(),
-    aggregate_id: z.nullish(z.string()),
-    metadata: zEventMetadata,
-    saga_id: z.optional(z.string()),
-    saga_name: z.optional(z.string()),
-    execution_id: z.optional(z.string()),
-    failed_step: z.optional(z.string()),
-    error: z.optional(z.string())
-});
-
-/**
- * SagaStartedEvent
- */
-export const zSagaStartedEvent = z.object({
-    event_id: z.string(),
-    event_type: z._default(z.literal('saga_started'), 'saga_started'),
-    event_version: z._default(z.string(), '1.0'),
-    timestamp: z.iso.datetime(),
-    aggregate_id: z.nullish(z.string()),
-    metadata: zEventMetadata,
-    saga_id: z.optional(z.string()),
-    saga_name: z.optional(z.string()),
-    execution_id: z.optional(z.string()),
-    initial_event_id: z.optional(z.string())
-});
-
-/**
- * SagaState
- *
- * Saga execution states.
- */
-export const zSagaState = z.enum([
-    'created',
-    'running',
-    'compensating',
-    'completed',
-    'failed',
-    'timeout',
-    'cancelled'
-]);
-
-/**
- * SagaStatusResponse
- *
- * Response schema for saga status
- */
-export const zSagaStatusResponse = z.object({
-    saga_id: z.string(),
-    saga_name: z.string(),
-    execution_id: z.string(),
-    state: zSagaState,
-    current_step: z.nullable(z.string()),
-    completed_steps: z.array(z.string()),
-    compensated_steps: z.array(z.string()),
-    error_message: z.nullable(z.string()),
-    created_at: z.iso.datetime(),
-    updated_at: z.iso.datetime(),
-    completed_at: z.nullable(z.iso.datetime()),
-    retry_count: z.int()
-});
-
-/**
- * SagaListResponse
- *
- * Response schema for saga list
- */
-export const zSagaListResponse = z.object({
-    sagas: z.array(zSagaStatusResponse),
-    total: z.int(),
-    skip: z.int(),
-    limit: z.int(),
-    has_more: z.boolean()
 });
 
 /**
@@ -2475,16 +2231,6 @@ export const zAdminUserOverview = z.object({
         zNotificationAllReadEvent,
         zNotificationClickedEvent,
         zNotificationPreferencesUpdatedEvent,
-        zSagaStartedEvent,
-        zSagaCompletedEvent,
-        zSagaFailedEvent,
-        zSagaCancelledEvent,
-        zSagaCompensatingEvent,
-        zSagaCompensatedEvent,
-        zCreatePodCommandEvent,
-        zDeletePodCommandEvent,
-        zAllocateResourcesCommandEvent,
-        zReleaseResourcesCommandEvent,
         zScriptSavedEvent,
         zScriptDeletedEvent,
         zScriptSharedEvent,
@@ -2542,16 +2288,6 @@ export const zEventBrowseResponse = z.object({
         zNotificationAllReadEvent,
         zNotificationClickedEvent,
         zNotificationPreferencesUpdatedEvent,
-        zSagaStartedEvent,
-        zSagaCompletedEvent,
-        zSagaFailedEvent,
-        zSagaCancelledEvent,
-        zSagaCompensatingEvent,
-        zSagaCompensatedEvent,
-        zCreatePodCommandEvent,
-        zDeletePodCommandEvent,
-        zAllocateResourcesCommandEvent,
-        zReleaseResourcesCommandEvent,
         zScriptSavedEvent,
         zScriptDeletedEvent,
         zScriptSharedEvent,
@@ -2612,16 +2348,6 @@ export const zEventDetailResponse = z.object({
         zNotificationAllReadEvent,
         zNotificationClickedEvent,
         zNotificationPreferencesUpdatedEvent,
-        zSagaStartedEvent,
-        zSagaCompletedEvent,
-        zSagaFailedEvent,
-        zSagaCancelledEvent,
-        zSagaCompensatingEvent,
-        zSagaCompensatedEvent,
-        zCreatePodCommandEvent,
-        zDeletePodCommandEvent,
-        zAllocateResourcesCommandEvent,
-        zReleaseResourcesCommandEvent,
         zScriptSavedEvent,
         zScriptDeletedEvent,
         zScriptSharedEvent,
@@ -2818,16 +2544,6 @@ export const zGetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponse = z.
     zNotificationAllReadEvent,
     zNotificationClickedEvent,
     zNotificationPreferencesUpdatedEvent,
-    zSagaStartedEvent,
-    zSagaCompletedEvent,
-    zSagaFailedEvent,
-    zSagaCancelledEvent,
-    zSagaCompensatingEvent,
-    zSagaCompensatedEvent,
-    zCreatePodCommandEvent,
-    zDeletePodCommandEvent,
-    zAllocateResourcesCommandEvent,
-    zReleaseResourcesCommandEvent,
     zScriptSavedEvent,
     zScriptDeletedEvent,
     zScriptSharedEvent,
@@ -3361,49 +3077,3 @@ export const zDeleteNotificationApiV1NotificationsNotificationIdDeletePath = z.o
  * Successful Response
  */
 export const zDeleteNotificationApiV1NotificationsNotificationIdDeleteResponse = zDeleteNotificationResponse;
-
-export const zGetSagaStatusApiV1SagasSagaIdGetPath = z.object({
-    saga_id: z.string()
-});
-
-/**
- * Successful Response
- */
-export const zGetSagaStatusApiV1SagasSagaIdGetResponse = zSagaStatusResponse;
-
-export const zGetExecutionSagasApiV1SagasExecutionExecutionIdGetPath = z.object({
-    execution_id: z.string()
-});
-
-export const zGetExecutionSagasApiV1SagasExecutionExecutionIdGetQuery = z.object({
-    state: z.nullish(zSagaState),
-    limit: z._default(z.optional(z.int().check(z.gte(1), z.lte(1000))), 100),
-    skip: z._default(z.optional(z.int().check(z.gte(0))), 0)
-});
-
-/**
- * Successful Response
- */
-export const zGetExecutionSagasApiV1SagasExecutionExecutionIdGetResponse = zSagaListResponse;
-
-export const zListSagasApiV1SagasGetQuery = z.object({
-    state: z.nullish(zSagaState),
-    execution_id: z.nullish(z.string()),
-    search: z.nullish(z.string().check(z.maxLength(200))),
-    limit: z._default(z.optional(z.int().check(z.gte(1), z.lte(1000))), 100),
-    skip: z._default(z.optional(z.int().check(z.gte(0))), 0)
-});
-
-/**
- * Successful Response
- */
-export const zListSagasApiV1SagasGetResponse = zSagaListResponse;
-
-export const zCancelSagaApiV1SagasSagaIdCancelPostPath = z.object({
-    saga_id: z.string()
-});
-
-/**
- * Successful Response
- */
-export const zCancelSagaApiV1SagasSagaIdCancelPostResponse = zSagaCancellationResponse;

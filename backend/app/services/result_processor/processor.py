@@ -7,6 +7,7 @@ from app.domain.enums import ExecutionErrorType, ExecutionStatus, StorageType
 from app.domain.events import (
     DomainEvent,
     EventMetadata,
+    ExecutionCancelledEvent,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
     ExecutionTimeoutEvent,
@@ -15,7 +16,7 @@ from app.domain.events import (
     ResultFailedEvent,
     ResultStoredEvent,
 )
-from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
+from app.domain.execution import ExecutionResultDomain
 from app.events import PRODUCE_ERRORS, UnifiedProducer
 from app.infrastructure.kafka.topics import POD_EVENT_STATUS
 from app.runtime_registry import parse_quantity
@@ -23,7 +24,7 @@ from app.services.runtime_settings import RuntimeSettingsLoader
 
 
 class ResultProcessor:
-    """Service for processing execution completion events and storing results."""
+    """Stores an execution's status and final result, then publishes what happened."""
 
     def __init__(
         self,
@@ -45,14 +46,12 @@ class ResultProcessor:
         if await self._execution_repo.advance_status(event.execution_id, status):
             self.logger.info("Execution status advanced", execution_id=event.execution_id, status=status)
 
-    async def handle_execution_completed(self, event: DomainEvent) -> None:
-        """Handle execution completed event."""
-        if not isinstance(event, ExecutionCompletedEvent):
-            raise TypeError(f"Expected ExecutionCompletedEvent, got {type(event).__name__}")
-
+    async def handle_execution_completed(self, event: ExecutionCompletedEvent) -> None:
+        """Store a completed execution's result, then publish the event and result_stored."""
         exec_obj = await self._execution_repo.get_execution(event.execution_id)
         if exec_obj is None:
-            raise ExecutionNotFoundError(event.execution_id)
+            self.logger.warning("Execution deleted before its result was stored", execution_id=event.execution_id)
+            return
 
         memory_mib = event.resource_usage.peak_memory_kb / 1024
         limits = await self._runtime_settings.get_language_limits(exec_obj.lang)
@@ -73,27 +72,14 @@ class ResultProcessor:
                 resource_usage=event.resource_usage,
                 status=ExecutionStatus.COMPLETED,
             )
+            await self._store(result, event.metadata, event.aggregate_id, announce=(event,))
 
-            meta = event.metadata
-            try:
-                await self._execution_repo.write_terminal_result(result)
-                await self._publish_result_stored(
-                    event.execution_id, len(event.stdout) + len(event.stderr), meta.user_id, event.aggregate_id
-                )
-            except PRODUCE_ERRORS as e:
-                self.logger.error(
-                    "Failed to handle ExecutionCompletedEvent", execution_id=event.execution_id, exc_info=True
-                )
-                await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
-
-    async def handle_execution_failed(self, event: DomainEvent) -> None:
-        """Handle execution failed event."""
-        if not isinstance(event, ExecutionFailedEvent):
-            raise TypeError(f"Expected ExecutionFailedEvent, got {type(event).__name__}")
-
+    async def handle_execution_failed(self, event: ExecutionFailedEvent) -> None:
+        """Store a failed execution's result, then publish the event and result_stored."""
         exec_obj = await self._execution_repo.get_execution(event.execution_id)
         if exec_obj is None:
-            raise ExecutionNotFoundError(event.execution_id)
+            self.logger.warning("Execution deleted before its result was stored", execution_id=event.execution_id)
+            return
 
         attributes = {
             "execution.status": ExecutionStatus.FAILED,
@@ -111,26 +97,14 @@ class ResultProcessor:
                 error_type=event.error_type,
                 status=ExecutionStatus.FAILED,
             )
-            meta = event.metadata
-            try:
-                await self._execution_repo.write_terminal_result(result)
-                await self._publish_result_stored(
-                    event.execution_id, len(event.stdout) + len(event.stderr), meta.user_id, event.aggregate_id
-                )
-            except PRODUCE_ERRORS as e:
-                self.logger.error(
-                    "Failed to handle ExecutionFailedEvent", execution_id=event.execution_id, exc_info=True
-                )
-                await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
+            await self._store(result, event.metadata, event.aggregate_id, announce=(event,))
 
-    async def handle_execution_timeout(self, event: DomainEvent) -> None:
-        """Handle execution timeout event."""
-        if not isinstance(event, ExecutionTimeoutEvent):
-            raise TypeError(f"Expected ExecutionTimeoutEvent, got {type(event).__name__}")
-
+    async def handle_execution_timeout(self, event: ExecutionTimeoutEvent) -> None:
+        """Store a timed-out execution's result, then publish the event and result_stored."""
         exec_obj = await self._execution_repo.get_execution(event.execution_id)
         if exec_obj is None:
-            raise ExecutionNotFoundError(event.execution_id)
+            self.logger.warning("Execution deleted before its result was stored", execution_id=event.execution_id)
+            return
 
         attributes: dict[str, AttributeValue] = {
             "execution.status": ExecutionStatus.TIMEOUT,
@@ -148,17 +122,61 @@ class ResultProcessor:
                 error_type=ExecutionErrorType.TIMEOUT,
                 status=ExecutionStatus.TIMEOUT,
             )
-            meta = event.metadata
-            try:
-                await self._execution_repo.write_terminal_result(result)
-                await self._publish_result_stored(
-                    event.execution_id, len(event.stdout) + len(event.stderr), meta.user_id, event.aggregate_id
+            await self._store(result, event.metadata, event.aggregate_id, announce=(event,))
+
+    async def handle_execution_cancelled(self, event: ExecutionCancelledEvent) -> None:
+        """Store the cancelled status of an execution that hasn't finished, then publish result_stored."""
+        exec_obj = await self._execution_repo.get_execution(event.execution_id)
+        if exec_obj is None:
+            self.logger.info("Cancelled execution was deleted", execution_id=event.execution_id)
+            return
+
+        attributes = {
+            "execution.status": ExecutionStatus.CANCELLED,
+            "execution.lang_and_version": f"{exec_obj.lang}-{exec_obj.lang_version}",
+        }
+        with self._tracer.start_as_current_span("execution.result", attributes=attributes):
+            result = ExecutionResultDomain(
+                execution_id=event.execution_id,
+                exit_code=None,
+                stdout=None,
+                stderr=None,
+                status=ExecutionStatus.CANCELLED,
+            )
+            # The API already published the cancel event
+            await self._store(result, event.metadata, event.aggregate_id, announce=())
+
+    async def _store(
+        self,
+        result: ExecutionResultDomain,
+        metadata: EventMetadata,
+        aggregate_id: str | None,
+        announce: tuple[DomainEvent, ...],
+    ) -> None:
+        """Write the terminal result, then publish the announce events and result_stored.
+
+        Nothing is published when the execution already ended another way, so the failure of a
+        cancelled execution's pod neither overwrites the cancel nor notifies anyone.
+        """
+        try:
+            if not await self._execution_repo.write_terminal_result(result):
+                self.logger.info(
+                    "Execution already finished, result not stored",
+                    execution_id=result.execution_id,
+                    status=result.status,
                 )
-            except PRODUCE_ERRORS as e:
-                self.logger.error(
-                    "Failed to handle ExecutionTimeoutEvent", execution_id=event.execution_id, exc_info=True
-                )
-                await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
+                return
+            for event in announce:
+                await self._producer.produce(event_to_produce=event, key=result.execution_id)
+            await self._publish_result_stored(
+                result.execution_id,
+                len(result.stdout or "") + len(result.stderr or ""),
+                metadata.user_id,
+                aggregate_id,
+            )
+        except PRODUCE_ERRORS as e:
+            self.logger.error("Failed to store execution result", execution_id=result.execution_id, exc_info=True)
+            await self._publish_result_failed(result.execution_id, str(e), metadata.user_id, aggregate_id)
 
     async def _publish_result_stored(
         self, execution_id: str, size_bytes: int, user_id: str, aggregate_id: str | None

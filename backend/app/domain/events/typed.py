@@ -341,100 +341,6 @@ class NotificationPreferencesUpdatedEvent(BaseEvent):
     changed_fields: list[str] = Field(default_factory=list)
 
 
-class SagaStartedEvent(BaseEvent):
-    event_type: Literal[EventType.SAGA_STARTED] = EventType.SAGA_STARTED
-    saga_id: str
-    saga_name: str
-    execution_id: str
-    initial_event_id: str
-
-
-class SagaCompletedEvent(BaseEvent):
-    event_type: Literal[EventType.SAGA_COMPLETED] = EventType.SAGA_COMPLETED
-    saga_id: str
-    saga_name: str
-    execution_id: str
-    completed_steps: list[str] = Field(default_factory=list)
-
-
-class SagaFailedEvent(BaseEvent):
-    event_type: Literal[EventType.SAGA_FAILED] = EventType.SAGA_FAILED
-    saga_id: str
-    saga_name: str
-    execution_id: str
-    failed_step: str
-    error: str
-
-
-class SagaCancelledEvent(BaseEvent):
-    event_type: Literal[EventType.SAGA_CANCELLED] = EventType.SAGA_CANCELLED
-    saga_id: str
-    saga_name: str
-    execution_id: str
-    reason: str
-    completed_steps: list[str] = Field(default_factory=list)
-    compensated_steps: list[str] = Field(default_factory=list)
-    cancelled_at: datetime | None = None
-    cancelled_by: str | None = None
-
-
-class SagaCompensatingEvent(BaseEvent):
-    event_type: Literal[EventType.SAGA_COMPENSATING] = EventType.SAGA_COMPENSATING
-    saga_id: str
-    saga_name: str
-    execution_id: str
-    compensating_step: str
-
-
-class SagaCompensatedEvent(BaseEvent):
-    event_type: Literal[EventType.SAGA_COMPENSATED] = EventType.SAGA_COMPENSATED
-    saga_id: str
-    saga_name: str
-    execution_id: str
-    compensated_steps: list[str] = Field(default_factory=list)
-
-
-class CreatePodCommandEvent(BaseEvent):
-    event_type: Literal[EventType.CREATE_POD_COMMAND] = EventType.CREATE_POD_COMMAND
-    saga_id: str
-    execution_id: str
-    script: str
-    language: str
-    language_version: str
-    runtime_image: str
-    runtime_command: list[str] = Field(default_factory=list)
-    runtime_filename: str
-    timeout_seconds: int
-    cpu_limit: str
-    memory_limit: str
-    cpu_request: str
-    memory_request: str
-    priority: QueuePriority = QueuePriority.NORMAL
-
-
-class DeletePodCommandEvent(BaseEvent):
-    event_type: Literal[EventType.DELETE_POD_COMMAND] = EventType.DELETE_POD_COMMAND
-    saga_id: str
-    execution_id: str
-    reason: str
-    pod_name: str | None = None
-    namespace: str | None = None
-
-
-class AllocateResourcesCommandEvent(BaseEvent):
-    event_type: Literal[EventType.ALLOCATE_RESOURCES_COMMAND] = EventType.ALLOCATE_RESOURCES_COMMAND
-    execution_id: str
-    cpu_request: str
-    memory_request: str
-
-
-class ReleaseResourcesCommandEvent(BaseEvent):
-    event_type: Literal[EventType.RELEASE_RESOURCES_COMMAND] = EventType.RELEASE_RESOURCES_COMMAND
-    execution_id: str
-    cpu_request: str
-    memory_request: str
-
-
 class ScriptSavedEvent(BaseEvent):
     event_type: Literal[EventType.SCRIPT_SAVED] = EventType.SCRIPT_SAVED
     script_id: str
@@ -593,18 +499,6 @@ DomainEvent = Annotated[
     | NotificationAllReadEvent
     | NotificationClickedEvent
     | NotificationPreferencesUpdatedEvent
-    # Saga Events
-    | SagaStartedEvent
-    | SagaCompletedEvent
-    | SagaFailedEvent
-    | SagaCancelledEvent
-    | SagaCompensatingEvent
-    | SagaCompensatedEvent
-    # Saga Command Events
-    | CreatePodCommandEvent
-    | DeletePodCommandEvent
-    | AllocateResourcesCommandEvent
-    | ReleaseResourcesCommandEvent
     # Script Events
     | ScriptSavedEvent
     | ScriptDeletedEvent

@@ -4,7 +4,7 @@ The browser gets live updates over Server-Sent Events, and every live update com
 
 ```mermaid
 graph LR
-    Workers["Saga orchestrator, K8s worker,<br/>pod monitor, result processor"] -->|domain events| Kafka[(Kafka)]
+    Workers["Worker: k8s worker,<br/>pod monitor, result processor"] -->|domain events| Kafka[(Kafka)]
     Kafka -->|17 event types| Bridge["sse-bridge-pool subscriber<br/>(API process)"]
     Bridge -->|"sse:exec:{id}"| Redis[(Redis pub/sub)]
     Notif["NotificationService<br/>(API process)"] -->|"sse:notif:{user_id}"| Redis

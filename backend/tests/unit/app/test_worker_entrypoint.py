@@ -28,7 +28,7 @@ async def test_run_wires_the_routers_and_orders_shutdown(
 
     await module.run(test_settings, structlog.get_logger("test"))
 
-    assert len(broker.include_routers.call_args.args) == 3
+    assert len(broker.include_routers.call_args.args) == 1
     fast_stream.assert_called_once_with(broker, on_shutdown=[scheduler.shutdown], after_shutdown=[container.close])
     fast_stream.return_value.run.assert_awaited_once()
 
@@ -46,8 +46,7 @@ async def test_start_jobs_prepares_the_cluster_and_schedules_the_jobs(monkeypatc
     dependency.ensure_image_pre_puller_daemonset.assert_awaited_once()
     assert [c.kwargs["id"] for c in scheduler.add_job.call_args_list] == [
         "pod_monitor_watch",
-        "saga_try_schedule",
-        "saga_check_timeouts",
+        "execution_schedule_pending",
         "dlq_monitor_retries",
         "idempotency_report_keys",
     ]

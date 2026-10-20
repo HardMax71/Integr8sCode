@@ -22,13 +22,11 @@ from app.db import (
     ExecutionRepository,
     NotificationRepository,
     ReplayRepository,
-    SagaRepository,
     SavedScriptRepository,
     UserRepository,
     UserSettingsRepository,
 )
 from app.dlq.manager import DLQManager
-from app.domain.saga import SagaConfig
 from app.events import UnifiedProducer
 from app.events.core.transport import KafkaEventTransport
 from app.events.middlewares import RetryTargetMiddleware
@@ -38,6 +36,7 @@ from app.services.auth_service import AuthService
 from app.services.event_replay import EventReplayService
 from app.services.event_service import EventService
 from app.services.execution_queue import ExecutionQueueService
+from app.services.execution_scheduler import ExecutionScheduler
 from app.services.execution_service import ExecutionService
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager, RedisIdempotencyRepository
 from app.services.k8s_worker import KubernetesWorker
@@ -48,7 +47,6 @@ from app.services.pod_monitor import PodEventMapper, PodMonitor, PodMonitorConfi
 from app.services.rate_limit_service import RateLimitService
 from app.services.result_processor import ResultProcessor
 from app.services.runtime_settings import RuntimeSettingsLoader
-from app.services.saga import SagaOrchestrator, SagaService
 from app.services.saved_script_service import SavedScriptService
 from app.services.sse import SSERedisBus, SSEService
 from app.services.user_settings_service import UserSettingsService
@@ -254,10 +252,6 @@ class RepositoryProvider(Provider):
         return ExecutionRepository(logger)
 
     @provide
-    def get_saga_repository(self, logger: structlog.stdlib.BoundLogger) -> SagaRepository:
-        return SagaRepository(logger)
-
-    @provide
     def get_saved_script_repository(self, logger: structlog.stdlib.BoundLogger) -> SavedScriptRepository:
         return SavedScriptRepository(logger)
 
@@ -445,19 +439,6 @@ class AdminServicesProvider(Provider):
         )
 
 
-def _create_default_saga_config() -> SagaConfig:
-    """Factory for default SagaConfig used by orchestrators."""
-    return SagaConfig(
-        name="main-orchestrator",
-        timeout_seconds=300,
-        max_retries=3,
-        retry_delay_seconds=5,
-        enable_compensation=True,
-        store_events=True,
-        publish_commands=True,
-    )
-
-
 class ExecutionQueueProvider(Provider):
     scope = Scope.APP
 
@@ -473,21 +454,6 @@ class ExecutionQueueProvider(Provider):
 
 class BusinessServicesProvider(Provider):
     scope = Scope.REQUEST
-
-    @provide
-    def get_saga_service(
-        self,
-        saga_repository: SagaRepository,
-        execution_repository: ExecutionRepository,
-        saga_orchestrator: SagaOrchestrator,
-        logger: structlog.stdlib.BoundLogger,
-    ) -> SagaService:
-        return SagaService(
-            saga_repo=saga_repository,
-            execution_repo=execution_repository,
-            orchestrator=saga_orchestrator,
-            logger=logger,
-        )
 
     @provide
     def get_execution_service(
@@ -602,6 +568,8 @@ class PodMonitorProvider(Provider):
         api_client: k8s_client.ApiClient,
         logger: structlog.stdlib.BoundLogger,
         event_mapper: PodEventMapper,
+        results: ResultProcessor,
+        scheduler: ExecutionScheduler,
         tracer: trace.Tracer,
     ) -> PodMonitor:
         return PodMonitor(
@@ -610,30 +578,31 @@ class PodMonitorProvider(Provider):
             logger=logger,
             api_client=api_client,
             event_mapper=event_mapper,
+            results=results,
+            scheduler=scheduler,
             tracer=tracer,
         )
 
 
-class SagaOrchestratorProvider(Provider):
+class ExecutionSchedulerProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_saga_orchestrator(
+    def get_execution_scheduler(
         self,
-        saga_repository: SagaRepository,
-        kafka_producer: UnifiedProducer,
-        logger: structlog.stdlib.BoundLogger,
         queue_service: ExecutionQueueService,
+        k8s_worker: KubernetesWorker,
+        results: ResultProcessor,
         runtime_settings: RuntimeSettingsLoader,
+        logger: structlog.stdlib.BoundLogger,
         tracer: trace.Tracer,
-    ) -> SagaOrchestrator:
-        return SagaOrchestrator(
-            config=_create_default_saga_config(),
-            saga_repository=saga_repository,
-            producer=kafka_producer,
-            logger=logger,
-            queue_service=queue_service,
+    ) -> ExecutionScheduler:
+        return ExecutionScheduler(
+            queue=queue_service,
+            k8s_worker=k8s_worker,
+            results=results,
             runtime_settings=runtime_settings,
+            logger=logger,
             tracer=tracer,
         )
 

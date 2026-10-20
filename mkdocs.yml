@@ -149,7 +149,7 @@ nav:
       - Execution Flow: components/sse/execution-sse-flow.md
     - Worker:
       - Overview: components/workers/index.md
-      - Saga Orchestrator: components/workers/saga_orchestrator.md
+      - Execution Scheduler: components/workers/execution_scheduler.md
       - K8s Worker: components/workers/k8s_worker.md
       - Pod Monitor: components/workers/pod_monitor.md
       - Result Processor: components/workers/result_processor.md

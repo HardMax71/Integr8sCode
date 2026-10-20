@@ -246,7 +246,7 @@
     },
     {
       "datasource": "Victoria Metrics",
-      "description": "Executions the saga orchestrator has scheduled and not yet released",
+      "description": "Executions the scheduler has started and not yet released",
       "fieldConfig": {
         "defaults": {
           "color": {

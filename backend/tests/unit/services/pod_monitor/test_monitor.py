@@ -1,4 +1,3 @@
-import types
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -11,11 +10,18 @@ from kubernetes_asyncio.client.rest import ApiException
 from opentelemetry import trace
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from app.domain.enums import EventType
-from app.domain.events import DomainEvent
+from app.domain.events import (
+    DomainEvent,
+    EventMetadata,
+    ExecutionCompletedEvent,
+    PodRunningEvent,
+    ResourceUsageDomain,
+)
 from app.events.core import UnifiedProducer
+from app.services.execution_scheduler import ExecutionScheduler
 from app.services.pod_monitor import ErrorType, PodEventMapper, PodMonitor, PodMonitorConfig, WatchEventType
 from app.services.pod_monitor.monitor import PodEvent
+from app.services.result_processor import ResultProcessor
 from tests.unit.conftest import (
     make_mock_v1_api,
     make_mock_watch,
@@ -25,6 +31,8 @@ from tests.unit.conftest import (
 pytestmark = pytest.mark.unit
 
 _test_logger = structlog.get_logger("test.pod_monitor")
+
+_METADATA = EventMetadata(service_name="pod-monitor", service_version="1.0.0", user_id="u1")
 
 
 class FakeUnifiedProducer(UnifiedProducer):
@@ -57,6 +65,8 @@ def make_pod_monitor(
     producer: UnifiedProducer | None = None,
     api_client: k8s_client.ApiClient | None = None,
     event_mapper: PodEventMapper | None = None,
+    results: ResultProcessor | None = None,
+    scheduler: ExecutionScheduler | None = None,
     mock_v1: Any | None = None,
     mock_watch: Any | None = None,
     pods: list[V1Pod] | None = None,
@@ -76,6 +86,8 @@ def make_pod_monitor(
             logger=_test_logger,
             api_client=client,
             event_mapper=mapper,
+            results=results or AsyncMock(spec=ResultProcessor),
+            scheduler=scheduler or AsyncMock(spec=ExecutionScheduler),
             tracer=tracer,
         )
 
@@ -174,9 +186,11 @@ async def test_process_pod_event_full_flow(tracer: trace.Tracer, span_exporter: 
     cfg.ignored_pod_phases = ["Unknown"]
 
     mapper = AsyncMock(spec=PodEventMapper)
-    mapper.map_pod_event.return_value = [types.SimpleNamespace(event_type=EventType.POD_RUNNING, execution_id="exec1")]
+    running = PodRunningEvent(execution_id="exec1", pod_name="test-pod", metadata=_METADATA)
+    mapper.map_pod_event.return_value = [running]
     producer = FakeUnifiedProducer()
-    pm = make_pod_monitor(tracer, config=cfg, event_mapper=mapper, producer=producer)
+    results = AsyncMock(spec=ResultProcessor)
+    pm = make_pod_monitor(tracer, config=cfg, event_mapper=mapper, producer=producer, results=results)
 
     await pm._process_pod_event(
         PodEvent(event_type=WatchEventType.ADDED, pod=make_pod(name="test-pod", phase="Running"))
@@ -189,6 +203,7 @@ async def test_process_pod_event_full_flow(tracer: trace.Tracer, span_exporter: 
     )
 
     assert [key for _, key in producer.produced_events] == ["exec1", "exec1"]
+    assert results.handle_pod_progress.await_count == 2
     assert span_attributes(span_exporter, "pod_monitor.event") == [
         {"pod_monitor.watch_event": "ADDED", "pod.phase": "Running", "pod_monitor.published": 1},
         {"pod_monitor.watch_event": "DELETED", "pod.phase": "Succeeded", "pod_monitor.published": 1},
@@ -243,12 +258,18 @@ async def test_relist_drops_pods_the_watch_missed(
 
 async def test_terminal_event_records_pod_lifetime(tracer: trace.Tracer, span_exporter: InMemorySpanExporter) -> None:
     mapper = AsyncMock(spec=PodEventMapper)
-    mapper.map_pod_event.return_value = [
-        types.SimpleNamespace(event_type=EventType.EXECUTION_COMPLETED, execution_id="exec1")
-    ]
+    completed = ExecutionCompletedEvent(
+        execution_id="exec1", exit_code=0, resource_usage=ResourceUsageDomain(), metadata=_METADATA
+    )
+    mapper.map_pod_event.return_value = [completed]
     mock_v1 = make_mock_v1_api()
     mock_v1.delete_namespaced_pod = AsyncMock()
-    pm = make_pod_monitor(tracer, event_mapper=mapper, mock_v1=mock_v1)
+    producer = FakeUnifiedProducer()
+    results = AsyncMock(spec=ResultProcessor)
+    scheduler = AsyncMock(spec=ExecutionScheduler)
+    pm = make_pod_monitor(
+        tracer, event_mapper=mapper, mock_v1=mock_v1, producer=producer, results=results, scheduler=scheduler
+    )
 
     pod = make_pod(name="done", phase="Succeeded", labels={"language": "python"})
     pod.metadata.creation_timestamp = datetime.now(timezone.utc) - timedelta(seconds=30)
@@ -258,14 +279,19 @@ async def test_terminal_event_records_pod_lifetime(tracer: trace.Tracer, span_ex
     assert attributes["pod.lifetime_seconds"] >= 30
     assert (attributes["pod.phase"], attributes["pod.language"]) == ("Succeeded", "python")
     mock_v1.delete_namespaced_pod.assert_awaited_once()
+    # The processor publishes the result once it's stored, and the slot frees for the next execution
+    results.handle_execution_completed.assert_awaited_once_with(completed)
+    assert producer.produced_events == []
+    scheduler.finish.assert_awaited_once_with("exec1")
 
 
 async def test_non_terminal_event_records_no_lifetime(
     tracer: trace.Tracer, span_exporter: InMemorySpanExporter
 ) -> None:
     mapper = AsyncMock(spec=PodEventMapper)
-    mapper.map_pod_event.return_value = [types.SimpleNamespace(event_type=EventType.POD_RUNNING, execution_id="exec1")]
-    pm = make_pod_monitor(tracer, event_mapper=mapper)
+    mapper.map_pod_event.return_value = [PodRunningEvent(execution_id="exec1", pod_name="busy", metadata=_METADATA)]
+    scheduler = AsyncMock(spec=ExecutionScheduler)
+    pm = make_pod_monitor(tracer, event_mapper=mapper, scheduler=scheduler)
 
     pod = make_pod(name="busy", phase="Running", labels={"language": "python"})
     pod.metadata.creation_timestamp = datetime.now(timezone.utc)
@@ -273,6 +299,7 @@ async def test_non_terminal_event_records_no_lifetime(
 
     [attributes] = span_attributes(span_exporter, "pod_monitor.event")
     assert "pod.lifetime_seconds" not in attributes
+    scheduler.finish.assert_not_awaited()
 
 
 @pytest.mark.parametrize(

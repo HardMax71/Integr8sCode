@@ -68,20 +68,6 @@ class EventType(StringEnum):
     RESULT_STORED = "result_stored"
     RESULT_FAILED = "result_failed"
 
-    # Saga events
-    SAGA_STARTED = "saga_started"
-    SAGA_COMPLETED = "saga_completed"
-    SAGA_FAILED = "saga_failed"
-    SAGA_CANCELLED = "saga_cancelled"
-    SAGA_COMPENSATING = "saga_compensating"
-    SAGA_COMPENSATED = "saga_compensated"
-
-    # Saga command events (orchestration)
-    CREATE_POD_COMMAND = "create_pod_command"
-    DELETE_POD_COMMAND = "delete_pod_command"
-    ALLOCATE_RESOURCES_COMMAND = "allocate_resources_command"
-    RELEASE_RESOURCES_COMMAND = "release_resources_command"
-
     # DLQ events
     DLQ_MESSAGE_RECEIVED = "dlq_message_received"
     DLQ_MESSAGE_RETRIED = "dlq_message_retried"

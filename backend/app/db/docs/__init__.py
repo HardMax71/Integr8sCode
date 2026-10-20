@@ -15,7 +15,6 @@ from app.db.docs.notification import (
 from app.db.docs.replay import (
     ReplaySessionDocument,
 )
-from app.db.docs.saga import SagaDocument
 from app.db.docs.saved_script import SavedScriptDocument
 from app.db.docs.user import UserDocument
 from app.db.docs.user_settings import UserSettingsDocument
@@ -28,7 +27,6 @@ ALL_DOCUMENTS = [
     NotificationDocument,
     NotificationSubscriptionDocument,
     UserSettingsDocument,
-    SagaDocument,
     DLQMessageDocument,
     EventDocument,
     EventArchiveDocument,
@@ -49,8 +47,6 @@ __all__ = [
     "NotificationSubscriptionDocument",
     # User Settings
     "UserSettingsDocument",
-    # Saga
-    "SagaDocument",
     # DLQ
     "DLQMessageDocument",
     # Event

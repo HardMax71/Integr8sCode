@@ -8,17 +8,17 @@ The hey-api `@tanstack/svelte-query` plugin generates the options, so there's no
 
 ## Reading
 
-A list page builds its query from its own state, and the options callback reads that state, so a new filter, page or refresh rate is a new query key and TanStack fetches it:
+A list page builds its query from its own state, and the options callback reads that state, so a new filter or page is a new query key and TanStack fetches it:
 
 ```typescript
---8<-- "frontend/src/routes/admin/sagas/+page.svelte:list"
+--8<-- "frontend/src/routes/admin/executions/+page.svelte:list"
 ```
 
 Every key is its own cache entry, so a slow response for an old filter can't overwrite a newer one. `keepPreviousData` keeps the last page on screen while the next one loads. `refetchInterval` is the polling: TanStack pauses it while the tab is hidden and stops it when the page unmounts. The page size is page state and the page index is derived from the filters, so a new filter goes back to the first page, since the old page may not exist under it. The table component binds both as a TanStack Table `PaginationState`, and the query turns them into `skip` and `limit`; the table only renders the page the server sent.
 
 `isPending` is true until the first data arrives, and the tables show their spinner for it. `isFetching` is true during any request, polls included, and only drives the refresh buttons.
 
-A component fetches what only it shows. The page keeps the id of the open saga or event, and the detail modal runs the query for it; following a related event changes the id, which is a new key. A failed load closes the modal, since the interceptor has already shown the error. The replay banner follows the replay status stream while it's mounted, and closing it aborts the stream.
+A component fetches what only it shows. The page keeps the id of the open user or event, and the detail modal runs the query for it; following a related event changes the id, which is a new key. A failed load closes the modal, since the interceptor has already shown the error. The replay banner follows the replay status stream while it's mounted, and closing it aborts the stream.
 
 ## Writing
 

@@ -129,14 +129,12 @@ DEFAULT_RETRY = RetryPolicy(
 
 def retry_policy_for(event_type: EventType) -> RetryPolicy:
     """Determine retry policy from event type using category sets."""
-    from app.infrastructure.kafka.topics import COMMAND_TYPES, EXECUTION_TYPES, POD_TYPES, RESULT_TYPES
+    from app.infrastructure.kafka.topics import EXECUTION_TYPES, POD_TYPES, RESULT_TYPES
 
     if event_type in EXECUTION_TYPES:
         return AGGRESSIVE_RETRY
     if event_type in POD_TYPES:
         return CAUTIOUS_RETRY
-    if event_type in COMMAND_TYPES:
-        return AGGRESSIVE_RETRY
     if event_type in RESULT_TYPES:
         return IMMEDIATE_RETRY
     return DEFAULT_RETRY

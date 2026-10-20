@@ -22,7 +22,7 @@ gunicorn runs the API with `WEB_CONCURRENCY` workers (2 by default), and each on
 
 ## Worker process
 
-`app/worker.py` loads `Settings(override_path="config.worker.toml")`, sets up logging, runs `init_beanie`, builds its container with `create_worker_container`, registers the k8s worker, result processor and saga routers, calls `setup_dishka`, runs `start_jobs`, and then blocks on `FastStream(broker, on_shutdown=[scheduler.shutdown], after_shutdown=[container.close]).run()`.
+`app/worker.py` loads `Settings(override_path="config.worker.toml")`, sets up logging, runs `init_beanie`, builds its container with `create_worker_container`, registers the execution scheduler's router, calls `setup_dishka`, runs `start_jobs`, and then blocks on `FastStream(broker, on_shutdown=[scheduler.shutdown], after_shutdown=[container.close]).run()`.
 
 FastStream 0.7 runs `on_shutdown` hooks before `broker.stop()` and `after_shutdown` hooks after it. `start_jobs` runs before `run()`, so the startup work happens before the broker connects; on the way out the scheduler stops before the broker drains, and the container closes last, which keeps Redis and the Kubernetes client open until the handlers are done.
 
@@ -31,9 +31,9 @@ FastStream 0.7 runs `on_shutdown` hooks before `broker.stop()` and `after_shutdo
 | Job | Interval | Calls |
 |-----|----------|-------|
 | `pod_monitor_watch` | 5s | `PodMonitor.watch_cycle` |
-| `saga_try_schedule` | 10s | `SagaOrchestrator.try_schedule_from_queue` |
-| `saga_check_timeouts` | 30s | `SagaOrchestrator.check_timeouts` |
+| `execution_schedule_pending` | 10s | `ExecutionScheduler.schedule_pending` |
 | `dlq_monitor_retries` | 10s | `DLQManager.process_monitoring_cycle` |
+| `idempotency_report_keys` | 30s | `IdempotencyManager.report_active_keys` |
 
 `watch_cycle` calls `watch_pod_events()`. On a 410 from the API server it resets the resource version so the next cycle starts a fresh watch, and every error that ends the cycle is counted in the watch error and reconnect metrics. An error while handling one pod event is caught inside `PodMonitor` and counted as a watch error only, and the watch carries on.
 

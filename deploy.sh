@@ -60,8 +60,8 @@ show_help() {
     echo "                     --wait              Wait for services to be healthy"
     echo "                     --timeout <secs>    Health check timeout (default: 120)"
     echo "  down               Stop all services"
-    echo "  check              Run quality checks (ruff, mypy, bandit)"
-    echo "  test               Run full test suite"
+    echo "  check              Run the static CI gates (ruff, mypy --strict, orphan modules, bandit)"
+    echo "  test               Run unit and contract tests, then E2E on a stack using config.test.toml"
     echo "  logs [service]     View logs (defaults to all services)"
     echo "  status             Show status of running services"
     echo "  backup [dir]       Dump MongoDB to dir (default: /var/backups/mongo), keep 14 days"
@@ -70,8 +70,8 @@ show_help() {
     echo "  help               Show this help message"
     echo ""
     echo "Configuration:"
-    echo "  All settings come from backend/config.toml (single source of truth)"
-    echo "  For CI/tests: cp backend/config.test.toml backend/config.toml"
+    echo "  Settings come from backend/config.toml, secrets from .env"
+    echo "  ./deploy.sh test starts the stack with backend/config.test.toml instead"
     echo ""
     echo "Examples:"
     echo "  ./deploy.sh dev                    # Start dev environment"
@@ -245,15 +245,23 @@ cmd_check() {
     fi
 
     print_info "Running MyPy type checking..."
-    if uv run mypy --config-file pyproject.toml .; then
+    if uv run mypy --config-file pyproject.toml --strict .; then
         print_success "MyPy type checking passed"
     else
         print_error "MyPy type checking failed"
         exit 1
     fi
 
+    print_info "Running orphan module check..."
+    if uv run python -m scripts.check_orphan_modules; then
+        print_success "Orphan module check passed"
+    else
+        print_error "Orphan module check failed"
+        exit 1
+    fi
+
     print_info "Running Bandit security scan..."
-    if uv run bandit -r . -x tests/ -ll; then
+    if uvx --no-build --python 3.14 bandit==1.9.4 -r . -x ./tests,./.venv -ll; then
         print_success "Security scan passed"
     else
         print_error "Security scan failed"
@@ -270,12 +278,19 @@ cmd_check() {
 cmd_test() {
     print_header "Running Test Suite"
 
-    print_info "Starting full stack..."
+    print_info "Running unit and contract tests..."
+    if ! (cd backend && uv run pytest tests/unit && uv run pytest tests/contract -m grafana_contract); then
+        print_error "Unit or contract tests failed"
+        exit 1
+    fi
+
+    print_info "Starting full stack with config.test.toml..."
+    export BACKEND_CONFIG=config.test.toml
     cmd_dev --build --wait
 
-    print_info "Running tests inside Docker..."
+    print_info "Running E2E tests inside Docker..."
     if docker compose exec -T backend \
-        sh -c 'uv sync --group test --no-dev --frozen --no-install-project && pytest tests/integration tests/unit -v --cov=app --cov-report=term'; then
+        sh -c 'uv sync --group test --no-dev --frozen --no-install-project --no-build && pytest tests/e2e'; then
         print_success "All tests passed!"
         TEST_RESULT=0
     else

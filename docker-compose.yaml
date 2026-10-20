@@ -83,7 +83,8 @@ services:
       - ./backend/scripts:/app/scripts
       - ./backend/tests:/app/tests:ro
       - ./backend/config.test.toml:/app/config.test.toml:ro
-      - ./backend/config.toml:/app/config.toml:ro
+      # ./deploy.sh test sets BACKEND_CONFIG=config.test.toml, the way CI copies it over config.toml
+      - ./backend/${BACKEND_CONFIG:-config.toml}:/app/config.toml:ro
       - backend_tls_key:/app/certs/key
       - backend_tls_cert:/app/certs/cert
     ports:
@@ -301,7 +302,7 @@ services:
       - ./backend/app:/app/app:ro
       # k3s's own kubeconfig; the folder, so a missing file never turns into a directory
       - /etc/rancher/k3s:/etc/rancher/k3s:ro
-      - ./backend/config.toml:/app/config.toml:ro
+      - ./backend/${BACKEND_CONFIG:-config.toml}:/app/config.toml:ro
       - ./backend/config.worker.toml:/app/config.worker.toml:ro
     networks:
       - app-network

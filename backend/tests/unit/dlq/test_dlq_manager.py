@@ -9,7 +9,7 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from app.db import DLQRepository
-from app.dlq import DLQMessage
+from app.db.docs import DLQMessageDocument
 from app.dlq.manager import DLQManager
 from app.domain.events import EventMetadata, UserRegisteredEvent
 from app.settings import Settings
@@ -32,14 +32,14 @@ def manager(test_settings: Settings, broker: AsyncMock, repository: AsyncMock, t
     return DLQManager(test_settings, broker, structlog.get_logger("test"), tracer, repository)
 
 
-def _message(retry_count: int = 0, failed_at: datetime | None = None) -> DLQMessage:
+def _message(retry_count: int = 0, failed_at: datetime | None = None) -> DLQMessageDocument:
     event = UserRegisteredEvent(
         user_id="u1",
         username="alice",
         email="alice@example.com",
         metadata=EventMetadata(service_name="auth-service", service_version="1", user_id="u1"),
     )
-    return DLQMessage(
+    return DLQMessageDocument(
         event=event,
         original_topic="user_registered",
         consumer_group="group-a",

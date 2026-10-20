@@ -11,7 +11,7 @@ from opentelemetry import trace
 from app.db.docs import DLQMessageDocument
 from app.db.repositories import DLQRepository
 from app.dlq.manager import DLQManager
-from app.dlq.models import DLQMessage, DLQMessageStatus
+from app.dlq.models import DLQMessageStatus
 from app.domain.enums import EventType
 from app.domain.events import DLQMessageReceivedEvent, ExecutionRequestedEvent
 from app.settings import Settings
@@ -43,7 +43,7 @@ async def test_dlq_manager_stores_the_message_and_announces_it(
     )
 
     await manager.handle_message(
-        DLQMessage(
+        DLQMessageDocument(
             event=failed_event,
             original_topic=EventType.EXECUTION_REQUESTED,
             consumer_group=f"test-group-{uuid.uuid4().hex[:8]}",

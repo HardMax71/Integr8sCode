@@ -6,7 +6,8 @@ import structlog
 from dishka import AsyncContainer
 from faststream import BaseMiddleware, StreamMessage
 
-from app.dlq import DLQ_GROUP_HEADER, DLQ_RETRY_HEADER, DLQMessage
+from app.db.docs import DLQMessageDocument
+from app.dlq import DLQ_GROUP_HEADER, DLQ_RETRY_HEADER
 from app.dlq.manager import DLQManager
 from app.domain.events import DomainEventAdapter
 from app.domain.idempotency import KeyStrategy
@@ -82,7 +83,7 @@ class DeadLetterMiddleware(BaseMiddleware):
             manager = await container.get(DLQManager)
             event = DomainEventAdapter.validate_python(await msg.decode())
             await manager.handle_message(
-                DLQMessage(
+                DLQMessageDocument(
                     event=event,
                     original_topic=msg.raw_message.topic,
                     consumer_group=self.context.get_local("handler_").group_id,

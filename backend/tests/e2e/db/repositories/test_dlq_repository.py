@@ -6,7 +6,7 @@ import pytest
 
 from app.db.docs import DLQMessageDocument
 from app.db.repositories import DLQRepository
-from app.dlq import DLQMessage, DLQMessageStatus
+from app.dlq import DLQMessageStatus
 from app.domain.enums import EventType, LoginMethod
 from app.domain.events import EventMetadata, UserLoggedInEvent
 
@@ -97,7 +97,7 @@ async def test_each_consumer_group_keeps_its_own_row(
 ) -> None:
     for group, error in [("group-a", "a failed"), ("group-b", "b failed"), ("group-a", "a failed again")]:
         await dlq_repository.save_message(
-            DLQMessage(event=logged_in_event, original_topic="t1", consumer_group=group, error=error)
+            DLQMessageDocument(event=logged_in_event, original_topic="t1", consumer_group=group, error=error)
         )
 
     docs = await DLQMessageDocument.find({"event.event_id": logged_in_event.event_id}).sort("consumer_group").to_list()

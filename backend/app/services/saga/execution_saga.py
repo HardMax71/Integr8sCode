@@ -2,8 +2,6 @@ from typing import Any
 
 import structlog
 
-from app.db import ResourceAllocationRepository
-from app.db.docs import ResourceAllocationDocument
 from app.domain.events import CreatePodCommandEvent, DeletePodCommandEvent, EventMetadata, ExecutionRequestedEvent
 from app.events import UnifiedProducer
 
@@ -33,41 +31,6 @@ class ValidateExecutionStep(SagaStep[ExecutionRequestedEvent]):
 
     def get_compensation(self) -> CompensationStep | None:
         return None
-
-
-class AllocateResourcesStep(SagaStep[ExecutionRequestedEvent]):
-    """Allocate resources for execution."""
-
-    def __init__(self, alloc_repo: ResourceAllocationRepository, logger: structlog.stdlib.BoundLogger) -> None:
-        super().__init__("allocate_resources")
-        self.alloc_repo = alloc_repo
-        self.logger = logger
-
-    async def execute(self, context: SagaContext, event: ExecutionRequestedEvent) -> bool:
-        execution_id = context.get("execution_id")
-        self.logger.info("Allocating resources for execution", execution_id=execution_id)
-
-        active_count = await self.alloc_repo.count_active(event.language)
-        if active_count >= 100:
-            raise ValueError("Resource limit exceeded")
-
-        allocation = ResourceAllocationDocument(
-            execution_id=execution_id,
-            language=event.language,
-            cpu_request=event.cpu_request,
-            memory_request=event.memory_request,
-            cpu_limit=event.cpu_limit,
-            memory_limit=event.memory_limit,
-        )
-        await self.alloc_repo.create_allocation(allocation)
-
-        context.set("allocation_id", allocation.allocation_id)
-        context.set("resources_allocated", True)
-
-        return True
-
-    def get_compensation(self) -> CompensationStep | None:
-        return ReleaseResourcesCompensation(alloc_repo=self.alloc_repo, logger=self.logger)
 
 
 class CreatePodStep(SagaStep[ExecutionRequestedEvent]):
@@ -127,25 +90,6 @@ class CreatePodStep(SagaStep[ExecutionRequestedEvent]):
         return DeletePodCompensation(producer=self.producer, logger=self.logger)
 
 
-class ReleaseResourcesCompensation(CompensationStep):
-    """Release allocated resources."""
-
-    def __init__(self, alloc_repo: ResourceAllocationRepository, logger: structlog.stdlib.BoundLogger) -> None:
-        super().__init__("release_resources")
-        self.alloc_repo = alloc_repo
-        self.logger = logger
-
-    async def compensate(self, context: SagaContext) -> bool:
-        allocation_id = context.get("allocation_id")
-        if not allocation_id:
-            return True
-
-        self.logger.info("Releasing resources", allocation_id=allocation_id)
-        await self.alloc_repo.release_allocation(allocation_id)
-
-        return True
-
-
 class DeletePodCompensation(CompensationStep):
     """Delete created pod."""
 
@@ -189,18 +133,15 @@ class ExecutionSaga:
     def bind_dependencies(
         self,
         producer: UnifiedProducer,
-        alloc_repo: ResourceAllocationRepository,
         publish_commands: bool,
         logger: structlog.stdlib.BoundLogger,
     ) -> None:
         self._producer = producer
-        self._alloc_repo = alloc_repo
         self._publish_commands = publish_commands
         self._logger = logger
 
     def get_steps(self) -> list[SagaStep[Any]]:
         return [
             ValidateExecutionStep(logger=self._logger),
-            AllocateResourcesStep(alloc_repo=self._alloc_repo, logger=self._logger),
             CreatePodStep(producer=self._producer, publish_commands=self._publish_commands, logger=self._logger),
         ]

@@ -15,7 +15,6 @@ from app.db.docs.notification import (
 from app.db.docs.replay import (
     ReplaySessionDocument,
 )
-from app.db.docs.resource import ResourceAllocationDocument
 from app.db.docs.saga import SagaDocument
 from app.db.docs.saved_script import SavedScriptDocument
 from app.db.docs.user import UserDocument
@@ -34,7 +33,6 @@ ALL_DOCUMENTS = [
     EventDocument,
     EventArchiveDocument,
     ReplaySessionDocument,
-    ResourceAllocationDocument,
     SystemSettingsDocument,
     AuditLogDocument,
 ]
@@ -61,7 +59,6 @@ __all__ = [
     # Replay
     "ReplaySessionDocument",
     # Resource
-    "ResourceAllocationDocument",
     # Admin Settings
     "SystemSettingsDocument",
     "AuditLogDocument",

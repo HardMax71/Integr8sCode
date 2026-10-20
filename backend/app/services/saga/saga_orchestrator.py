@@ -8,7 +8,7 @@ from opentelemetry import trace
 from opentelemetry.trace import SpanKind
 from pydantic import TypeAdapter
 
-from app.db import ResourceAllocationRepository, SagaRepository
+from app.db import SagaRepository
 from app.db.docs import SagaDocument
 from app.domain.enums import SagaState
 from app.domain.events import (
@@ -48,7 +48,6 @@ class SagaOrchestrator:
         config: SagaConfig,
         saga_repository: SagaRepository,
         producer: UnifiedProducer,
-        resource_allocation_repository: ResourceAllocationRepository,
         logger: structlog.stdlib.BoundLogger,
         queue_service: ExecutionQueueService,
         runtime_settings: RuntimeSettingsLoader,
@@ -57,7 +56,6 @@ class SagaOrchestrator:
         self.config = config
         self._producer = producer
         self._repo: SagaRepository = saga_repository
-        self._alloc_repo: ResourceAllocationRepository = resource_allocation_repository
         self.logger = logger
         self._queue = queue_service
         self._runtime_settings = runtime_settings
@@ -213,7 +211,6 @@ class SagaOrchestrator:
         saga = ExecutionSaga()
         saga.bind_dependencies(
             producer=self._producer,
-            alloc_repo=self._alloc_repo,
             publish_commands=self.config.publish_commands,
             logger=self.logger,
         )

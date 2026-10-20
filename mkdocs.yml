@@ -154,8 +154,6 @@ nav:
       - Pod Monitor: components/workers/pod_monitor.md
       - Result Processor: components/workers/result_processor.md
       - DLQ Processor: components/workers/dlq_processor.md
-    - Saga:
-      - Resource Allocation: components/saga/resource-allocation.md
     - Dead Letter Queue: components/dead-letter-queue.md
     - Event Replay: components/event-replay.md
     - MongoDB Indexes: components/schema-manager.md

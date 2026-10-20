@@ -15,7 +15,7 @@ Four collections expire documents on their own:
 | `dlq_messages` | 7 days after `created_at` |
 | `replay_sessions` | 48 hours after `completed_at`; a session that hasn't finished has none and stays |
 
-The 30 days for events is hardcoded in the document. `EVENT_RETENTION_DAYS` in config.toml is never read ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). Everything else stays until something deletes it. That includes `executions`, `sagas` and `resource_allocations`.
+The 30 days for events is hardcoded in the document. `EVENT_RETENTION_DAYS` in config.toml is never read ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). Everything else stays until something deletes it. That includes `executions` and `sagas`.
 
 ## Unique indexes the code relies on
 
@@ -30,7 +30,7 @@ The 30 days for events is hardcoded in the document. `EVENT_RETENTION_DAYS` in c
 | `system_settings` | `settings_id` | One `global` document; every read upserts it on this key |
 | `events_archive` | `event_id` | A retried admin delete upserts the same archive row |
 
-`executions.execution_id`, `saved_scripts.script_id`, `sagas.saga_id`, `resource_allocations.allocation_id`, `replay_sessions.session_id`, `audit_log.audit_id` and `notifications.notification_id` are unique as well.
+`executions.execution_id`, `saved_scripts.script_id`, `sagas.saga_id`, `replay_sessions.session_id`, `audit_log.audit_id` and `notifications.notification_id` are unique as well.
 
 Idempotency keys, the execution queue and the SSE channels live in Redis, not MongoDB.
 

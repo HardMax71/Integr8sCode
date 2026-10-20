@@ -22,7 +22,6 @@ from app.db import (
     ExecutionRepository,
     NotificationRepository,
     ReplayRepository,
-    ResourceAllocationRepository,
     SagaRepository,
     SavedScriptRepository,
     UserRepository,
@@ -257,10 +256,6 @@ class RepositoryProvider(Provider):
     @provide
     def get_saga_repository(self, logger: structlog.stdlib.BoundLogger) -> SagaRepository:
         return SagaRepository(logger)
-
-    @provide
-    def get_resource_allocation_repository(self, logger: structlog.stdlib.BoundLogger) -> ResourceAllocationRepository:
-        return ResourceAllocationRepository(logger)
 
     @provide
     def get_saved_script_repository(self, logger: structlog.stdlib.BoundLogger) -> SavedScriptRepository:
@@ -627,7 +622,6 @@ class SagaOrchestratorProvider(Provider):
         self,
         saga_repository: SagaRepository,
         kafka_producer: UnifiedProducer,
-        resource_allocation_repository: ResourceAllocationRepository,
         logger: structlog.stdlib.BoundLogger,
         queue_service: ExecutionQueueService,
         runtime_settings: RuntimeSettingsLoader,
@@ -637,7 +631,6 @@ class SagaOrchestratorProvider(Provider):
             config=_create_default_saga_config(),
             saga_repository=saga_repository,
             producer=kafka_producer,
-            resource_allocation_repository=resource_allocation_repository,
             logger=logger,
             queue_service=queue_service,
             runtime_settings=runtime_settings,

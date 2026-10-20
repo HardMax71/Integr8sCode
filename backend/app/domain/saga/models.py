@@ -15,8 +15,6 @@ class SagaContextData:
     language_version: str | None = None
     script: str = ""
     timeout_seconds: int | None = None
-    allocation_id: str | None = None
-    resources_allocated: bool = False
     pod_creation_triggered: bool = False
     user_id: str = field(default_factory=lambda: str(uuid4()))
 

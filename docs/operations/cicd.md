@@ -136,7 +136,7 @@ cd backend
 uv run ruff check . --config pyproject.toml
 uv run mypy --config-file pyproject.toml --strict .
 uv run python -m scripts.check_orphan_modules
-uvx --no-build --python 3.14 bandit==1.9.4 -r . -x tests/,.venv -ll
+uvx --no-build --python 3.14 bandit==1.9.4 -r . -x ./tests,./.venv -ll
 uv run pytest tests/unit
 uv run pytest tests/contract -m grafana_contract
 ```

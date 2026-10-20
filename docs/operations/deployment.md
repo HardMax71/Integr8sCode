@@ -12,7 +12,7 @@ Everything runs from one docker-compose.yaml: the backend, the frontend, the wor
 --8<-- "deploy.sh:usage"
 ```
 
-`check` and `test` are broken right now ([#292](https://github.com/HardMax71/Integr8sCode/issues/292)). `test` runs `pytest tests/integration`, a directory that no longer exists, and `check` calls `uv run bandit`, which isn't installed in any dependency group. Use the commands in [CI/CD](cicd.md#running-checks-locally) instead.
+`check` runs the static CI gates on the host: ruff, `mypy --strict`, the orphan module check and bandit. `test` runs the unit and Grafana contract tests on the host, then starts the stack with `BACKEND_CONFIG=config.test.toml` and runs the e2e suite inside the backend container. That variable makes the backend and the worker mount config.test.toml as their config.toml, the way CI copies it over. [CI/CD](cicd.md#running-checks-locally) lists the same commands one by one.
 
 ## Local stack
 

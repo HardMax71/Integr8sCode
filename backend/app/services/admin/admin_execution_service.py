@@ -3,8 +3,9 @@ from typing import Any
 import structlog
 
 from app.db import ExecutionRepository
+from app.db.docs import ExecutionDocument
 from app.domain.enums import ExecutionStatus, QueuePriority
-from app.domain.execution import DomainExecution, ExecutionNotFoundError
+from app.domain.execution import ExecutionNotFoundError
 from app.services.execution_queue import ExecutionQueueService
 from app.services.runtime_settings import RuntimeSettingsLoader
 
@@ -31,7 +32,7 @@ class AdminExecutionService:
         user_id: str | None = None,
         limit: int = 50,
         skip: int = 0,
-    ) -> tuple[list[DomainExecution], int]:
+    ) -> tuple[list[ExecutionDocument], int]:
         query: dict[str, Any] = {}
         if status:
             query["status"] = status
@@ -53,7 +54,7 @@ class AdminExecutionService:
         self,
         execution_id: str,
         new_priority: QueuePriority,
-    ) -> DomainExecution:
+    ) -> ExecutionDocument:
         updated = await self._repo.update_priority(execution_id, new_priority)
         if not updated:
             raise ExecutionNotFoundError(execution_id)

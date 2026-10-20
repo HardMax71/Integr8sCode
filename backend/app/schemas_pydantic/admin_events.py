@@ -2,7 +2,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from app.domain.admin.replay_models import ExecutionResultSummary
 from app.domain.enums import EventType, ReplayStatus
 from app.domain.events import DomainEvent, EventSummary, EventTypeCount, HourlyEventCount, UserEventCount
 from app.domain.replay import ReplayError
@@ -131,5 +130,4 @@ __all__ = [
     "EventReplayStatusResponse",
     "EventDeleteResponse",
     "EventStatsResponse",
-    "ExecutionResultSummary",
 ]

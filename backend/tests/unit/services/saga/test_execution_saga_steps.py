@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock
 import pytest
 import structlog
 
+from app.db.docs import ResourceAllocationDocument
 from app.db.repositories import ResourceAllocationRepository
 from app.domain.events import DomainEvent, ExecutionRequestedEvent
-from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCreate
 from app.events.core import UnifiedProducer
 from app.services.saga import (
     AllocateResourcesStep,
@@ -55,16 +55,8 @@ class _FakeAllocRepo(ResourceAllocationRepository):
     async def count_active(self, language: str) -> int:
         return self.active
 
-    async def create_allocation(self, create_data: DomainResourceAllocationCreate) -> DomainResourceAllocation:
-        return DomainResourceAllocation(
-            allocation_id=self.alloc_id,
-            execution_id=create_data.execution_id,
-            language=create_data.language,
-            cpu_request=create_data.cpu_request,
-            memory_request=create_data.memory_request,
-            cpu_limit=create_data.cpu_limit,
-            memory_limit=create_data.memory_limit,
-        )
+    async def create_allocation(self, allocation: ResourceAllocationDocument) -> None:
+        allocation.allocation_id = self.alloc_id
 
     async def release_allocation(self, allocation_id: str) -> bool:
         self.released.append(allocation_id)

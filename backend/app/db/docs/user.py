@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Annotated
 from uuid import uuid4
 
 from beanie import Document, Indexed
@@ -14,13 +15,13 @@ class UserDocument(Document):
     """
 
     # From UserBase
-    username: Indexed(str, unique=True)  # type: ignore[valid-type]
-    email: Indexed(EmailStr, unique=True)  # type: ignore[valid-type]
+    username: Annotated[str, Indexed(unique=True)]
+    email: Annotated[EmailStr, Indexed(unique=True)]
     role: UserRole = UserRole.USER
     is_active: bool = True
 
     # From UserInDB
-    user_id: Indexed(str, unique=True) = Field(default_factory=lambda: str(uuid4()))  # type: ignore[valid-type]
+    user_id: Annotated[str, Indexed(unique=True)] = Field(default_factory=lambda: str(uuid4()))
     hashed_password: str
     is_superuser: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

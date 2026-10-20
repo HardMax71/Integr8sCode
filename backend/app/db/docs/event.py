@@ -1,5 +1,6 @@
 import dataclasses
 from datetime import datetime, timedelta, timezone
+from typing import Annotated
 from uuid import uuid4
 
 import pymongo
@@ -19,11 +20,11 @@ class EventDocument(Document):
     are stored directly at document level (no payload wrapper needed).
     """
 
-    event_id: Indexed(str, unique=True) = Field(default_factory=lambda: str(uuid4()))  # type: ignore[valid-type]
+    event_id: Annotated[str, Indexed(unique=True)] = Field(default_factory=lambda: str(uuid4()))
     event_type: EventType  # Indexed via Settings.indexes
     event_version: str = "1.0"
-    timestamp: Indexed(datetime) = Field(default_factory=lambda: datetime.now(timezone.utc))  # type: ignore[valid-type]
-    aggregate_id: Indexed(str) | None = None  # type: ignore[valid-type]
+    timestamp: Annotated[datetime, Indexed()] = Field(default_factory=lambda: datetime.now(timezone.utc))
+    aggregate_id: str | None = None
     metadata: EventMetadata
     stored_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     ttl_expires_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=30))
@@ -83,17 +84,17 @@ class EventArchiveDocument(Document):
     Uses extra='allow' for event-specific fields.
     """
 
-    event_id: Indexed(str, unique=True)  # type: ignore[valid-type]
+    event_id: Annotated[str, Indexed(unique=True)]
     event_type: EventType  # Indexed via Settings.indexes
     event_version: str = "1.0"
-    timestamp: Indexed(datetime)  # type: ignore[valid-type]
+    timestamp: Annotated[datetime, Indexed()]
     aggregate_id: str | None = None
     metadata: EventMetadata
     stored_at: datetime | None = None
     ttl_expires_at: datetime | None = None
 
     # Archive metadata
-    deleted_at: Indexed(datetime) = Field(default_factory=lambda: datetime.now(timezone.utc))  # type: ignore[valid-type]
+    deleted_at: Annotated[datetime, Indexed()] = Field(default_factory=lambda: datetime.now(timezone.utc))
     deleted_by: str | None = None
     deletion_reason: str | None = None
 

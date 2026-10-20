@@ -17,7 +17,7 @@ from redis.exceptions import RedisError
 from tenacity import AsyncRetrying, RetryCallState, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.db import ReplayRepository
-from app.domain.admin import ReplaySessionUpdate
+from app.db.docs import ReplaySessionDocument
 from app.domain.enums import ReplayStatus, ReplayTarget
 from app.domain.events import DomainEvent, DomainEventAdapter
 from app.domain.replay import (
@@ -26,8 +26,8 @@ from app.domain.replay import (
     ReplayError,
     ReplayOperationError,
     ReplayOperationResult,
+    ReplaySessionChanges,
     ReplaySessionNotFoundError,
-    ReplaySessionState,
 )
 from app.domain.sse import DomainReplaySSEPayload
 from app.events import PRODUCE_ERRORS, UnifiedProducer
@@ -45,7 +45,7 @@ class EventReplayService:
         logger: structlog.stdlib.BoundLogger,
         sse_bus: SSERedisBus,
     ) -> None:
-        self._sessions: dict[str, ReplaySessionState] = {}
+        self._sessions: dict[str, ReplaySessionDocument] = {}
         self._schedulers: dict[str, AsyncIOScheduler] = {}
         self._batch_iters: dict[str, AsyncIterator[list[DomainEvent]]] = {}
         self._event_buffers: dict[str, list[DomainEvent]] = {}
@@ -59,9 +59,9 @@ class EventReplayService:
 
     async def create_session_from_config(self, config: ReplayConfig) -> ReplayOperationResult:
         try:
-            state = ReplaySessionState(session_id=str(uuid4()), config=config)
+            state = ReplaySessionDocument(session_id=str(uuid4()), config=config)
             self._sessions[state.session_id] = state
-            await self._repository.save_session(state)
+            await self._repository.create_session(state)
             attributes = {"replay.type": config.replay_type, "replay.target": config.target}
             self._tracer.start_span("replay.session_created", attributes=attributes).end()
             return ReplayOperationResult(
@@ -163,13 +163,13 @@ class EventReplayService:
             session_id=session_id, status=ReplayStatus.CANCELLED, message="Replay session cancelled"
         )
 
-    def get_session(self, session_id: str) -> ReplaySessionState:
+    def get_session(self, session_id: str) -> ReplaySessionDocument:
         session = self._sessions.get(session_id)
         if not session:
             raise ReplaySessionNotFoundError(session_id)
         return session
 
-    def list_sessions(self, status: ReplayStatus | None = None, limit: int = 100) -> list[ReplaySessionState]:
+    def list_sessions(self, status: ReplayStatus | None = None, limit: int = 100) -> list[ReplaySessionDocument]:
         sessions = list(self._sessions.values())
         if status:
             sessions = [s for s in sessions if s.status == status]
@@ -207,7 +207,7 @@ class EventReplayService:
         self._tracer.start_span("replay.status_change", attributes=attributes).end()
 
     def _report_event(
-        self, session: ReplaySessionState, event: DomainEvent, replayed: bool, seconds: float, delay: float
+        self, session: ReplaySessionDocument, event: DomainEvent, replayed: bool, seconds: float, delay: float
     ) -> None:
         attributes: dict[str, AttributeValue] = {
             "replay.type": session.config.replay_type,
@@ -219,7 +219,7 @@ class EventReplayService:
             attributes["replay.delay_seconds"] = delay
         self._tracer.start_span("replay.event", attributes=attributes).end()
 
-    async def _dispatch_events(self, session: ReplaySessionState) -> None:
+    async def _dispatch_events(self, session: ReplaySessionDocument) -> None:
         """Replay the session's events in order, waiting out each delay, until it stops running or runs out.
 
         One job runs the whole loop, since APScheduler skips a run of a job whose previous run hasn't returned.
@@ -238,7 +238,7 @@ class EventReplayService:
             event = self._pop_next_event(session_id)
         return event
 
-    async def _dispatch_event(self, session: ReplaySessionState, event: DomainEvent) -> float:
+    async def _dispatch_event(self, session: ReplaySessionDocument, event: DomainEvent) -> float:
         """Replay one event and return the wait before the next; a failure without skip_errors ends the session."""
         success = False
         t0 = time.monotonic()
@@ -307,7 +307,7 @@ class EventReplayService:
         except StopAsyncIteration:
             return False
 
-    async def _finalize_session(self, session: ReplaySessionState, final_status: ReplayStatus) -> None:
+    async def _finalize_session(self, session: ReplaySessionDocument, final_status: ReplayStatus) -> None:
         previous_status = session.status
         session.status = final_status
         session.completed_at = datetime.now(timezone.utc)
@@ -337,7 +337,7 @@ class EventReplayService:
             failed_events=session.failed_events,
         )
 
-    async def _fetch_event_batches(self, session: ReplaySessionState) -> AsyncIterator[list[DomainEvent]]:
+    async def _fetch_event_batches(self, session: ReplaySessionDocument) -> AsyncIterator[list[DomainEvent]]:
         events_processed = 0
         max_events = session.config.max_events
 
@@ -369,7 +369,7 @@ class EventReplayService:
             if max_events and events_processed >= max_events:
                 break
 
-    async def _replay_event(self, session: ReplaySessionState, event: DomainEvent) -> bool:
+    async def _replay_event(self, session: ReplaySessionDocument, event: DomainEvent) -> bool:
         config = session.config
         if config.target == ReplayTarget.FILE and not config.target_file_path:
             self.logger.error("No target file path specified")
@@ -427,21 +427,21 @@ class EventReplayService:
             async with aiofiles.open(file_path, "a") as f:
                 await f.write(line)
 
-    async def _update_session_in_db(self, session: ReplaySessionState) -> None:
+    async def _update_session_in_db(self, session: ReplaySessionDocument) -> None:
         try:
-            session_update = ReplaySessionUpdate(
+            changes = ReplaySessionChanges(
                 status=session.status,
                 replayed_events=session.replayed_events,
                 failed_events=session.failed_events,
                 skipped_events=session.skipped_events,
                 completed_at=session.completed_at,
             )
-            await self._repository.update_replay_session(session_id=session.session_id, updates=session_update)
+            await self._repository.update_replay_session(session_id=session.session_id, changes=changes)
         except PyMongoError as e:
             self.logger.error("Failed to update session in database", session_id=session.session_id, error=str(e))
         await self._publish_replay_status(session)
 
-    async def _publish_replay_status(self, session: ReplaySessionState) -> None:
+    async def _publish_replay_status(self, session: ReplaySessionDocument) -> None:
         try:
             payload = DomainReplaySSEPayload(
                 session_id=session.session_id,

@@ -5,8 +5,8 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import admin_user
+from app.db.docs import UserDocument
 from app.domain.enums import ExecutionStatus, QueuePriority
-from app.domain.user import User
 from app.schemas_pydantic.admin_executions import (
     AdminExecutionListResponse,
     AdminExecutionResponse,
@@ -30,7 +30,7 @@ router = APIRouter(
     responses={403: {"model": ErrorResponse}},
 )
 async def list_executions(
-    _: Annotated[User, Depends(admin_user)],
+    _: Annotated[UserDocument, Depends(admin_user)],
     service: FromDishka[AdminExecutionService],
     status: ExecutionStatus | None = Query(None),
     priority: QueuePriority | None = Query(None),
@@ -62,7 +62,7 @@ async def list_executions(
 async def update_priority(
     execution_id: str,
     body: PriorityUpdateRequest,
-    _: Annotated[User, Depends(admin_user)],
+    _: Annotated[UserDocument, Depends(admin_user)],
     service: FromDishka[AdminExecutionService],
 ) -> AdminExecutionResponse:
     updated = await service.update_priority(execution_id, body.priority)
@@ -75,7 +75,7 @@ async def update_priority(
     responses={403: {"model": ErrorResponse}},
 )
 async def get_queue_status(
-    _: Annotated[User, Depends(admin_user)],
+    _: Annotated[UserDocument, Depends(admin_user)],
     service: FromDishka[AdminExecutionService],
 ) -> QueueStatusResponse:
     status = await service.get_queue_status()

@@ -8,6 +8,7 @@ from opentelemetry import trace
 from pydantic import TypeAdapter
 
 from app.db import ExecutionRepository
+from app.db.docs import ExecutionDocument, UserDocument
 from app.domain.enums import CancelStatus, EventType, ExecutionStatus, QueuePriority, UserRole
 from app.domain.events import (
     BaseEvent,
@@ -18,8 +19,6 @@ from app.domain.events import (
 from app.domain.exceptions import ConflictError, InfrastructureError
 from app.domain.execution import (
     CancelResult,
-    DomainExecution,
-    DomainExecutionCreate,
     ExecutionAccessDeniedError,
     ExecutionLimitExceededError,
     ExecutionNotFoundError,
@@ -30,7 +29,6 @@ from app.domain.execution import (
     RuntimeNotSupportedError,
 )
 from app.domain.idempotency import IdempotencyStatus, KeyStrategy
-from app.domain.user import User
 from app.events import UnifiedProducer
 from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION, RUNTIME_REGISTRY
 from app.services.execution_queue import ExecutionQueueService
@@ -38,7 +36,7 @@ from app.services.idempotency import IdempotencyManager
 from app.services.runtime_settings import RuntimeSettingsLoader
 from app.settings import Settings
 
-_exec_adapter = TypeAdapter(DomainExecution)
+_exec_adapter = TypeAdapter(ExecutionDocument)
 
 
 class ExecutionService:
@@ -102,7 +100,7 @@ class ExecutionService:
         lang: str = DEFAULT_LANG,
         lang_version: str = DEFAULT_LANG_VERSION,
         priority: QueuePriority = QueuePriority.NORMAL,
-    ) -> DomainExecution:
+    ) -> ExecutionDocument:
         """
         Execute a script by creating an execution record and publishing an event.
 
@@ -114,7 +112,7 @@ class ExecutionService:
             priority: Execution priority (1-10, lower is higher priority).
 
         Returns:
-            DomainExecution record with queued status.
+            ExecutionDocument record with queued status.
 
         Raises:
             RuntimeNotSupportedError: If the language version is not offered.
@@ -139,16 +137,16 @@ class ExecutionService:
             raise RuntimeNotSupportedError(lang, lang_version)
 
         effective = await self._runtime_settings.get_effective_settings()
-        create_data = DomainExecutionCreate(script=script, lang=lang, lang_version=lang_version, user_id=user_id)
+        created_execution = ExecutionDocument(script=script, lang=lang, lang_version=lang_version, user_id=user_id)
         limit = effective.max_executions_per_user
-        if not await self._queue.reserve_user_slot(user_id, create_data.execution_id, limit):
+        if not await self._queue.reserve_user_slot(user_id, created_execution.execution_id, limit):
             self.logger.warning("Execution limit reached", user_id=user_id, limit=limit)
             raise ExecutionLimitExceededError(limit)
 
         try:
-            created_execution = await self.execution_repo.create_execution(create_data)
+            await self.execution_repo.create_execution(created_execution)
         except Exception:
-            await self._queue.release_user_slot(create_data.execution_id)
+            await self._queue.release_user_slot(created_execution.execution_id)
             raise
 
         self.logger.info(
@@ -270,7 +268,7 @@ class ExecutionService:
         lang: str = DEFAULT_LANG,
         lang_version: str = DEFAULT_LANG_VERSION,
         idempotency_key: str | None = None,
-    ) -> DomainExecution:
+    ) -> ExecutionDocument:
         """
         Execute a script with optional idempotency support.
 
@@ -282,7 +280,7 @@ class ExecutionService:
             idempotency_key: Optional HTTP idempotency key.
 
         Returns:
-            DomainExecution record.
+            ExecutionDocument record.
         """
         if not idempotency_key:
             return await self.execute_script(
@@ -361,7 +359,7 @@ class ExecutionService:
         )
         await self.execution_repo.write_terminal_result(result)
 
-    async def get_execution_result(self, execution_id: str) -> DomainExecution:
+    async def get_execution_result(self, execution_id: str) -> ExecutionDocument:
         """
         Get execution result from database.
 
@@ -396,7 +394,7 @@ class ExecutionService:
 
         return execution
 
-    async def get_execution_for_user(self, execution_id: str, user: User) -> DomainExecution:
+    async def get_execution_for_user(self, execution_id: str, user: UserDocument) -> ExecutionDocument:
         """
         Get an execution the user is allowed to see: their own, or any if they are an admin.
 
@@ -417,7 +415,7 @@ class ExecutionService:
             raise ExecutionAccessDeniedError(execution_id)
         return execution
 
-    async def retry_execution(self, execution_id: str, user: User) -> DomainExecution:
+    async def retry_execution(self, execution_id: str, user: UserDocument) -> ExecutionDocument:
         """
         Re-run an execution's script as a new execution owned by the requesting user.
 
@@ -453,7 +451,7 @@ class ExecutionService:
         end_time: datetime | None = None,
         limit: int = 50,
         skip: int = 0,
-    ) -> list[DomainExecution]:
+    ) -> list[ExecutionDocument]:
         """
         Get executions for a specific user with optional filters.
 

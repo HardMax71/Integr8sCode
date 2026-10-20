@@ -4,6 +4,7 @@ from typing import NoReturn
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from beanie import init_beanie
 from kubernetes_asyncio.client import (
     V1ContainerState,
     V1ContainerStateTerminated,
@@ -21,13 +22,14 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from pymongo.asynchronous.database import AsyncDatabase
 
+from app.db.docs import ALL_DOCUMENTS, ExecutionDocument
 from app.domain.enums import ExecutionStatus, QueuePriority
-from app.domain.execution import DomainExecution
 from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION
 
 
-def make_domain_execution(
+def make_execution(
     *,
     execution_id: str = "e1",
     script: str = "print('hello')",
@@ -36,10 +38,9 @@ def make_domain_execution(
     lang_version: str = DEFAULT_LANG_VERSION,
     priority: QueuePriority = QueuePriority.NORMAL,
     user_id: str | None = "test-user",
-    **kwargs: object,
-) -> DomainExecution:
-    """Factory for DomainExecution with sensible defaults."""
-    return DomainExecution(
+) -> ExecutionDocument:
+    """Factory for ExecutionDocument with sensible defaults."""
+    return ExecutionDocument(
         execution_id=execution_id,
         script=script,
         status=status,
@@ -47,7 +48,6 @@ def make_domain_execution(
         lang_version=lang_version,
         priority=priority,
         user_id=user_id,
-        **kwargs,  # type: ignore[arg-type]
     )
 
 
@@ -212,6 +212,15 @@ def tracer(span_exporter: InMemorySpanExporter) -> trace.Tracer:
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(span_exporter))
     return provider.get_tracer("test")
+
+
+@pytest.fixture(scope="session", autouse=True)
+async def beanie_without_server() -> None:
+    """Initialize Beanie on a mocked database, so documents build through their constructor without MongoDB."""
+    database = AsyncMock(spec=AsyncDatabase)
+    database.command.return_value = {"version": "9.0.4"}
+    database.list_collection_names.return_value = []
+    await init_beanie(database=database, document_models=ALL_DOCUMENTS, skip_indexes=True)
 
 
 @pytest.fixture

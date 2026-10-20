@@ -1,14 +1,15 @@
 import dataclasses
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
-from typing import Any
 from uuid import uuid4
 
 import structlog
 from opentelemetry import trace
 from opentelemetry.trace import SpanKind
+from pydantic import TypeAdapter
 
 from app.db import ResourceAllocationRepository, SagaRepository
+from app.db.docs import SagaDocument
 from app.domain.enums import SagaState
 from app.domain.events import (
     DomainEvent,
@@ -22,7 +23,7 @@ from app.domain.events import (
     SagaStartedEvent,
 )
 from app.domain.saga import (
-    Saga,
+    SagaChanges,
     SagaConcurrencyError,
     SagaConfig,
     SagaContextData,
@@ -36,6 +37,7 @@ from .execution_saga import ExecutionSaga
 from .saga_step import SagaContext
 
 _SAGA_NAME = ExecutionSaga.get_name()
+_context_data = TypeAdapter(SagaContextData)
 
 
 class SagaOrchestrator:
@@ -61,13 +63,13 @@ class SagaOrchestrator:
         self._runtime_settings = runtime_settings
         self._tracer = tracer
 
-    async def _save_saga(self, saga_id: str, **updates: Any) -> Saga:
+    async def _save_saga(self, saga_id: str, changes: SagaChanges) -> SagaDocument:
         """Persist partial saga updates.
 
         Raises:
             SagaNotFoundError: If the saga does not exist.
         """
-        saved = await self._repo.save_saga(saga_id, **updates)
+        saved = await self._repo.save_saga(saga_id, changes)
         if saved is None:
             self.logger.warning("Saga not found for update", saga_id=saga_id)
             raise SagaNotFoundError(saga_id)
@@ -127,9 +129,11 @@ class SagaOrchestrator:
             with suppress(SagaNotFoundError):
                 await self._save_saga(
                     saga.saga_id,
-                    state=state,
-                    error_message=error_message,
-                    completed_at=datetime.now(UTC),
+                    SagaChanges(
+                        state=state,
+                        error_message=error_message,
+                        completed_at=datetime.now(UTC),
+                    ),
                 )
 
         await self._queue.release(execution_id)
@@ -179,7 +183,7 @@ class SagaOrchestrator:
         execution_id = trigger_event.execution_id
         self.logger.info("Starting saga", saga_name=_SAGA_NAME, execution_id=execution_id)
 
-        candidate = Saga(
+        candidate = SagaDocument(
             saga_id=str(uuid4()),
             saga_name=_SAGA_NAME,
             execution_id=execution_id,
@@ -218,7 +222,7 @@ class SagaOrchestrator:
     async def _execute_saga(
         self,
         saga: ExecutionSaga,
-        instance: Saga,
+        instance: SagaDocument,
         context: SagaContext,
         trigger_event: DomainEvent,
     ) -> None:
@@ -227,7 +231,7 @@ class SagaOrchestrator:
             steps = saga.get_steps()
 
             for step in steps:
-                saved = await self._save_saga(instance.saga_id, current_step=step.name)
+                saved = await self._save_saga(instance.saga_id, SagaChanges(current_step=step.name))
 
                 if saved.state.is_terminal:
                     self.logger.info("Saga no longer active, stopping", saga_id=instance.saga_id, state=saved.state)
@@ -250,9 +254,9 @@ class SagaOrchestrator:
                 if success:
                     await self._save_saga(
                         instance.saga_id,
-                        completed_steps=[*saved.completed_steps, step.name],
-                        context_data=SagaContextData(
-                            **{k: v for k, v in context.data.items() if k in SagaContextData.__dataclass_fields__}
+                        SagaChanges(
+                            completed_steps=[*saved.completed_steps, step.name],
+                            context_data=_context_data.validate_python(context.data),
                         ),
                     )
 
@@ -293,7 +297,7 @@ class SagaOrchestrator:
         was_cancelled = saga.state == SagaState.CANCELLED
 
         if not was_cancelled:
-            await self._save_saga(saga_id, state=SagaState.COMPENSATING)
+            await self._save_saga(saga_id, SagaChanges(state=SagaState.COMPENSATING))
 
         compensated: list[str] = list(saga.compensated_steps)
         failed_compensations: list[str] = []
@@ -323,15 +327,17 @@ class SagaOrchestrator:
             )
 
         if was_cancelled:
-            await self._save_saga(saga_id, compensated_steps=compensated)
+            await self._save_saga(saga_id, SagaChanges(compensated_steps=compensated))
             self.logger.info("Saga compensation completed after cancellation", saga_id=saga_id)
         else:
             await self._save_saga(
                 saga_id,
-                state=SagaState.FAILED,
-                error_message="Saga compensated due to failure",
-                completed_at=datetime.now(UTC),
-                compensated_steps=compensated,
+                SagaChanges(
+                    state=SagaState.FAILED,
+                    error_message="Saga compensated due to failure",
+                    completed_at=datetime.now(UTC),
+                    compensated_steps=compensated,
+                ),
             )
             self.logger.error("Saga failed after compensation", saga_id=saga_id)
 
@@ -339,9 +345,11 @@ class SagaOrchestrator:
         """Mark saga as failed."""
         await self._save_saga(
             saga_id,
-            state=SagaState.FAILED,
-            error_message=error_message,
-            completed_at=datetime.now(UTC),
+            SagaChanges(
+                state=SagaState.FAILED,
+                error_message=error_message,
+                completed_at=datetime.now(UTC),
+            ),
         )
         self.logger.error("Saga failed", saga_id=saga_id, error_message=error_message)
 
@@ -353,16 +361,18 @@ class SagaOrchestrator:
             self.logger.warning("Saga timed out", saga_id=instance.saga_id)
             await self._save_saga(
                 instance.saga_id,
-                state=SagaState.TIMEOUT,
-                error_message=f"Saga timed out after {self.config.timeout_seconds} seconds",
-                completed_at=datetime.now(UTC),
+                SagaChanges(
+                    state=SagaState.TIMEOUT,
+                    error_message=f"Saga timed out after {self.config.timeout_seconds} seconds",
+                    completed_at=datetime.now(UTC),
+                ),
             )
 
-    async def get_saga_status(self, saga_id: str) -> Saga | None:
+    async def get_saga_status(self, saga_id: str) -> SagaDocument | None:
         """Get saga instance status."""
         return await self._repo.get_saga(saga_id)
 
-    async def get_execution_sagas(self, execution_id: str) -> list[Saga]:
+    async def get_execution_sagas(self, execution_id: str) -> list[SagaDocument]:
         """Get all sagas for an execution, sorted by created_at descending (newest first)."""
         result = await self._repo.get_sagas_by_execution(execution_id)
         return result.sagas
@@ -415,7 +425,7 @@ class SagaOrchestrator:
 
     async def _publish_saga_started_event(
         self,
-        instance: Saga,
+        instance: SagaDocument,
         trigger_event: ExecutionRequestedEvent,
     ) -> None:
         """Publish saga started event after the document is persisted."""
@@ -437,7 +447,7 @@ class SagaOrchestrator:
         except PRODUCE_ERRORS:
             self.logger.error("Failed to publish saga started event", exc_info=True)
 
-    async def _publish_saga_cancelled_event(self, saga_instance: Saga) -> None:
+    async def _publish_saga_cancelled_event(self, saga_instance: SagaDocument) -> None:
         """Publish saga cancelled event."""
         try:
             cancelled_by = saga_instance.context_data.user_id

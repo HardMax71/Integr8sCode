@@ -1,5 +1,5 @@
-import dataclasses
 import re
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 import structlog
@@ -18,41 +18,35 @@ from app.db.docs import (
 )
 from app.domain.enums import UserRole
 from app.domain.exceptions import ConflictError
-from app.domain.user import (
-    DomainUserCreate,
-    DomainUserUpdate,
-    PasswordReset,
-    User,
-    UserDeleteResult,
-    UserListResult,
-)
+from app.domain.user import UserChanges, UserDeleteResult
 
-_user_fields = set(User.__dataclass_fields__)
+
+@dataclass
+class UserListResult:
+    users: list[UserDocument]
+    total: int
+    offset: int
+    limit: int
 
 
 class UserRepository:
     def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
         self.logger = logger
 
-    async def get_user(self, username: str) -> User | None:
-        doc = await UserDocument.find_one(UserDocument.username == username)
-        return User(**doc.model_dump(include=_user_fields)) if doc else None
+    async def get_user(self, username: str) -> UserDocument | None:
+        return await UserDocument.find_one(UserDocument.username == username)
 
-    async def create_user(self, create_data: DomainUserCreate) -> User:
-        doc = UserDocument(**dataclasses.asdict(create_data))
+    async def create_user(self, user: UserDocument) -> None:
         try:
-            await doc.insert()
+            await user.insert()
         except DuplicateKeyError as e:
             raise ConflictError("User already exists") from e
-        return User(**doc.model_dump(include=_user_fields))
 
-    async def get_user_by_email(self, email: str) -> User | None:
-        doc = await UserDocument.find_one(UserDocument.email == email)
-        return User(**doc.model_dump(include=_user_fields)) if doc else None
+    async def get_user_by_email(self, email: str) -> UserDocument | None:
+        return await UserDocument.find_one(UserDocument.email == email)
 
-    async def get_user_by_id(self, user_id: str) -> User | None:
-        doc = await UserDocument.find_one(UserDocument.user_id == user_id)
-        return User(**doc.model_dump(include=_user_fields)) if doc else None
+    async def get_user_by_id(self, user_id: str) -> UserDocument | None:
+        return await UserDocument.find_one(UserDocument.user_id == user_id)
 
     async def list_users(
         self,
@@ -89,28 +83,23 @@ class UserRepository:
 
         query = UserDocument.find(*conditions)
         total = await query.count()
-        docs = await query.skip(offset).limit(limit).to_list()
         return UserListResult(
-            users=[User(**d.model_dump(include=_user_fields)) for d in docs],
+            users=await query.skip(offset).limit(limit).to_list(),
             total=total,
             offset=offset,
             limit=limit,
         )
 
-    async def update_user(self, user_id: str, update_data: DomainUserUpdate) -> User | None:
+    async def update_user(self, user_id: str, changes: UserChanges) -> UserDocument | None:
         doc = await UserDocument.find_one(UserDocument.user_id == user_id)
         if not doc:
             return None
-
-        update_dict = {k: v for k, v in dataclasses.asdict(update_data).items() if v is not None}
-        if update_dict:
-            update_dict["updated_at"] = datetime.now(timezone.utc)
-            try:
-                await doc.set(update_dict)
-            except DuplicateKeyError as e:
-                field = next(iter((e.details or {}).get("keyPattern", {})), "username or email")
-                raise ConflictError(f"{field.capitalize()} already exists") from e
-        return User(**doc.model_dump(include=_user_fields))
+        try:
+            await doc.set({**changes, "updated_at": datetime.now(timezone.utc)})
+        except DuplicateKeyError as e:
+            field = next(iter((e.details or {}).get("keyPattern", {})), "username or email")
+            raise ConflictError(f"{field.capitalize()} already exists") from e
+        return doc
 
     async def delete_user(self, user_id: str, cascade: bool = False) -> UserDeleteResult | None:
         doc = await UserDocument.find_one(UserDocument.user_id == user_id)
@@ -139,12 +128,9 @@ class UserRepository:
             sagas=sagas_result.deleted_count if sagas_result else 0,
         )
 
-    async def reset_user_password(self, reset_data: PasswordReset) -> bool:
-        doc = await UserDocument.find_one(UserDocument.user_id == reset_data.user_id)
+    async def reset_user_password(self, user_id: str, hashed_password: str) -> bool:
+        doc = await UserDocument.find_one(UserDocument.user_id == user_id)
         if not doc:
             return False
-
-        doc.hashed_password = reset_data.new_password
-        doc.updated_at = datetime.now(timezone.utc)
-        await doc.save()
+        await doc.set({"hashed_password": hashed_password, "updated_at": datetime.now(timezone.utc)})
         return True

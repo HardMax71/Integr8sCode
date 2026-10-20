@@ -1,4 +1,3 @@
-import dataclasses
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -13,7 +12,6 @@ from app.db.docs import (
     ExecutionDocument,
     ReplaySessionDocument,
 )
-from app.domain.admin import ExecutionResultSummary, ReplaySessionUpdate
 from app.domain.enums import EventType, ExecutionStatus
 from app.domain.events import (
     DomainEvent,
@@ -25,11 +23,9 @@ from app.domain.events import (
     EventSummary,
     EventTypeCount,
     HourlyEventCount,
-    ResourceUsageDomain,
     UserEventCount,
 )
-from app.domain.replay import ReplayError as DomainReplayError
-from app.domain.replay import ReplayFilter
+from app.domain.replay import ReplayFilter, ReplaySessionChanges
 from app.domain.sse import DomainReplaySSEPayload
 
 
@@ -218,7 +214,9 @@ class AdminEventsRepository:
 
     async def archive_event(self, event: DomainEvent, deleted_by: str) -> bool:
         deleted_at = datetime.now(timezone.utc)
-        archive_doc = EventArchiveDocument(**event.model_dump(), deleted_at=deleted_at, deleted_by=deleted_by)
+        archive_doc: EventArchiveDocument = EventArchiveDocument.model_validate(
+            event.model_dump() | {"deleted_at": deleted_at, "deleted_by": deleted_by}
+        )
         deletion = {EventArchiveDocument.deleted_at: deleted_at, EventArchiveDocument.deleted_by: deleted_by}
         await EventArchiveDocument.find_one(EventArchiveDocument.event_id == event.event_id).upsert(
             Set(deletion),  # type: ignore[no-untyped-call]
@@ -226,14 +224,11 @@ class AdminEventsRepository:
         )
         return True
 
-    async def update_replay_session(self, session_id: str, updates: ReplaySessionUpdate) -> bool:
-        update_dict = {k: v for k, v in dataclasses.asdict(updates).items() if v is not None}
-        if not update_dict:
-            return False
+    async def update_replay_session(self, session_id: str, changes: ReplaySessionChanges) -> bool:
         doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
         if not doc:
             return False
-        await doc.set(update_dict)
+        await doc.update({"$set": changes})
         return True
 
     async def get_replay_session_doc(self, session_id: str) -> ReplaySessionDocument | None:
@@ -254,44 +249,8 @@ class AdminEventsRepository:
             created_at=doc.created_at,
             started_at=doc.started_at,
             completed_at=doc.completed_at,
-            errors=[
-                e
-                if isinstance(e, DomainReplayError)
-                else DomainReplayError(**e)
-                if isinstance(e, dict)
-                else DomainReplayError(**dataclasses.asdict(e))
-                for e in doc.errors
-            ],
+            errors=doc.errors,
         )
-
-    async def get_execution_results_for_filter(
-        self,
-        replay_filter: ReplayFilter,
-    ) -> list[ExecutionResultSummary]:
-        mongo_query = replay_filter.to_mongo_query()
-        if not mongo_query:
-            return []
-        matched_events = await EventDocument.find(mongo_query).limit(100).to_list()
-        exec_ids = list({e.execution_id for e in matched_events if e.execution_id})[:10]
-        if not exec_ids:
-            return []
-        exec_docs = await ExecutionDocument.find(In(ExecutionDocument.execution_id, exec_ids)).to_list()
-        return [
-            ExecutionResultSummary(
-                execution_id=d.execution_id,
-                status=d.status,
-                stdout=d.stdout,
-                stderr=d.stderr,
-                exit_code=d.exit_code,
-                lang=d.lang,
-                lang_version=d.lang_version,
-                created_at=d.created_at,
-                updated_at=d.updated_at,
-                resource_usage=ResourceUsageDomain(**d.resource_usage.model_dump()) if d.resource_usage else None,
-                error_type=d.error_type,
-            )
-            for d in exec_docs
-        ]
 
     async def count_events_for_replay(self, replay_filter: ReplayFilter) -> int:
         return await EventDocument.find(replay_filter.to_mongo_query()).count()

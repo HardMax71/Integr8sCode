@@ -5,7 +5,7 @@ from .models import (
     ReplayError,
     ReplayFilter,
     ReplayOperationResult,
-    ReplaySessionState,
+    ReplaySessionChanges,
 )
 
 __all__ = [
@@ -15,6 +15,6 @@ __all__ = [
     "ReplayFilter",
     "ReplayOperationError",
     "ReplayOperationResult",
+    "ReplaySessionChanges",
     "ReplaySessionNotFoundError",
-    "ReplaySessionState",
 ]

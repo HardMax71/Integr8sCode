@@ -1,23 +1,15 @@
+import dataclasses
 from datetime import datetime, timezone
+from typing import Annotated
 from uuid import uuid4
 
 from beanie import Document, Indexed
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 from pymongo import IndexModel
 
 from app.domain.enums import ExecutionErrorType, ExecutionStatus, QueuePriority
+from app.domain.events import ResourceUsageDomain
 from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION
-
-
-# Pydantic model required here because Beanie embedded documents must be Pydantic BaseModel subclasses.
-# This is NOT an API schema - it defines the MongoDB subdocument structure.
-class ResourceUsage(BaseModel):
-    execution_time_wall_seconds: float = 0.0
-    cpu_time_jiffies: int = 0
-    clk_tck_hertz: int = 0
-    peak_memory_kb: int = 0
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class ExecutionDocument(Document):
@@ -35,11 +27,11 @@ class ExecutionDocument(Document):
     lang_version: str = DEFAULT_LANG_VERSION
 
     # From ExecutionInDB
-    execution_id: Indexed(str, unique=True) = Field(default_factory=lambda: str(uuid4()))  # type: ignore[valid-type]
-    created_at: Indexed(datetime) = Field(default_factory=lambda: datetime.now(timezone.utc))  # type: ignore[valid-type]
+    execution_id: Annotated[str, Indexed(unique=True)] = Field(default_factory=lambda: str(uuid4()))
+    created_at: Annotated[datetime, Indexed()] = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    resource_usage: ResourceUsage | None = None
-    user_id: Indexed(str) | None = None  # type: ignore[valid-type]
+    resource_usage: ResourceUsageDomain | None = None
+    user_id: str | None = None
     exit_code: int | None = None
     error_type: ExecutionErrorType | None = None
     priority: QueuePriority = QueuePriority.NORMAL
@@ -49,6 +41,7 @@ class ExecutionDocument(Document):
     class Settings:
         name = "executions"
         use_state_management = True
+        bson_encoders = {ResourceUsageDomain: dataclasses.asdict}
         indexes = [
             IndexModel([("status", 1)]),
             IndexModel([("priority", 1)]),

@@ -10,8 +10,9 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from app.db import ReplayRepository
+from app.db.docs import ReplaySessionDocument
 from app.domain.enums import ReplayStatus, ReplayTarget, ReplayType
-from app.domain.replay import ReplayConfig, ReplaySessionState
+from app.domain.replay import ReplayConfig
 from app.events import UnifiedProducer
 from app.services.event_replay import EventReplayService
 from app.services.sse import SSERedisBus
@@ -76,7 +77,7 @@ async def test_report_counts_held_sessions_by_status_and_events_still_to_send(
 ) -> None:
     service = _service(tracer)
     created = await service.create_session_from_config(ReplayConfig(replay_type=ReplayType.EXECUTION))
-    old = ReplaySessionState(
+    old = ReplaySessionDocument(
         session_id="old",
         config=ReplayConfig(replay_type=ReplayType.EXECUTION),
         status=ReplayStatus.COMPLETED,
@@ -106,7 +107,7 @@ async def test_every_dispatch_outcome_counts_against_the_target(
     producer = AsyncMock(spec=UnifiedProducer)
     producer.produce.side_effect = produce_error
     service = _service(tracer, producer)
-    session = ReplaySessionState(session_id="s1", config=ReplayConfig(replay_type=ReplayType.EXECUTION))
+    session = ReplaySessionDocument(session_id="s1", config=ReplayConfig(replay_type=ReplayType.EXECUTION))
 
     if isinstance(produce_error, TypeError):
         with pytest.raises(TypeError, match="bug"):
@@ -122,7 +123,7 @@ async def test_dispatch_reports_each_event_and_the_completed_session(
 ) -> None:
     service = _service(tracer)
     config = ReplayConfig(replay_type=ReplayType.EXECUTION, target=ReplayTarget.TEST, speed_multiplier=2.0)
-    session = ReplaySessionState(
+    session = ReplaySessionDocument(
         session_id="s1",
         config=config,
         status=ReplayStatus.RUNNING,

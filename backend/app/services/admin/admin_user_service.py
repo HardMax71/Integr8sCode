@@ -1,4 +1,5 @@
 import math
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 import structlog
@@ -6,29 +7,32 @@ from opentelemetry import trace
 
 from app.core.security import SecurityService
 from app.db import UserRepository
-from app.domain.admin import AdminUserOverviewDomain, DerivedCountsDomain
+from app.db.docs import UserDocument
+from app.db.repositories.user_repository import UserListResult
+from app.domain.admin import DerivedCountsDomain
 from app.domain.enums import EventType, ExecutionStatus, UserRole
+from app.domain.events import DomainEvent, EventStatistics
 from app.domain.exceptions import ConflictError
 from app.domain.rate_limit import (
     RateLimitUpdateResult,
     UserRateLimit,
     UserRateLimitsResult,
+    UserRateLimitSummary,
     UserRateLimitUpdate,
 )
-from app.domain.user import (
-    DomainUserCreate,
-    DomainUserUpdate,
-    PasswordReset,
-    SelfDeletionError,
-    User,
-    UserDeleteResult,
-    UserListResult,
-    UserNotFoundError,
-    UserUpdate,
-)
+from app.domain.user import SelfDeletionError, UserChanges, UserDeleteResult, UserNotFoundError
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.rate_limit_service import RateLimitService
+
+
+@dataclass
+class AdminUserOverviewDomain:
+    user: UserDocument
+    stats: EventStatistics
+    derived_counts: DerivedCountsDomain
+    rate_limit_summary: UserRateLimitSummary
+    recent_events: list[DomainEvent] = field(default_factory=list)
 
 
 class AdminUserService:
@@ -201,24 +205,24 @@ class AdminUserService:
         password: str,
         role: UserRole = UserRole.USER,
         is_active: bool = True,
-    ) -> User:
+    ) -> UserDocument:
         self.logger.info("Admin creating new user", admin_user_id=admin_user_id, new_username=username)
         existing = await self._users.get_user(username)
         if existing:
             raise ConflictError("Username already exists")
 
-        create_data = DomainUserCreate(
+        created = UserDocument(
             username=username,
             email=email,
             hashed_password=self._security.get_password_hash(password),
             role=role,
             is_active=is_active,
         )
-        created = await self._users.create_user(create_data)
+        await self._users.create_user(created)
         self.logger.info("User created successfully", new_username=username, admin_user_id=admin_user_id)
         return created
 
-    async def get_user(self, *, admin_user_id: str, user_id: str) -> User:
+    async def get_user(self, *, admin_user_id: str, user_id: str) -> UserDocument:
         self.logger.info("Admin getting user details", admin_user_id=admin_user_id, target_user_id=user_id)
         user = await self._users.get_user_by_id(user_id)
         if not user:
@@ -226,21 +230,17 @@ class AdminUserService:
             raise UserNotFoundError(user_id)
         return user
 
-    async def update_user(self, *, admin_user_id: str, user_id: str, update: UserUpdate) -> User:
+    async def update_user(
+        self, *, admin_user_id: str, user_id: str, changes: UserChanges, password: str | None
+    ) -> UserDocument:
         self.logger.info(
             "Admin updating user",
             admin_user_id=admin_user_id,
             target_user_id=user_id,
         )
-        hashed_password = self._security.get_password_hash(update.password) if update.password else None
-        domain_update = DomainUserUpdate(
-            username=update.username,
-            email=update.email,
-            role=update.role,
-            is_active=update.is_active,
-            hashed_password=hashed_password,
-        )
-        updated = await self._users.update_user(user_id, domain_update)
+        if password:
+            changes = UserChanges(**changes, hashed_password=self._security.get_password_hash(password))
+        updated = await self._users.update_user(user_id, changes)
         if not updated:
             self.logger.warning("User not found for update", target_user_id=user_id)
             raise UserNotFoundError(user_id)
@@ -268,8 +268,7 @@ class AdminUserService:
         self.logger.info("Admin resetting user password", admin_user_id=admin_user_id, target_user_id=user_id)
         self._tracer.start_span("auth.password_reset", attributes={"auth.method": "admin"}).end()
         hashed = self._security.get_password_hash(new_password)
-        pr = PasswordReset(user_id=user_id, new_password=hashed)
-        if not await self._users.reset_user_password(pr):
+        if not await self._users.reset_user_password(user_id, hashed):
             self.logger.warning("User not found for password reset", target_user_id=user_id)
             raise UserNotFoundError(user_id)
         self.logger.info("User password reset successfully", target_user_id=user_id)

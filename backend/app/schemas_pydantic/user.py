@@ -53,25 +53,6 @@ class UserResponse(UserBase):
     )
 
 
-class User(BaseModel):
-    """User model for internal service use (without sensitive data)"""
-
-    user_id: str
-    username: str
-    email: EmailStr
-    role: UserRole = UserRole.USER
-    is_active: bool = True
-    is_superuser: bool = False
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-
-    model_config = ConfigDict(
-        from_attributes=True,
-        arbitrary_types_allowed=True,
-        json_schema_serialization_defaults_required=True,
-    )
-
-
 class UserListResponse(BaseModel):
     """Response model for listing users"""
 

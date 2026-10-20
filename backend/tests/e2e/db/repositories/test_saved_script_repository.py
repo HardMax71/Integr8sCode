@@ -1,14 +1,15 @@
 import pytest
 
+from app.db.docs import SavedScriptDocument
 from app.db.repositories import SavedScriptRepository
-from app.domain.saved_script import DomainSavedScriptCreate, DomainSavedScriptUpdate
+from app.domain.saved_script import SavedScriptChanges
 
 pytestmark = pytest.mark.e2e
 
 
 async def test_create_get_update_delete_saved_script(saved_script_repository: SavedScriptRepository) -> None:
-    create = DomainSavedScriptCreate(name="n", description=None, script="print(1)")
-    created = await saved_script_repository.create_saved_script(create, user_id="u1")
+    created = SavedScriptDocument(name="n", description=None, script="print(1)", user_id="u1")
+    await saved_script_repository.create_saved_script(created)
     assert created.user_id == "u1" and created.script == "print(1)"
 
     # get by id/user
@@ -16,7 +17,7 @@ async def test_create_get_update_delete_saved_script(saved_script_repository: Sa
     assert got and got.script_id == created.script_id
 
     # update
-    await saved_script_repository.update_saved_script(created.script_id, "u1", DomainSavedScriptUpdate(name="updated"))
+    await saved_script_repository.update_saved_script(got, SavedScriptChanges(name="updated"))
     updated = await saved_script_repository.get_saved_script(created.script_id, "u1")
     assert updated and updated.name == "updated"
 

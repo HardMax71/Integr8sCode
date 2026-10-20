@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime
+from typing import TypedDict
 
 from app.core.utils import StringEnum
 from app.domain.enums import UserRole
@@ -28,53 +28,6 @@ class UserFilterType(StringEnum):
 
 
 @dataclass
-class User:
-    """User domain model."""
-
-    user_id: str
-    username: str
-    email: str
-    role: UserRole
-    is_active: bool
-    is_superuser: bool
-    hashed_password: str
-    created_at: datetime
-    updated_at: datetime
-
-
-@dataclass
-class UserUpdate:
-    """User update domain model."""
-
-    username: str | None = None
-    email: str | None = None
-    role: UserRole | None = None
-    is_active: bool | None = None
-    password: str | None = None
-
-
-@dataclass
-class UserListResult:
-    """Result of listing users."""
-
-    users: list[User]
-    total: int
-    offset: int
-    limit: int
-
-
-@dataclass
-class PasswordReset:
-    """Password reset domain model."""
-
-    user_id: str
-    new_password: str
-
-    def is_valid(self) -> bool:
-        return bool(self.user_id and self.new_password and len(self.new_password) >= 8)
-
-
-@dataclass
 class UserDeleteResult:
     """Domain result for user deletion."""
 
@@ -88,18 +41,6 @@ class UserDeleteResult:
 
 
 @dataclass
-class DomainUserCreate:
-    """User creation data for repository (with hashed password)."""
-
-    username: str
-    email: str
-    hashed_password: str
-    role: UserRole = UserRole.USER
-    is_active: bool = True
-    is_superuser: bool = False
-
-
-@dataclass
 class LoginResult:
     """Result of a successful login."""
 
@@ -110,12 +51,11 @@ class LoginResult:
     session_timeout_minutes: int
 
 
-@dataclass
-class DomainUserUpdate:
-    """User update data for repository (with hashed password)."""
+class UserChanges(TypedDict, total=False):
+    """Fields an admin update sets; a missing key keeps the stored value."""
 
-    username: str | None = None
-    email: str | None = None
-    role: UserRole | None = None
-    is_active: bool | None = None
-    hashed_password: str | None = None
+    username: str
+    email: str
+    role: UserRole
+    is_active: bool
+    hashed_password: str

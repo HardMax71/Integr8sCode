@@ -3,11 +3,10 @@ from uuid import uuid4
 
 import pytest
 
+from app.db.docs import ExecutionDocument, SagaDocument, UserDocument
 from app.db.repositories import ExecutionRepository, SagaRepository
 from app.domain.enums import SagaState, UserRole
-from app.domain.execution import DomainExecutionCreate
-from app.domain.saga import Saga, SagaAccessDeniedError, SagaContextData, SagaListResult, SagaNotFoundError
-from app.domain.user import User
+from app.domain.saga import SagaAccessDeniedError, SagaContextData, SagaNotFoundError
 from app.services.saga import SagaService
 
 pytestmark = [pytest.mark.e2e]
@@ -16,9 +15,9 @@ pytestmark = [pytest.mark.e2e]
 def make_test_user(
     user_id: str = "test_user_1",
     role: UserRole = UserRole.USER,
-) -> User:
+) -> UserDocument:
     """Create a test user for saga access checks."""
-    return User(
+    return UserDocument(
         user_id=user_id,
         username=user_id,
         email=f"{user_id}@example.com",
@@ -36,12 +35,11 @@ async def create_execution_for_user(
     user_id: str,
 ) -> str:
     """Create an execution record for a user and return its ID."""
-    execution = await exec_repo.create_execution(
-        DomainExecutionCreate(
-            script="print('test')",
-            user_id=user_id,
-        )
+    execution = ExecutionDocument(
+        script="print('test')",
+        user_id=user_id,
     )
+    await exec_repo.create_execution(execution)
     return execution.execution_id
 
 
@@ -50,9 +48,9 @@ async def create_saga_for_execution(
     execution_id: str,
     state: SagaState = SagaState.CREATED,
     saga_name: str = "test_saga",
-) -> Saga:
+) -> SagaDocument:
     """Create a saga for an execution with the given state."""
-    saga = Saga(
+    saga = SagaDocument(
         saga_id=str(uuid4()),
         saga_name=saga_name,
         execution_id=execution_id,
@@ -78,7 +76,6 @@ class TestListUserSagas:
 
         result = await saga_service.list_user_sagas(user)
 
-        assert isinstance(result, SagaListResult)
         assert result.total == 0
         assert len(result.sagas) == 0
 
@@ -99,7 +96,6 @@ class TestListUserSagas:
 
         result = await saga_service.list_user_sagas(user, limit=5)
 
-        assert isinstance(result, SagaListResult)
         assert len(result.sagas) == 5
         assert result.total == created_count
 
@@ -152,7 +148,6 @@ class TestListUserSagas:
         # Filter by CREATED state
         result = await saga_service.list_user_sagas(user, state=SagaState.CREATED)
 
-        assert isinstance(result, SagaListResult)
         assert result.total == created_count
         assert len(result.sagas) == created_count
         for saga in result.sagas:
@@ -190,7 +185,6 @@ class TestListUserSagas:
 
         result = await saga_service.list_user_sagas(admin)
 
-        assert isinstance(result, SagaListResult)
         assert isinstance(result.sagas, list)
 
 
@@ -275,7 +269,6 @@ class TestGetExecutionSagas:
 
         result = await saga_service.get_execution_sagas(execution_id, user)
 
-        assert isinstance(result, SagaListResult)
         assert isinstance(result.sagas, list)
 
 

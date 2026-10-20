@@ -1,8 +1,6 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any
+from datetime import datetime
+from typing import Any, TypedDict
 
 from app.domain.enums import EventType, NotificationChannel, Theme
 
@@ -25,30 +23,16 @@ class DomainEditorSettings:
     show_line_numbers: bool = True
 
 
-@dataclass
-class DomainUserSettings:
-    user_id: str
-    theme: Theme = Theme.SYSTEM
-    timezone: str = "UTC"
-    date_format: str = "YYYY-MM-DD"
-    time_format: str = "24h"
-    notifications: DomainNotificationSettings = field(default_factory=DomainNotificationSettings)
-    editor: DomainEditorSettings = field(default_factory=DomainEditorSettings)
-    custom_settings: dict[str, Any] = field(default_factory=dict)
-    version: int = 1
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+class UserSettingsChanges(TypedDict, total=False):
+    """Fields an update sets on a user's settings; a missing key keeps the current value."""
 
-
-@dataclass
-class DomainUserSettingsUpdate:
-    theme: Theme | None = None
-    timezone: str | None = None
-    date_format: str | None = None
-    time_format: str | None = None
-    notifications: DomainNotificationSettings | None = None
-    editor: DomainEditorSettings | None = None
-    custom_settings: dict[str, Any] | None = None
+    theme: Theme
+    timezone: str
+    date_format: str
+    time_format: str
+    notifications: DomainNotificationSettings
+    editor: DomainEditorSettings
+    custom_settings: dict[str, Any]
 
 
 @dataclass
@@ -80,11 +64,3 @@ class DomainSettingsHistoryEntry:
     old_value: Any
     new_value: Any
     reason: str | None = None
-
-
-@dataclass
-class CachedSettings:
-    """Wrapper for cached user settings with expiration time."""
-
-    settings: DomainUserSettings
-    expires_at: datetime

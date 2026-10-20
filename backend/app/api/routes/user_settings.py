@@ -3,14 +3,11 @@ from typing import Annotated
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, Query
+from pydantic import TypeAdapter
 
 from app.api.dependencies import current_user
-from app.domain.user import (
-    DomainEditorSettings,
-    DomainNotificationSettings,
-    DomainUserSettingsUpdate,
-    User,
-)
+from app.db.docs import UserDocument
+from app.domain.user import DomainEditorSettings, DomainNotificationSettings, UserSettingsChanges
 from app.schemas_pydantic.user_settings import (
     EditorSettings,
     NotificationSettings,
@@ -25,10 +22,14 @@ from app.services.user_settings_service import UserSettingsService
 
 router = APIRouter(prefix="/user/settings", tags=["user-settings"], route_class=DishkaRoute)
 
+_settings_changes = TypeAdapter(UserSettingsChanges)
+_notification_settings = TypeAdapter(DomainNotificationSettings)
+_editor_settings = TypeAdapter(DomainEditorSettings)
+
 
 @router.get("/", response_model=UserSettings)
 async def get_user_settings(
-    current_user: Annotated[User, Depends(current_user)],
+    current_user: Annotated[UserDocument, Depends(current_user)],
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
     """Get the authenticated user's settings."""
@@ -38,24 +39,20 @@ async def get_user_settings(
 
 @router.put("/", response_model=UserSettings)
 async def update_user_settings(
-    current_user: Annotated[User, Depends(current_user)],
+    current_user: Annotated[UserDocument, Depends(current_user)],
     updates: UserSettingsUpdate,
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
     """Update the authenticated user's settings."""
-    data = updates.model_dump()
-    if isinstance(data.get("notifications"), dict):
-        data["notifications"] = DomainNotificationSettings(**data["notifications"])
-    if isinstance(data.get("editor"), dict):
-        data["editor"] = DomainEditorSettings(**data["editor"])
-    domain_updates = DomainUserSettingsUpdate(**data)
-    domain = await settings_service.update_user_settings(current_user.user_id, domain_updates)
+    # The settings page sends null for the sections it didn't change, so null keeps the stored value
+    changes = _settings_changes.validate_python(updates.model_dump(exclude_none=True))
+    domain = await settings_service.update_user_settings(current_user.user_id, changes)
     return UserSettings.model_validate(domain)
 
 
 @router.put("/theme", response_model=UserSettings)
 async def update_theme(
-    current_user: Annotated[User, Depends(current_user)],
+    current_user: Annotated[UserDocument, Depends(current_user)],
     update_request: ThemeUpdateRequest,
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
@@ -66,35 +63,35 @@ async def update_theme(
 
 @router.put("/notifications", response_model=UserSettings)
 async def update_notification_settings(
-    current_user: Annotated[User, Depends(current_user)],
+    current_user: Annotated[UserDocument, Depends(current_user)],
     notifications: NotificationSettings,
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
     """Update notification preferences."""
     domain = await settings_service.update_notification_settings(
         current_user.user_id,
-        DomainNotificationSettings(**notifications.model_dump()),
+        _notification_settings.validate_python(notifications.model_dump()),
     )
     return UserSettings.model_validate(domain)
 
 
 @router.put("/editor", response_model=UserSettings)
 async def update_editor_settings(
-    current_user: Annotated[User, Depends(current_user)],
+    current_user: Annotated[UserDocument, Depends(current_user)],
     editor: EditorSettings,
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
     """Update code editor preferences."""
     domain = await settings_service.update_editor_settings(
         current_user.user_id,
-        DomainEditorSettings(**editor.model_dump()),
+        _editor_settings.validate_python(editor.model_dump()),
     )
     return UserSettings.model_validate(domain)
 
 
 @router.get("/history", response_model=SettingsHistoryResponse)
 async def get_settings_history(
-    current_user: Annotated[User, Depends(current_user)],
+    current_user: Annotated[UserDocument, Depends(current_user)],
     settings_service: FromDishka[UserSettingsService],
     limit: Annotated[int, Query(ge=1, le=200, description="Maximum number of history entries")] = 50,
 ) -> SettingsHistoryResponse:
@@ -106,7 +103,7 @@ async def get_settings_history(
 
 @router.post("/restore", response_model=UserSettings)
 async def restore_settings(
-    current_user: Annotated[User, Depends(current_user)],
+    current_user: Annotated[UserDocument, Depends(current_user)],
     restore_request: RestoreSettingsRequest,
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
@@ -117,7 +114,7 @@ async def restore_settings(
 
 @router.put("/custom/{key}")
 async def update_custom_setting(
-    current_user: Annotated[User, Depends(current_user)],
+    current_user: Annotated[UserDocument, Depends(current_user)],
     key: str,
     value: dict[str, object],
     settings_service: FromDishka[UserSettingsService],

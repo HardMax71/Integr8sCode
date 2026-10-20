@@ -8,9 +8,6 @@ from .exceptions import (
 )
 from .models import (
     CancelResult,
-    DomainExecution,
-    DomainExecutionCreate,
-    DomainExecutionUpdate,
     ExecutionResultDomain,
     LanguageInfoDomain,
     LanguageLimitsDomain,
@@ -19,9 +16,6 @@ from .models import (
 
 __all__ = [
     "CancelResult",
-    "DomainExecution",
-    "DomainExecutionCreate",
-    "DomainExecutionUpdate",
     "ExecutionResultDomain",
     "ExecutionTerminalError",
     "LanguageInfoDomain",

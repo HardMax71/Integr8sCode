@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+from typing import Annotated
+from uuid import uuid4
 
 from beanie import Document, Indexed
 from pydantic import ConfigDict, Field
@@ -12,14 +14,14 @@ class ResourceAllocationDocument(Document):
     Based on ResourceAllocationRepository document structure.
     """
 
-    allocation_id: Indexed(str, unique=True)  # type: ignore[valid-type]
-    execution_id: Indexed(str)  # type: ignore[valid-type]
-    language: Indexed(str)  # type: ignore[valid-type]
+    allocation_id: Annotated[str, Indexed(unique=True)] = Field(default_factory=lambda: str(uuid4()))
+    execution_id: Annotated[str, Indexed()]
+    language: Annotated[str, Indexed()]
     cpu_request: str
     memory_request: str
     cpu_limit: str
     memory_limit: str
-    status: Indexed(str) = AllocationStatus.ACTIVE  # type: ignore[valid-type]
+    status: Annotated[str, Indexed()] = AllocationStatus.ACTIVE
     allocated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     released_at: datetime | None = None
 

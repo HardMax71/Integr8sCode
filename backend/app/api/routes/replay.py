@@ -3,10 +3,11 @@ from typing import Annotated
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, Query
+from pydantic import TypeAdapter
 
 from app.api.dependencies import admin_user
 from app.domain.enums import ReplayStatus
-from app.domain.replay import ReplayConfig, ReplayFilter
+from app.domain.replay import ReplayConfig
 from app.schemas_pydantic.replays import (
     CleanupResponse,
     ReplayRequest,
@@ -18,6 +19,8 @@ from app.services.event_replay import EventReplayService
 
 router = APIRouter(prefix="/replay", tags=["Event Replay"], route_class=DishkaRoute, dependencies=[Depends(admin_user)])
 
+_replay_config = TypeAdapter(ReplayConfig)
+
 
 @router.post("/sessions", response_model=ReplayResponse)
 async def create_replay_session(
@@ -25,9 +28,8 @@ async def create_replay_session(
     service: FromDishka[EventReplayService],
 ) -> ReplayResponse:
     """Create a new event replay session from a configuration."""
-    data = replay_request.model_dump(include=set(ReplayConfig.__dataclass_fields__))
-    data["filter"] = ReplayFilter(**data.get("filter", {}))
-    result = await service.create_session_from_config(ReplayConfig(**data))
+    config = _replay_config.validate_python(replay_request.model_dump())
+    result = await service.create_session_from_config(config)
     return ReplayResponse.model_validate(result)
 
 

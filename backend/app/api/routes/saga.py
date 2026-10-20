@@ -5,8 +5,8 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import current_user
+from app.db.docs import UserDocument
 from app.domain.enums import SagaState
-from app.domain.user import User
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.saga import (
     SagaCancellationResponse,
@@ -32,7 +32,7 @@ router = APIRouter(
 )
 async def get_saga_status(
     saga_id: str,
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     saga_service: FromDishka[SagaService],
 ) -> SagaStatusResponse:
     """Get saga status by ID."""
@@ -47,7 +47,7 @@ async def get_saga_status(
 )
 async def get_execution_sagas(
     execution_id: str,
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     saga_service: FromDishka[SagaService],
     state: Annotated[SagaState | None, Query(description="Filter by saga state")] = None,
     limit: Annotated[int, Query(ge=1, le=1000)] = 100,
@@ -60,7 +60,7 @@ async def get_execution_sagas(
 
 @router.get("/", response_model=SagaListResponse)
 async def list_sagas(
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     saga_service: FromDishka[SagaService],
     state: Annotated[SagaState | None, Query(description="Filter by saga state")] = None,
     execution_id: Annotated[str | None, Query(description="Filter by execution ID")] = None,
@@ -89,7 +89,7 @@ async def list_sagas(
 )
 async def cancel_saga(
     saga_id: str,
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     saga_service: FromDishka[SagaService],
 ) -> SagaCancellationResponse:
     """Cancel a running saga."""

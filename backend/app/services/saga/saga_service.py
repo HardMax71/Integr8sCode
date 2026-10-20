@@ -1,16 +1,15 @@
 import structlog
 
 from app.db import ExecutionRepository, SagaRepository
+from app.db.docs import SagaDocument, UserDocument
+from app.db.repositories.saga_repository import SagaListResult
 from app.domain.enums import SagaState, UserRole
 from app.domain.saga import (
-    Saga,
     SagaAccessDeniedError,
     SagaCancellationResult,
     SagaFilter,
-    SagaListResult,
     SagaNotFoundError,
 )
-from app.domain.user import User
 from app.services.saga import SagaOrchestrator
 
 
@@ -36,7 +35,7 @@ class SagaService:
             orchestrator=type(orchestrator).__name__,
         )
 
-    async def check_execution_access(self, execution_id: str, user: User) -> bool:
+    async def check_execution_access(self, execution_id: str, user: UserDocument) -> bool:
         """Check if user has access to an execution."""
         # Admins have access to all executions
         if user.role == UserRole.ADMIN:
@@ -56,7 +55,7 @@ class SagaService:
         )
         return False
 
-    async def get_saga_with_access_check(self, saga_id: str, user: User) -> Saga:
+    async def get_saga_with_access_check(self, saga_id: str, user: UserDocument) -> SagaDocument:
         """Get saga with access control."""
         self.logger.debug("Getting saga for user", saga_id=saga_id, user_id=user.user_id, user_role=user.role)
 
@@ -78,7 +77,7 @@ class SagaService:
         return saga
 
     async def get_execution_sagas(
-        self, execution_id: str, user: User, state: SagaState | None = None, limit: int = 100, skip: int = 0
+        self, execution_id: str, user: UserDocument, state: SagaState | None = None, limit: int = 100, skip: int = 0
     ) -> SagaListResult:
         """Get sagas for an execution with access control."""
         # Check access to execution
@@ -95,7 +94,7 @@ class SagaService:
 
     async def list_user_sagas(
         self,
-        user: User,
+        user: UserDocument,
         state: SagaState | None = None,
         *,
         execution_id: str | None = None,
@@ -142,7 +141,7 @@ class SagaService:
         )
         return result
 
-    async def cancel_saga(self, saga_id: str, user: User) -> SagaCancellationResult:
+    async def cancel_saga(self, saga_id: str, user: UserDocument) -> SagaCancellationResult:
         """Cancel a saga with permission check."""
         self.logger.info(
             "User requesting saga cancellation",
@@ -155,7 +154,7 @@ class SagaService:
         self.logger.info("User cancelled saga", user_id=user.user_id, saga_id=saga_id)
         return SagaCancellationResult(success=True, message="Saga cancelled successfully", saga_id=saga_id)
 
-    async def get_saga_statistics(self, user: User, include_all: bool = False) -> dict[str, object]:
+    async def get_saga_statistics(self, user: UserDocument, include_all: bool = False) -> dict[str, object]:
         """Get saga statistics."""
         saga_filter = None
 

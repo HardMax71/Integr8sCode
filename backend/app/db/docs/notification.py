@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Any
+from typing import Annotated, Any
 from uuid import uuid4
 
 from beanie import Document, Indexed
@@ -15,8 +15,8 @@ class NotificationDocument(Document):
     Copied from Notification schema.
     """
 
-    notification_id: Indexed(str, unique=True) = Field(default_factory=lambda: str(uuid4()))  # type: ignore[valid-type]
-    user_id: Indexed(str)  # type: ignore[valid-type]
+    notification_id: Annotated[str, Indexed(unique=True)] = Field(default_factory=lambda: str(uuid4()))
+    user_id: Annotated[str, Indexed()]
     channel: NotificationChannel
     severity: NotificationSeverity = NotificationSeverity.MEDIUM
     status: NotificationStatus = NotificationStatus.PENDING  # Indexed via Settings.indexes
@@ -28,7 +28,7 @@ class NotificationDocument(Document):
     tags: list[str] = Field(default_factory=list)
 
     # Tracking
-    created_at: Indexed(datetime) = Field(default_factory=lambda: datetime.now(UTC))  # type: ignore[valid-type]
+    created_at: Annotated[datetime, Indexed()] = Field(default_factory=lambda: datetime.now(UTC))
     scheduled_for: datetime | None = None
     sent_at: datetime | None = None
     delivered_at: datetime | None = None
@@ -66,7 +66,7 @@ class NotificationSubscriptionDocument(Document):
     Copied from NotificationSubscription schema.
     """
 
-    user_id: Indexed(str)  # type: ignore[valid-type]
+    user_id: Annotated[str, Indexed()]
     channel: NotificationChannel
     severities: list[NotificationSeverity] = Field(default_factory=list)
     include_tags: list[str] = Field(default_factory=list)

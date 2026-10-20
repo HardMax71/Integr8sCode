@@ -1,5 +1,5 @@
-import dataclasses
 import re
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
@@ -14,27 +14,24 @@ from monggregate import Pipeline, S
 
 from app.db.docs import ExecutionDocument, SagaDocument
 from app.domain.enums import SAGA_ACTIVE, SagaState
-from app.domain.saga import (
-    Saga,
-    SagaConcurrencyError,
-    SagaContextData,
-    SagaFilter,
-    SagaInvalidStateError,
-    SagaListResult,
-)
+from app.domain.saga import SagaChanges, SagaConcurrencyError, SagaFilter, SagaInvalidStateError
 
-_saga_fields = set(Saga.__dataclass_fields__)
+
+@dataclass
+class SagaListResult:
+    sagas: list[SagaDocument]
+    total: int
+    skip: int
+    limit: int
+
+    @property
+    def has_more(self) -> bool:
+        return (self.skip + len(self.sagas)) < self.total
 
 
 class SagaRepository:
     def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
         self.logger = logger
-
-    @staticmethod
-    def _to_domain(doc: SagaDocument) -> Saga:
-        return Saga(
-            **(d := doc.model_dump(include=_saga_fields)) | {"context_data": SagaContextData(**d["context_data"])}
-        )
 
     def _filter_conditions(self, saga_filter: SagaFilter) -> list[BaseFindOperator]:
         """Build Beanie query conditions from SagaFilter."""
@@ -67,7 +64,7 @@ class SagaRepository:
             )
         return conditions
 
-    async def save_saga(self, saga_id: str, **updates: Any) -> Saga | None:
+    async def save_saga(self, saga_id: str, changes: SagaChanges) -> SagaDocument | None:
         """Load document, apply partial updates, and persist via save_changes().
 
         Only the provided fields are written (Beanie diffs against the loaded
@@ -79,21 +76,21 @@ class SagaRepository:
         doc = await SagaDocument.find_one(SagaDocument.saga_id == saga_id)
         if not doc:
             return None
-        for field, value in updates.items():
+        for field, value in changes.items():
             setattr(doc, field, value)
         doc.updated_at = datetime.now(timezone.utc)
         try:
             await doc.save_changes()
         except RevisionIdWasChanged as exc:
             raise SagaConcurrencyError(saga_id) from exc
-        return self._to_domain(doc)
+        return doc
 
     async def atomic_cancel_saga(
         self,
         saga_id: str,
         error_message: str,
         completed_at: datetime,
-    ) -> Saga | None:
+    ) -> SagaDocument | None:
         """Atomically cancel a saga using findOneAndUpdate.
 
         Bumps revision_id so any concurrent save_changes() (which filters on
@@ -122,16 +119,15 @@ class SagaRepository:
             if not existing:
                 return None
             raise SagaInvalidStateError(saga_id, existing.state, "cancel")
-        return self._to_domain(doc)
+        return doc
 
-    async def get_or_create_saga(self, saga: Saga) -> tuple[Saga, bool]:
+    async def get_or_create_saga(self, saga: SagaDocument) -> tuple[SagaDocument, bool]:
         """Atomically get or create a saga by (execution_id, saga_name).
 
         Uses MongoDB findOneAndUpdate with $setOnInsert + upsert in a single
         atomic round-trip.  Returns (saga, created).
         """
-        insert_doc = SagaDocument(**dataclasses.asdict(saga))
-        insert_data = insert_doc.model_dump()
+        insert_data = saga.model_dump()
         insert_data.pop("id", None)
         insert_data.pop("revision_id", None)
 
@@ -140,24 +136,22 @@ class SagaRepository:
             SagaDocument.saga_name == saga.saga_name,
         ).upsert(
             {"$setOnInsert": insert_data},
-            on_insert=insert_doc,
+            on_insert=saga,
             response_type=UpdateResponse.NEW_DOCUMENT,
             upsert=True,
         )
         assert isinstance(doc, SagaDocument)
         created = doc.saga_id == saga.saga_id
-        return self._to_domain(doc), created
+        return doc, created
 
-    async def get_saga_by_execution_and_name(self, execution_id: str, saga_name: str) -> Saga | None:
-        doc = await SagaDocument.find_one(
+    async def get_saga_by_execution_and_name(self, execution_id: str, saga_name: str) -> SagaDocument | None:
+        return await SagaDocument.find_one(
             SagaDocument.execution_id == execution_id,
             SagaDocument.saga_name == saga_name,
         )
-        return self._to_domain(doc) if doc else None
 
-    async def get_saga(self, saga_id: str) -> Saga | None:
-        doc = await SagaDocument.find_one(SagaDocument.saga_id == saga_id)
-        return self._to_domain(doc) if doc else None
+    async def get_saga(self, saga_id: str) -> SagaDocument | None:
+        return await SagaDocument.find_one(SagaDocument.saga_id == saga_id)
 
     async def get_sagas_by_execution(
         self, execution_id: str, state: SagaState | None = None, limit: int = 100, skip: int = 0
@@ -168,9 +162,8 @@ class SagaRepository:
 
         query = SagaDocument.find(*conditions)
         total = await query.count()
-        docs = await query.sort([("created_at", SortDirection.DESCENDING)]).skip(skip).limit(limit).to_list()
         return SagaListResult(
-            sagas=[self._to_domain(d) for d in docs],
+            sagas=await query.sort([("created_at", SortDirection.DESCENDING)]).skip(skip).limit(limit).to_list(),
             total=total,
             skip=skip,
             limit=limit,
@@ -180,9 +173,8 @@ class SagaRepository:
         conditions = self._filter_conditions(saga_filter)
         query = SagaDocument.find(*conditions)
         total = await query.count()
-        docs = await query.sort([("created_at", SortDirection.DESCENDING)]).skip(skip).limit(limit).to_list()
         return SagaListResult(
-            sagas=[self._to_domain(d) for d in docs],
+            sagas=await query.sort([("created_at", SortDirection.DESCENDING)]).skip(skip).limit(limit).to_list(),
             total=total,
             skip=skip,
             limit=limit,
@@ -198,9 +190,9 @@ class SagaRepository:
         cutoff_time: datetime,
         states: list[SagaState] | None = None,
         limit: int = 100,
-    ) -> list[Saga]:
+    ) -> list[SagaDocument]:
         states = states or [SagaState.RUNNING, SagaState.COMPENSATING]
-        docs = (
+        return (
             await SagaDocument.find(
                 In(SagaDocument.state, states),
                 LT(SagaDocument.created_at, cutoff_time),
@@ -208,7 +200,6 @@ class SagaRepository:
             .limit(limit)
             .to_list()
         )
-        return [self._to_domain(d) for d in docs]
 
     async def get_saga_statistics(self, saga_filter: SagaFilter | None = None) -> dict[str, Any]:
         conditions = self._filter_conditions(saga_filter) if saga_filter else []

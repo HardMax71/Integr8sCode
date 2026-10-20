@@ -3,25 +3,12 @@ from .exceptions import (
     NotificationThrottledError,
     NotificationValidationError,
 )
-from .models import (
-    DomainNotification,
-    DomainNotificationCreate,
-    DomainNotificationListResult,
-    DomainNotificationSubscription,
-    DomainNotificationUpdate,
-    DomainSubscriptionListResult,
-    DomainSubscriptionUpdate,
-)
+from .models import NotificationChanges, SubscriptionChanges
 
 __all__ = [
-    "DomainNotification",
-    "DomainNotificationCreate",
-    "DomainNotificationListResult",
-    "DomainNotificationSubscription",
-    "DomainNotificationUpdate",
-    "DomainSubscriptionListResult",
-    "DomainSubscriptionUpdate",
+    "NotificationChanges",
     "NotificationNotFoundError",
     "NotificationThrottledError",
     "NotificationValidationError",
+    "SubscriptionChanges",
 ]

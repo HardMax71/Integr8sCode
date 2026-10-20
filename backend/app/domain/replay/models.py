@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any
-from uuid import uuid4
+from datetime import datetime
+from typing import Any, TypedDict
 
 from app.domain.enums import EventType, ReplayStatus, ReplayTarget, ReplayType
 
@@ -139,30 +138,13 @@ class ReplayConfig:
     enable_progress_tracking: bool = True
 
 
-@dataclass
-class ReplaySessionState:
-    """Domain replay session model used by services and repository."""
+class ReplaySessionChanges(TypedDict, total=False):
+    """Fields an update sets on a replay session; a missing key keeps the stored value."""
 
-    session_id: str
-    config: ReplayConfig
-    status: ReplayStatus = ReplayStatus.CREATED
-
-    total_events: int = 0
-    replayed_events: int = 0
-    failed_events: int = 0
-    skipped_events: int = 0
-
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
-    last_event_at: datetime | None = None
-
-    errors: list[ReplayError] = field(default_factory=list)
-
-    # Tracking and admin fields
-    replay_id: str = field(default_factory=lambda: str(uuid4()))
-    created_by: str | None = None
-    target_service: str | None = None
-    dry_run: bool = False
-    triggered_executions: list[str] = field(default_factory=list)
-    error: str | None = None
+    status: ReplayStatus
+    total_events: int
+    replayed_events: int
+    failed_events: int
+    skipped_events: int
+    replay_id: str
+    completed_at: datetime | None

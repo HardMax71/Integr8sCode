@@ -7,24 +7,19 @@ from app.db.docs.event import (
     EventArchiveDocument,
     EventDocument,
 )
-from app.db.docs.execution import ExecutionDocument, ResourceUsage
+from app.db.docs.execution import ExecutionDocument
 from app.db.docs.notification import (
     NotificationDocument,
     NotificationSubscriptionDocument,
 )
 from app.db.docs.replay import (
-    ReplayConfig,
     ReplaySessionDocument,
 )
 from app.db.docs.resource import ResourceAllocationDocument
 from app.db.docs.saga import SagaDocument
 from app.db.docs.saved_script import SavedScriptDocument
 from app.db.docs.user import UserDocument
-from app.db.docs.user_settings import (
-    EditorSettings,
-    NotificationSettings,
-    UserSettingsDocument,
-)
+from app.db.docs.user_settings import UserSettingsDocument
 
 # All document classes that need to be initialized with Beanie
 ALL_DOCUMENTS = [
@@ -49,7 +44,6 @@ __all__ = [
     "UserDocument",
     # Execution
     "ExecutionDocument",
-    "ResourceUsage",
     # Saved Script
     "SavedScriptDocument",
     # Notification
@@ -57,8 +51,6 @@ __all__ = [
     "NotificationSubscriptionDocument",
     # User Settings
     "UserSettingsDocument",
-    "NotificationSettings",
-    "EditorSettings",
     # Saga
     "SagaDocument",
     # DLQ
@@ -68,7 +60,6 @@ __all__ = [
     "EventArchiveDocument",
     # Replay
     "ReplaySessionDocument",
-    "ReplayConfig",
     # Resource
     "ResourceAllocationDocument",
     # Admin Settings

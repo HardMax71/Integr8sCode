@@ -1,6 +1,6 @@
 # MongoDB indexes and TTLs
 
-There's no schema manager or migration step. Each Beanie document declares its own indexes, either as `Indexed(...)` fields or in `Settings.indexes`, and every process creates them at startup: the API in its lifespan and the worker in its entry point call `init_beanie` with `ALL_DOCUMENTS` from `app/db/docs/__init__.py`. Beanie sends every declared index to `create_indexes` on each boot, which MongoDB treats as a no-op for an index that already exists with the same spec. Repositories never create indexes.
+There's no schema manager or migration step. Each Beanie document declares its own indexes, either as `Annotated[type, Indexed(...)]` fields or in `Settings.indexes`, and every process creates them at startup: the API in its lifespan and the worker in its entry point call `init_beanie` with `ALL_DOCUMENTS` from `app/db/docs/__init__.py`. Beanie sends every declared index to `create_indexes` on each boot, which MongoDB treats as a no-op for an index that already exists with the same spec. Repositories never create indexes.
 
 Beanie runs with index dropping off, so an index removed from a document stays in the database until someone drops it. Changing the options of an existing index makes MongoDB reject the create, and the process fails at startup. Drop the old index in mongosh first, then restart.
 

@@ -1,4 +1,4 @@
-import dataclasses
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
@@ -8,28 +8,23 @@ from beanie.operators import Set
 from monggregate import Pipeline, S
 
 from app.db.docs import DLQMessageDocument
-from app.dlq import (
-    DLQMessage,
-    DLQMessageListResult,
-    DLQMessageStatus,
-    DLQMessageUpdate,
-    DLQTopicSummary,
-)
+from app.dlq import DLQMessageChanges, DLQMessageStatus, DLQTopicSummary
 from app.domain.enums import EventType
-from app.domain.events import DomainEventAdapter
 
-_dlq_fields = set(DLQMessage.__dataclass_fields__)
+
+@dataclass
+class DLQMessageListResult:
+    """Result of listing DLQ messages."""
+
+    messages: list[DLQMessageDocument]
+    total: int
+    offset: int
+    limit: int
 
 
 class DLQRepository:
     def __init__(self, logger: structlog.stdlib.BoundLogger):
         self.logger = logger
-
-    @staticmethod
-    def _to_domain(doc: DLQMessageDocument) -> DLQMessage:
-        data = doc.model_dump(include=_dlq_fields)
-        data["event"] = DomainEventAdapter.validate_python(data["event"])
-        return DLQMessage(**data)
 
     async def get_messages(
         self,
@@ -51,7 +46,7 @@ class DLQRepository:
         docs = await query.sort([("failed_at", SortDirection.DESCENDING)]).skip(offset).limit(limit).to_list()
 
         return DLQMessageListResult(
-            messages=[self._to_domain(d) for d in docs],
+            messages=docs,
             total=total_count,
             offset=offset,
             limit=limit,
@@ -110,42 +105,25 @@ class DLQRepository:
             for r in results
         ]
 
-    async def save_message(self, message: DLQMessage) -> None:
+    async def save_message(self, message: DLQMessageDocument) -> None:
         """Upsert a DLQ message by event_id and consumer group (atomic, no TOCTOU race)."""
-        payload = dataclasses.asdict(message)
-        payload["event"] = message.event.model_dump()
         key = {"event.event_id": message.event.event_id, "consumer_group": message.consumer_group}
         await DLQMessageDocument.find_one(key).upsert(
-            Set(payload),  # type: ignore[no-untyped-call]
-            on_insert=DLQMessageDocument(**payload),
+            Set(message.model_dump(exclude={"id", "revision_id"})),  # type: ignore[no-untyped-call]
+            on_insert=message,
         )
 
-    async def update_status(self, event_id: str, consumer_group: str, update: DLQMessageUpdate) -> None:
-        """Apply a status update to a DLQ message."""
+    async def update_status(self, event_id: str, consumer_group: str, changes: DLQMessageChanges) -> None:
+        """Apply a status change to a DLQ message."""
         doc = await DLQMessageDocument.find_one({"event.event_id": event_id, "consumer_group": consumer_group})
         if not doc:
             return
+        await doc.set({**changes, "last_updated": datetime.now(timezone.utc)})
 
-        update_dict: dict[str, Any] = {"status": update.status, "last_updated": datetime.now(timezone.utc)}
-        if update.next_retry_at is not None:
-            update_dict["next_retry_at"] = update.next_retry_at
-        if update.retried_at is not None:
-            update_dict["retried_at"] = update.retried_at
-        if update.discarded_at is not None:
-            update_dict["discarded_at"] = update.discarded_at
-        if update.retry_count is not None:
-            update_dict["retry_count"] = update.retry_count
-        if update.discard_reason is not None:
-            update_dict["discard_reason"] = update.discard_reason
-        if update.last_error is not None:
-            update_dict["last_error"] = update.last_error
-
-        await doc.set(update_dict)
-
-    async def find_due_retries(self, limit: int = 100) -> list[DLQMessage]:
+    async def find_due_retries(self, limit: int = 100) -> list[DLQMessageDocument]:
         """Find scheduled messages whose retry time has arrived."""
         now = datetime.now(timezone.utc)
-        docs = (
+        return (
             await DLQMessageDocument.find(
                 {
                     "status": DLQMessageStatus.SCHEDULED,
@@ -155,7 +133,6 @@ class DLQRepository:
             .limit(limit)
             .to_list()
         )
-        return [self._to_domain(doc) for doc in docs]
 
     async def get_queue_sizes_by_topic(self) -> dict[str, int]:
         """Get message counts per topic for active (pending/scheduled) messages."""

@@ -3,10 +3,11 @@ from typing import Annotated
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends
+from pydantic import TypeAdapter
 
 from app.api.dependencies import admin_user
-from app.domain.rate_limit import RateLimitConfig, RateLimitRule, UserRateLimitUpdate
-from app.domain.user import User
+from app.db.docs import UserDocument
+from app.domain.rate_limit import RateLimitConfig, UserRateLimitUpdate
 from app.schemas_pydantic.user import (
     MessageResponse,
     RateLimitRuleResponse,
@@ -23,6 +24,8 @@ router = APIRouter(
     dependencies=[Depends(admin_user)],
 )
 
+_rate_limit_update = TypeAdapter(UserRateLimitUpdate)
+
 
 @router.get("/defaults", response_model=list[RateLimitRuleResponse])
 async def get_default_rate_limit_rules() -> list[RateLimitRuleResponse]:
@@ -33,7 +36,7 @@ async def get_default_rate_limit_rules() -> list[RateLimitRuleResponse]:
 
 @router.get("/{user_id}", response_model=UserRateLimitsResponse)
 async def get_user_rate_limits(
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],
     user_id: str,
 ) -> UserRateLimitsResponse:
@@ -44,15 +47,13 @@ async def get_user_rate_limits(
 
 @router.put("/{user_id}", response_model=RateLimitUpdateResponse)
 async def update_user_rate_limits(
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],
     user_id: str,
     request: RateLimitUpdateRequest,
 ) -> RateLimitUpdateResponse:
     """Update rate limit rules for a user."""
-    data = request.model_dump(include=set(UserRateLimitUpdate.__dataclass_fields__))
-    data["rules"] = [RateLimitRule(**r) for r in data.get("rules", [])]
-    update = UserRateLimitUpdate(**data)
+    update = _rate_limit_update.validate_python(request.model_dump())
     result = await admin_user_service.update_user_rate_limits(
         admin_user_id=admin.user_id, user_id=user_id, update=update
     )
@@ -61,7 +62,7 @@ async def update_user_rate_limits(
 
 @router.post("/{user_id}/reset")
 async def reset_user_rate_limits(
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],
     user_id: str,
 ) -> MessageResponse:

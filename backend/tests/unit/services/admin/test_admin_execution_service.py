@@ -10,7 +10,7 @@ from app.domain.execution import ExecutionNotFoundError
 from app.services.admin import AdminExecutionService
 from app.services.execution_queue import ExecutionQueueService
 from app.services.runtime_settings import RuntimeSettingsLoader
-from tests.unit.conftest import make_domain_execution
+from tests.unit.conftest import make_execution
 
 pytestmark = pytest.mark.unit
 
@@ -56,7 +56,7 @@ class TestListExecutions:
         service: AdminExecutionService,
         mock_repo: AsyncMock,
     ) -> None:
-        execs = [make_domain_execution()]
+        execs = [make_execution()]
         mock_repo.get_executions.return_value = execs
         mock_repo.count_executions.return_value = 1
 
@@ -135,7 +135,7 @@ class TestUpdatePriority:
         mock_repo: AsyncMock,
         mock_queue: AsyncMock,
     ) -> None:
-        updated_exec = make_domain_execution(priority=QueuePriority.HIGH)
+        updated_exec = make_execution(priority=QueuePriority.HIGH)
         mock_repo.update_priority.return_value = updated_exec
 
         result = await service.update_priority("e1", QueuePriority.HIGH)
@@ -160,7 +160,7 @@ class TestUpdatePriority:
         mock_repo: AsyncMock,
         mock_queue: AsyncMock,
     ) -> None:
-        mock_repo.update_priority.return_value = make_domain_execution(priority=QueuePriority.CRITICAL)
+        mock_repo.update_priority.return_value = make_execution(priority=QueuePriority.CRITICAL)
 
         await service.update_priority("e1", QueuePriority.CRITICAL)
 

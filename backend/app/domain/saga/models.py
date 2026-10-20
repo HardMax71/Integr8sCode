@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
+from typing import TypedDict
 from uuid import uuid4
 
 from app.domain.enums import SagaState
@@ -18,25 +19,6 @@ class SagaContextData:
     resources_allocated: bool = False
     pod_creation_triggered: bool = False
     user_id: str = field(default_factory=lambda: str(uuid4()))
-
-
-@dataclass
-class Saga:
-    """Domain model for saga."""
-
-    saga_id: str
-    saga_name: str
-    execution_id: str
-    state: SagaState
-    current_step: str | None = None
-    completed_steps: list[str] = field(default_factory=list)
-    compensated_steps: list[str] = field(default_factory=list)
-    context_data: SagaContextData = field(default_factory=SagaContextData)
-    error_message: str | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    completed_at: datetime | None = None
-    retry_count: int = 0
 
 
 @dataclass
@@ -65,21 +47,6 @@ class SagaQuery:
 
 
 @dataclass
-class SagaListResult:
-    """Result of saga list query."""
-
-    sagas: list[Saga]
-    total: int
-    skip: int
-    limit: int
-
-    @property
-    def has_more(self) -> bool:
-        """Calculate has_more."""
-        return (self.skip + len(self.sagas)) < self.total
-
-
-@dataclass
 class SagaConfig:
     """Configuration for saga orchestration (domain)."""
 
@@ -94,25 +61,6 @@ class SagaConfig:
 
 
 @dataclass
-class SagaInstance:
-    """Runtime instance of a saga execution (domain)."""
-
-    saga_name: str
-    execution_id: str
-    state: SagaState = SagaState.CREATED
-    saga_id: str = field(default_factory=lambda: str(uuid4()))
-    current_step: str | None = None
-    completed_steps: list[str] = field(default_factory=list)
-    compensated_steps: list[str] = field(default_factory=list)
-    context_data: SagaContextData = field(default_factory=SagaContextData)
-    error_message: str | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    completed_at: datetime | None = None
-    retry_count: int = 0
-
-
-@dataclass
 class SagaCancellationResult:
     """Domain result for saga cancellation operations."""
 
@@ -121,29 +69,14 @@ class SagaCancellationResult:
     saga_id: str
 
 
-@dataclass
-class DomainResourceAllocation:
-    """Domain model for resource allocation."""
+class SagaChanges(TypedDict, total=False):
+    """Fields a saga step or the orchestrator writes; a missing key keeps the stored value."""
 
-    allocation_id: str
-    execution_id: str
-    language: str
-    cpu_request: str
-    memory_request: str
-    cpu_limit: str
-    memory_limit: str
-    status: str = "active"
-    allocated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    released_at: datetime | None = None
-
-
-@dataclass
-class DomainResourceAllocationCreate:
-    """Data for creating a resource allocation."""
-
-    execution_id: str
-    language: str
-    cpu_request: str
-    memory_request: str
-    cpu_limit: str
-    memory_limit: str
+    state: SagaState
+    current_step: str | None
+    completed_steps: list[str]
+    compensated_steps: list[str]
+    context_data: SagaContextData
+    error_message: str | None
+    completed_at: datetime | None
+    retry_count: int

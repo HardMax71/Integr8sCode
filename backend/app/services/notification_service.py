@@ -12,6 +12,7 @@ from tenacity import AsyncRetrying, RetryCallState, stop_after_attempt, wait_exp
 from tenacity.wait import wait_base
 
 from app.db import NotificationRepository
+from app.db.docs import NotificationDocument, NotificationSubscriptionDocument
 from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus, UserRole
 from app.domain.events import (
     EventMetadata,
@@ -21,16 +22,11 @@ from app.domain.events import (
     NotificationCreatedEvent,
 )
 from app.domain.notification import (
-    DomainNotification,
-    DomainNotificationCreate,
-    DomainNotificationListResult,
-    DomainNotificationSubscription,
-    DomainNotificationUpdate,
-    DomainSubscriptionListResult,
-    DomainSubscriptionUpdate,
+    NotificationChanges,
     NotificationNotFoundError,
     NotificationThrottledError,
     NotificationValidationError,
+    SubscriptionChanges,
 )
 from app.domain.sse import DomainNotificationSSEPayload
 from app.events import PRODUCE_ERRORS, UnifiedProducer
@@ -44,9 +40,16 @@ DELIVERY_RETRY_WAIT = wait_exponential(max=30)
 # Type aliases
 type EventPayload = dict[str, object]
 type NotificationContext = dict[str, object]
-type ChannelHandler = Callable[[DomainNotification, DomainNotificationSubscription], Awaitable[None]]
+type ChannelHandler = Callable[[NotificationDocument, NotificationSubscriptionDocument], Awaitable[None]]
 type SystemNotificationStats = dict[str, int]
 type SlackMessage = dict[str, object]
+
+
+@dataclass
+class NotificationListResult:
+    notifications: list[NotificationDocument]
+    total: int
+    unread_count: int
 
 
 # --8<-- [start:ThrottleCache]
@@ -139,7 +142,7 @@ class NotificationService:
         channel: NotificationChannel = NotificationChannel.IN_APP,
         scheduled_for: datetime | None = None,
         metadata: NotificationContext | None = None,
-    ) -> DomainNotification:
+    ) -> NotificationDocument:
         if not tags:
             raise NotificationValidationError("tags must be a non-empty list")
         if scheduled_for is not None:
@@ -179,7 +182,7 @@ class NotificationService:
             )
 
         # Create notification
-        create_data = DomainNotificationCreate(
+        notification = NotificationDocument(
             user_id=user_id,
             channel=channel,
             subject=subject,
@@ -190,9 +193,7 @@ class NotificationService:
             scheduled_for=scheduled_for,
             metadata=metadata or {},
         )
-
-        # Save to database
-        notification = await self.repository.create_notification(create_data)
+        await self.repository.create_notification(notification)
 
         # Deliver immediately if not scheduled; scheduled notifications are
         # picked up by the NotificationScheduler worker.
@@ -203,7 +204,7 @@ class NotificationService:
 
         return notification
 
-    async def _publish_notification_created_event(self, notification: DomainNotification) -> None:
+    async def _publish_notification_created_event(self, notification: NotificationDocument) -> None:
         """Publish NotificationCreatedEvent after the notification is persisted."""
         try:
             event = NotificationCreatedEvent(
@@ -322,13 +323,13 @@ class NotificationService:
             return "failed"
 
     async def _send_in_app(
-        self, notification: DomainNotification, subscription: DomainNotificationSubscription
+        self, notification: NotificationDocument, subscription: NotificationSubscriptionDocument
     ) -> None:
         """Send in-app notification via SSE bus (fan-out to connected clients)."""
         await self._publish_notification_sse(notification)
 
     async def _send_webhook(
-        self, notification: DomainNotification, subscription: DomainNotificationSubscription
+        self, notification: NotificationDocument, subscription: NotificationSubscriptionDocument
     ) -> None:
         """Send webhook notification."""
         webhook_url = notification.webhook_url or subscription.webhook_url
@@ -379,7 +380,9 @@ class NotificationService:
             response_time_ms=int(response.elapsed.total_seconds() * 1000),
         )
 
-    async def _send_slack(self, notification: DomainNotification, subscription: DomainNotificationSubscription) -> None:
+    async def _send_slack(
+        self, notification: NotificationDocument, subscription: NotificationSubscriptionDocument
+    ) -> None:
         """Send Slack notification."""
         if not subscription.slack_webhook:
             raise ValueError(
@@ -511,7 +514,7 @@ class NotificationService:
         include_tags: list[str] | None = None,
         exclude_tags: list[str] | None = None,
         tag_prefix: str | None = None,
-    ) -> DomainNotificationListResult:
+    ) -> NotificationListResult:
         """List notifications with pagination."""
         # Get notifications
         notifications = await self.repository.list_notifications(
@@ -536,25 +539,26 @@ class NotificationService:
             self.get_unread_count(user_id),
         )
 
-        return DomainNotificationListResult(notifications=notifications, total=total, unread_count=unread_count)
+        return NotificationListResult(notifications=notifications, total=total, unread_count=unread_count)
 
     async def update_subscription(
         self,
         user_id: str,
         channel: NotificationChannel,
-        update_data: DomainSubscriptionUpdate,
-    ) -> DomainNotificationSubscription:
+        changes: SubscriptionChanges,
+    ) -> NotificationSubscriptionDocument:
         """Update notification subscription preferences."""
         # Validate channel-specific requirements
-        if channel == NotificationChannel.WEBHOOK and update_data.enabled:
-            if not update_data.webhook_url:
+        if channel == NotificationChannel.WEBHOOK and changes.get("enabled"):
+            if not changes.get("webhook_url"):
                 raise NotificationValidationError("webhook_url is required when enabling WEBHOOK")
-        if channel == NotificationChannel.SLACK and update_data.enabled:
-            if not update_data.slack_webhook:
+        if channel == NotificationChannel.SLACK and changes.get("enabled"):
+            if not changes.get("slack_webhook"):
                 raise NotificationValidationError("slack_webhook is required when enabling SLACK")
 
-        result = await self.repository.upsert_subscription(user_id, channel, update_data)
-        action = "enabled" if update_data.enabled is True else "disabled" if update_data.enabled is False else "updated"
+        result = await self.repository.upsert_subscription(user_id, channel, changes)
+        enabled = changes.get("enabled")
+        action = "enabled" if enabled is True else "disabled" if enabled is False else "updated"
         attributes = {"notification.channel": channel, "notification.action": action}
         self._tracer.start_span("notification.subscription_change", attributes=attributes).end()
         return result
@@ -563,10 +567,9 @@ class NotificationService:
         """Mark all notifications as read for a user."""
         return await self.repository.mark_all_as_read(user_id)
 
-    async def get_subscriptions(self, user_id: str) -> DomainSubscriptionListResult:
+    async def get_subscriptions(self, user_id: str) -> list[NotificationSubscriptionDocument]:
         """Get all notification subscriptions for a user."""
-        subs = await self.repository.get_all_subscriptions(user_id)
-        return DomainSubscriptionListResult(subscriptions=subs)
+        return await self.repository.get_all_subscriptions(user_id)
 
     async def delete_notification(self, user_id: str, notification_id: str) -> None:
         """Delete a notification."""
@@ -574,7 +577,7 @@ class NotificationService:
         if not deleted:
             raise NotificationNotFoundError(notification_id)
 
-    async def _publish_notification_sse(self, notification: DomainNotification) -> None:
+    async def _publish_notification_sse(self, notification: NotificationDocument) -> None:
         """Publish an in-app notification to the SSE bus for realtime delivery."""
         payload = DomainNotificationSSEPayload(
             notification_id=notification.notification_id,
@@ -590,7 +593,7 @@ class NotificationService:
 
     # --8<-- [start:should_skip_notification]
     async def _should_skip_notification(
-        self, notification: DomainNotification, subscription: DomainNotificationSubscription
+        self, notification: NotificationDocument, subscription: NotificationSubscriptionDocument
     ) -> str | None:
         """Check if notification should be skipped based on subscription filters.
 
@@ -617,7 +620,7 @@ class NotificationService:
 
     def _log_delivery_retry(self, state: RetryCallState) -> None:
         """Log a failed delivery attempt and count the retry; the retried call's first argument is the notification."""
-        notification: DomainNotification = state.args[0]
+        notification: NotificationDocument = state.args[0]
         self.logger.warning(
             "Delivery attempt failed",
             notification_id=str(notification.notification_id),
@@ -631,7 +634,7 @@ class NotificationService:
         }
         self._tracer.start_span("notification.retry", attributes=attributes).end()
 
-    async def _deliver_notification(self, notification: DomainNotification) -> bool:
+    async def _deliver_notification(self, notification: NotificationDocument) -> bool:
         """Deliver notification through configured channel with inline retry.
 
         Returns True only when the notification reaches DELIVERED status.
@@ -661,7 +664,7 @@ class NotificationService:
             await self.repository.update_notification(
                 notification.notification_id,
                 notification.user_id,
-                DomainNotificationUpdate(status=NotificationStatus.SKIPPED, error_message=skip_reason),
+                NotificationChanges(status=NotificationStatus.SKIPPED, error_message=skip_reason),
             )
             return False
 
@@ -670,7 +673,7 @@ class NotificationService:
             await self.repository.update_notification(
                 notification.notification_id,
                 notification.user_id,
-                DomainNotificationUpdate(
+                NotificationChanges(
                     status=NotificationStatus.FAILED,
                     failed_at=datetime.now(UTC),
                     error_message=f"No handler for channel: {notification.channel}",
@@ -702,7 +705,7 @@ class NotificationService:
                 await self.repository.update_notification(
                     notification.notification_id,
                     notification.user_id,
-                    DomainNotificationUpdate(status=NotificationStatus.DELIVERED, delivered_at=datetime.now(UTC)),
+                    NotificationChanges(status=NotificationStatus.DELIVERED, delivered_at=datetime.now(UTC)),
                 )
                 self.logger.info(
                     "Delivered notification",
@@ -716,7 +719,7 @@ class NotificationService:
                 await self.repository.update_notification(
                     notification.notification_id,
                     notification.user_id,
-                    DomainNotificationUpdate(
+                    NotificationChanges(
                         status=NotificationStatus.FAILED,
                         failed_at=datetime.now(UTC),
                         error_message=f"Delivery failed via {notification.channel}: {last_error}",

@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
 from aiokafka.errors import KafkaError
@@ -8,7 +8,8 @@ from faststream.kafka import KafkaBroker, KafkaRouter, TestKafkaBroker
 from opentelemetry import trace
 
 from app.db import DLQRepository
-from app.dlq import DLQ_GROUP_HEADER, DLQ_RETRY_HEADER, DLQMessage, DLQMessageStatus
+from app.db.docs import DLQMessageDocument
+from app.dlq import DLQ_GROUP_HEADER, DLQ_RETRY_HEADER, DLQMessageChanges, DLQMessageStatus
 from app.dlq.manager import DLQManager
 from app.domain.events import EventMetadata, UserRegisteredEvent
 from app.events.middlewares import DeadLetterMiddleware, RetryTargetMiddleware
@@ -60,7 +61,7 @@ async def test_failure_is_saved_for_the_failing_group_and_propagates() -> None:
 
     manager.handle_message.assert_awaited_once()
     assert manager.handle_message.await_args is not None
-    saved: DLQMessage = manager.handle_message.await_args.args[0]
+    saved: DLQMessageDocument = manager.handle_message.await_args.args[0]
     assert saved.event.event_type == "user_registered"
     assert saved.original_topic == "user_registered"
     assert saved.consumer_group == "group-a"
@@ -99,7 +100,9 @@ async def test_retry_publishes_to_the_original_topic_for_the_failed_group(test_s
     broker = AsyncMock(spec=KafkaBroker)
     repository = AsyncMock(spec=DLQRepository)
     manager = DLQManager(test_settings, broker, MagicMock(), trace.NoOpTracer(), repository)
-    message = DLQMessage(event=_event(), original_topic="user_registered", consumer_group="group-a", retry_count=1)
+    message = DLQMessageDocument(
+        event=_event(), original_topic="user_registered", consumer_group="group-a", retry_count=1
+    )
 
     await manager.retry_message(message)
 
@@ -109,7 +112,7 @@ async def test_retry_publishes_to_the_original_topic_for_the_failed_group(test_s
     status_update = repository.update_status.await_args
     assert status_update is not None
     assert status_update.args[:2] == (message.event.event_id, "group-a")
-    assert status_update.args[2].retry_count == 2
+    assert status_update.args[2]["retry_count"] == 2
 
 
 async def test_failed_retry_publish_puts_the_row_back(test_settings: Settings) -> None:
@@ -117,13 +120,14 @@ async def test_failed_retry_publish_puts_the_row_back(test_settings: Settings) -
     broker.publish.side_effect = KafkaError("broker down")
     repository = AsyncMock(spec=DLQRepository)
     manager = DLQManager(test_settings, broker, MagicMock(), trace.NoOpTracer(), repository)
-    message = DLQMessage(event=_event(), original_topic="user_registered", consumer_group="group-a", retry_count=1)
+    message = DLQMessageDocument(
+        event=_event(), original_topic="user_registered", consumer_group="group-a", retry_count=1
+    )
 
     with pytest.raises(KafkaError):
         await manager.retry_message(message)
 
-    updates = [c.args[2] for c in repository.update_status.await_args_list]
-    assert [(u.status, u.retry_count) for u in updates] == [
-        (DLQMessageStatus.RETRIED, 2),
-        (DLQMessageStatus.SCHEDULED, 1),
+    assert [c.args[2] for c in repository.update_status.await_args_list] == [
+        DLQMessageChanges(status=DLQMessageStatus.RETRIED, retried_at=ANY, retry_count=2),
+        DLQMessageChanges(status=DLQMessageStatus.SCHEDULED, retry_count=1),
     ]

@@ -1,4 +1,3 @@
-import dataclasses
 from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock
@@ -8,6 +7,7 @@ import structlog
 from opentelemetry import trace
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from app.db.docs import ResourceAllocationDocument, SagaDocument
 from app.db.repositories import ResourceAllocationRepository, SagaRepository
 from app.domain.admin import SystemSettings
 from app.domain.enums import ExecutionErrorType, SagaState
@@ -20,9 +20,7 @@ from app.domain.events import (
     ResourceUsageDomain,
 )
 from app.domain.saga import (
-    DomainResourceAllocation,
-    DomainResourceAllocationCreate,
-    Saga,
+    SagaChanges,
     SagaConfig,
     SagaNotFoundError,
 )
@@ -41,17 +39,17 @@ class _FakeRepo(SagaRepository):
     """Fake SagaRepository for testing."""
 
     def __init__(self) -> None:
-        self.saved: list[Saga] = []
-        self.existing: dict[tuple[str, str], Saga] = {}
+        self.saved: list[SagaDocument] = []
+        self.existing: dict[tuple[str, str], SagaDocument] = {}
         self.fail_on_create: bool = False
 
-    def _find_by_id(self, saga_id: str) -> Saga | None:
+    def _find_by_id(self, saga_id: str) -> SagaDocument | None:
         for saga in [*self.saved, *self.existing.values()]:
             if saga.saga_id == saga_id:
                 return saga
         return None
 
-    async def get_or_create_saga(self, saga: Saga) -> tuple[Saga, bool]:
+    async def get_or_create_saga(self, saga: SagaDocument) -> tuple[SagaDocument, bool]:
         if self.fail_on_create:
             raise RuntimeError("Simulated DB failure")
         key = (saga.execution_id, saga.saga_name)
@@ -61,24 +59,24 @@ class _FakeRepo(SagaRepository):
         self.saved.append(saga)
         return saga, True
 
-    async def get_saga(self, saga_id: str) -> Saga | None:
+    async def get_saga(self, saga_id: str) -> SagaDocument | None:
         return self._find_by_id(saga_id)
 
-    async def get_saga_by_execution_and_name(self, execution_id: str, saga_name: str) -> Saga | None:
+    async def get_saga_by_execution_and_name(self, execution_id: str, saga_name: str) -> SagaDocument | None:
         return self.existing.get((execution_id, saga_name))
 
-    async def save_saga(self, saga_id: str, **updates: Any) -> Saga | None:
+    async def save_saga(self, saga_id: str, changes: SagaChanges) -> SagaDocument | None:
         saga = self._find_by_id(saga_id)
         if not saga:
             return None
-        for field, value in updates.items():
+        for field, value in changes.items():
             setattr(saga, field, value)
         saga.updated_at = datetime.now(timezone.utc)
         return saga
 
-    async def atomic_cancel_saga(self, saga_id: str, error_message: str, completed_at: datetime) -> Saga | None:
+    async def atomic_cancel_saga(self, saga_id: str, error_message: str, completed_at: datetime) -> SagaDocument | None:
         return await self.save_saga(
-            saga_id, state=SagaState.CANCELLED, error_message=error_message, completed_at=completed_at
+            saga_id, SagaChanges(state=SagaState.CANCELLED, error_message=error_message, completed_at=completed_at)
         )
 
 
@@ -98,18 +96,13 @@ class _FakeAlloc(ResourceAllocationRepository):
     """Fake ResourceAllocationRepository for testing."""
 
     def __init__(self) -> None:
-        self.allocations: list[DomainResourceAllocation] = []
+        self.allocations: list[ResourceAllocationDocument] = []
 
     async def count_active(self, language: str) -> int:
         return 0
 
-    async def create_allocation(self, create_data: DomainResourceAllocationCreate) -> DomainResourceAllocation:
-        alloc = DomainResourceAllocation(
-            allocation_id="alloc-1",
-            **dataclasses.asdict(create_data),
-        )
-        self.allocations.append(alloc)
-        return alloc
+    async def create_allocation(self, allocation: ResourceAllocationDocument) -> None:
+        self.allocations.append(allocation)
 
     async def release_allocation(self, allocation_id: str) -> bool:
         return True
@@ -212,7 +205,7 @@ async def test_existing_saga_short_circuits() -> None:
     fake_repo = _FakeRepo()
     fake_queue = _FakeQueue()
     saga_name = ExecutionSaga.get_name()
-    s = Saga(saga_id="sX", saga_name=saga_name, execution_id="e", state=SagaState.RUNNING)
+    s = SagaDocument(saga_id="sX", saga_name=saga_name, execution_id="e", state=SagaState.RUNNING)
     fake_repo.existing[("e", saga_name)] = s
     orch = _orch(repo=fake_repo, queue=fake_queue)
     # Should not create a duplicate — returns existing
@@ -340,8 +333,8 @@ class _VanishingRepo(_FakeRepo):
 
     vanished = False
 
-    async def save_saga(self, saga_id: str, **updates: Any) -> Saga | None:
-        return None if self.vanished else await super().save_saga(saga_id, **updates)
+    async def save_saga(self, saga_id: str, changes: SagaChanges) -> SagaDocument | None:
+        return None if self.vanished else await super().save_saga(saga_id, changes)
 
 
 async def test_resolve_completion_releases_slot_when_saga_deleted_before_update() -> None:

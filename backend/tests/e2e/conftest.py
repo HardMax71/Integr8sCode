@@ -11,6 +11,7 @@ from beanie.operators import In
 from dishka import AsyncContainer
 from fastapi import FastAPI
 from httpx2 import AsyncClient
+from pydantic import SecretStr
 from starlette.types import ASGIApp, Message, Scope
 
 from app.core.security import SecurityService
@@ -292,7 +293,7 @@ def new_user_request() -> UserCreate:
     return UserCreate(
         username=f"user_{uid}",
         email=f"user_{uid}@test.com",
-        password="SecurePass123!",
+        password=SecretStr("SecurePass123!"),
         role=UserRole.USER,
     )
 
@@ -304,7 +305,7 @@ def new_admin_request() -> UserCreate:
     return UserCreate(
         username=f"admin_{uid}",
         email=f"admin_{uid}@test.com",
-        password="SecurePass123!",
+        password=SecretStr("SecurePass123!"),
         role=UserRole.ADMIN,
     )
 

@@ -3,7 +3,7 @@ from typing import Annotated
 from uuid import uuid4
 
 from beanie import Document, Indexed
-from pydantic import ConfigDict, EmailStr, Field
+from pydantic import ConfigDict, EmailStr, Field, SecretStr
 
 from app.domain.enums import UserRole
 
@@ -22,7 +22,7 @@ class UserDocument(Document):
 
     # From UserInDB
     user_id: Annotated[str, Indexed(unique=True)] = Field(default_factory=lambda: str(uuid4()))
-    hashed_password: str
+    hashed_password: SecretStr
     is_superuser: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

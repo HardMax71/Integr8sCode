@@ -116,7 +116,7 @@ class RedisProvider(Provider):
             host=settings.REDIS_HOST,
             port=settings.REDIS_PORT,
             db=settings.REDIS_DB,
-            password=settings.REDIS_PASSWORD,
+            password=settings.REDIS_PASSWORD.get_secret_value(),
             ssl=settings.REDIS_SSL,
             max_connections=settings.REDIS_MAX_CONNECTIONS,
             decode_responses=settings.REDIS_DECODE_RESPONSES,

@@ -4,7 +4,7 @@ import tomllib
 from typing import Literal
 from urllib.parse import quote
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from app.domain.execution import LanguageInfoDomain
 from app.runtime_registry import EXAMPLE_SCRIPTS as EXEC_EXAMPLE_SCRIPTS
@@ -64,7 +64,7 @@ class Settings(BaseModel):
 
     PROJECT_NAME: str = "integr8scode"
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str = Field(
+    SECRET_KEY: SecretStr = Field(
         ...,
         min_length=32,
         description="Secret key for JWT token signing. Must be at least 32 characters.",
@@ -75,8 +75,8 @@ class Settings(BaseModel):
     MONGO_PORT: int = 27017
     MONGO_DB: str = "integr8scode"
     MONGO_USER: str = ""
-    MONGO_PASSWORD: str = ""
-    MONGODB_URL: str = ""
+    MONGO_PASSWORD: SecretStr = SecretStr("")
+    MONGODB_URL: SecretStr = SecretStr("")
     KUBERNETES_CONFIG_PATH: str = "~/.kube/config"
     # k3s writes 127.0.0.1 into its kubeconfig; a container reaches the same API through the host
     KUBERNETES_API_SERVER: str = "https://host.docker.internal:6443"
@@ -157,7 +157,7 @@ class Settings(BaseModel):
     REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
-    REDIS_PASSWORD: str | None = None
+    REDIS_PASSWORD: SecretStr = SecretStr("")
     REDIS_SSL: bool = False
     REDIS_MAX_CONNECTIONS: int = 200
     REDIS_DECODE_RESPONSES: Literal[True] = True

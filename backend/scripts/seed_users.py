@@ -119,7 +119,7 @@ async def seed_users(settings: Settings) -> None:
     default_password = os.environ["DEFAULT_USER_PASSWORD"]
     admin_password = os.environ["ADMIN_USER_PASSWORD"]
 
-    client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL)
+    client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL.get_secret_value())
     db = client.get_default_database(default=settings.MONGO_DB)
     print(f"Connecting to MongoDB (database: {db.name})...")
 

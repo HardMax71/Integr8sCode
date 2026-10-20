@@ -8,7 +8,7 @@
         createUserApiV1AdminUsersPostMutation,
         listUsersApiV1AdminUsersGetQueryKey,
         updateUserApiV1AdminUsersUserIdPutMutation,
-        zUserCreate,
+        zUserCreateWritable,
         type UserResponse,
     } from '#lib/api/index.ts';
     import { apiForm, filled, optionalText } from '#lib/forms.ts';
@@ -36,7 +36,7 @@
     const opened = untrack(() => mode);
     const editing = opened.kind === 'edit';
 
-    const { username, email, password, role, is_active } = zUserCreate.shape;
+    const { username, email, password, role, is_active } = zUserCreateWritable.shape;
     // An edited user may keep the current password; a new one needs one
     const schema = z.object({
         username: filled(username),

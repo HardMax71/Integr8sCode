@@ -6,6 +6,7 @@ import jwt
 import pytest
 from opentelemetry import trace
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from pydantic import SecretStr
 
 from app.core.security import SecurityService
 from app.domain.enums import UserRole
@@ -23,48 +24,48 @@ class TestPasswordHashing:
 
     def test_password_hash_creates_different_hash(self, security_svc: SecurityService) -> None:
         """Test that password hashing creates unique hashes."""
-        password = "test_password_123"
+        password = SecretStr("test_password_123")
         hash1 = security_svc.get_password_hash(password)
         hash2 = security_svc.get_password_hash(password)
 
         # Hashes should be different due to salting
         assert hash1 != hash2
-        assert password not in hash1
-        assert password not in hash2
+        assert password.get_secret_value() not in hash1.get_secret_value()
+        assert password.get_secret_value() not in hash2.get_secret_value()
 
     def test_password_verification_success(self, security_svc: SecurityService) -> None:
         """Test successful password verification."""
-        password = "correct_password"
+        password = SecretStr("correct_password")
         hashed = security_svc.get_password_hash(password)
 
         assert security_svc.verify_password(password, hashed) is True
 
     def test_password_verification_failure(self, security_svc: SecurityService) -> None:
         """Test failed password verification."""
-        password = "correct_password"
-        wrong_password = "wrong_password"
+        password = SecretStr("correct_password")
+        wrong_password = SecretStr("wrong_password")
         hashed = security_svc.get_password_hash(password)
 
         assert security_svc.verify_password(wrong_password, hashed) is False
 
     def test_empty_password_handling(self, security_svc: SecurityService) -> None:
         """Test handling of empty passwords."""
-        empty_password = ""
+        empty_password = SecretStr("")
         hashed = security_svc.get_password_hash(empty_password)
 
         assert security_svc.verify_password(empty_password, hashed) is True
-        assert security_svc.verify_password("not_empty", hashed) is False
+        assert security_svc.verify_password(SecretStr("not_empty"), hashed) is False
 
     def test_special_characters_in_password(self, security_svc: SecurityService) -> None:
         """Test passwords with special characters."""
-        special_password = "P@ssw0rd!#$%^&*()"
+        special_password = SecretStr("P@ssw0rd!#$%^&*()")
         hashed = security_svc.get_password_hash(special_password)
 
         assert security_svc.verify_password(special_password, hashed) is True
 
     def test_unicode_password(self, security_svc: SecurityService) -> None:
         """Test Unicode characters in passwords."""
-        unicode_password = "пароль密码パスワード🔒"
+        unicode_password = SecretStr("пароль密码パスワード🔒")
         hashed = security_svc.get_password_hash(unicode_password)
 
         assert security_svc.verify_password(unicode_password, hashed) is True
@@ -92,7 +93,9 @@ class TestSecurityService:
 
         # Decode and verify token
         decoded = jwt.decode(
-            token, security_service.settings.SECRET_KEY, algorithms=[security_service.settings.ALGORITHM]
+            token,
+            security_service.settings.SECRET_KEY.get_secret_value(),
+            algorithms=[security_service.settings.ALGORITHM],
         )
         assert decoded["sub"] == "testuser"
         assert "user_id" in decoded
@@ -108,7 +111,9 @@ class TestSecurityService:
         after = int(time.time())
 
         decoded = jwt.decode(
-            token, security_service.settings.SECRET_KEY, algorithms=[security_service.settings.ALGORITHM]
+            token,
+            security_service.settings.SECRET_KEY.get_secret_value(),
+            algorithms=[security_service.settings.ALGORITHM],
         )
         lifetime = int(expires_delta.total_seconds())
         assert before + lifetime <= decoded["exp"] <= after + lifetime
@@ -122,7 +127,9 @@ class TestSecurityService:
         token = security_service.create_access_token(data, expires_delta=expires_delta)
 
         decoded = jwt.decode(
-            token, security_service.settings.SECRET_KEY, algorithms=[security_service.settings.ALGORITHM]
+            token,
+            security_service.settings.SECRET_KEY.get_secret_value(),
+            algorithms=[security_service.settings.ALGORITHM],
         )
 
         assert decoded["role"] == UserRole.ADMIN
@@ -134,7 +141,9 @@ class TestSecurityService:
             data, expires_delta=timedelta(minutes=security_service.settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         )
         decoded = jwt.decode(
-            token, security_service.settings.SECRET_KEY, algorithms=[security_service.settings.ALGORITHM]
+            token,
+            security_service.settings.SECRET_KEY.get_secret_value(),
+            algorithms=[security_service.settings.ALGORITHM],
         )
         assert decoded["sub"] == "testuser"
         assert decoded["user_id"] == data["user_id"]
@@ -147,7 +156,9 @@ class TestSecurityService:
             data, expires_delta=timedelta(minutes=security_service.settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         )
         decoded = jwt.decode(
-            token, security_service.settings.SECRET_KEY, algorithms=[security_service.settings.ALGORITHM]
+            token,
+            security_service.settings.SECRET_KEY.get_secret_value(),
+            algorithms=[security_service.settings.ALGORITHM],
         )
         assert decoded["sub"] == "testuser"
         assert decoded["user_id"] == user_id
@@ -234,7 +245,7 @@ class TestDecodeToken:
             if claims is None
             else jwt.encode(
                 {**claims, "exp": datetime.now(timezone.utc) + lifetime},
-                key or test_settings.SECRET_KEY,
+                key or test_settings.SECRET_KEY.get_secret_value(),
                 algorithm=test_settings.ALGORITHM,
             )
         )
@@ -289,7 +300,7 @@ class TestDecodeUserId:
             if claims is None
             else jwt.encode(
                 {**claims, "exp": datetime.now(timezone.utc) + lifetime},
-                key or test_settings.SECRET_KEY,
+                key or test_settings.SECRET_KEY.get_secret_value(),
                 algorithm=test_settings.ALGORITHM,
             )
         )

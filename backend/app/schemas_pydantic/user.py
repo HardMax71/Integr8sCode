@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr
 
 from app.domain.enums import UserRole
 from app.domain.rate_limit import EndpointGroup, EndpointUsageStats, RateLimitAlgorithm
@@ -20,7 +20,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     """Model for creating a new user"""
 
-    password: str = Field(..., min_length=8)
+    password: SecretStr = Field(..., min_length=8)
 
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
@@ -32,7 +32,7 @@ class UserUpdate(BaseModel):
     email: EmailStr | None = None
     role: UserRole | None = None
     is_active: bool | None = None
-    password: str | None = Field(None, min_length=8)
+    password: SecretStr | None = Field(None, min_length=8)
 
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
@@ -67,7 +67,7 @@ class UserListResponse(BaseModel):
 class PasswordResetRequest(BaseModel):
     """Request model for password reset"""
 
-    new_password: str = Field(..., min_length=8, description="New password for the user")
+    new_password: SecretStr = Field(..., min_length=8, description="New password for the user")
 
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 

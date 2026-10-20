@@ -14,7 +14,7 @@ import type {
     ExecutionRequest,
     ExecutionResponse,
     LoginResponse,
-    UserCreate,
+    UserCreateWritable,
     UserResponse,
 } from '#lib/api/types.gen.ts';
 
@@ -51,7 +51,7 @@ interface TestFixtures {
 async function register(request: APIRequest, baseURL: string | undefined): Promise<Account> {
     await using api = await request.newContext({ baseURL, ignoreHTTPSErrors: true });
     const username = `e2e-${randomUUID()}`;
-    const body: UserCreate = { username, email: `${username}@example.com`, password: randomUUID() };
+    const body: UserCreateWritable = { username, email: `${username}@example.com`, password: randomUUID() };
     const response = await api.post('/api/v1/auth/register', { data: body });
     await expect(response).toBeOK();
     const user = (await response.json()) as UserResponse;

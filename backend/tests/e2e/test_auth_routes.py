@@ -2,6 +2,7 @@ import uuid
 
 import pytest
 from httpx2 import AsyncClient
+from pydantic import SecretStr
 
 from app.domain.enums import UserRole
 from app.schemas_pydantic.user import (
@@ -19,11 +20,14 @@ class TestAuthLogin:
 
     async def test_login_success(self, client: AsyncClient, new_user_request: UserCreate) -> None:
         """Login with valid credentials returns LoginResponse."""
-        await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
+        await client.post(
+            "/api/v1/auth/register",
+            json=new_user_request.model_dump(mode="json") | {"password": new_user_request.password.get_secret_value()},
+        )
 
         response = await client.post(
             "/api/v1/auth/login",
-            data={"username": new_user_request.username, "password": new_user_request.password},
+            data={"username": new_user_request.username, "password": new_user_request.password.get_secret_value()},
         )
 
         assert response.status_code == 200
@@ -38,7 +42,10 @@ class TestAuthLogin:
 
     async def test_login_invalid_password(self, client: AsyncClient, new_user_request: UserCreate) -> None:
         """Invalid password returns 401 with error detail."""
-        await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
+        await client.post(
+            "/api/v1/auth/register",
+            json=new_user_request.model_dump(mode="json") | {"password": new_user_request.password.get_secret_value()},
+        )
 
         # Login with wrong password
         response = await client.post(
@@ -69,14 +76,17 @@ class TestAuthLogin:
         self, client: AsyncClient, test_admin: AsyncClient, new_user_request: UserCreate
     ) -> None:
         """Deactivated account returns 403 even with the right password."""
-        created = await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
+        created = await client.post(
+            "/api/v1/auth/register",
+            json=new_user_request.model_dump(mode="json") | {"password": new_user_request.password.get_secret_value()},
+        )
         user_id = created.json()["user_id"]
         deactivated = await test_admin.put(f"/api/v1/admin/users/{user_id}", json={"is_active": False})
         assert deactivated.status_code == 200
 
         response = await client.post(
             "/api/v1/auth/login",
-            data={"username": new_user_request.username, "password": new_user_request.password},
+            data={"username": new_user_request.username, "password": new_user_request.password.get_secret_value()},
         )
 
         assert response.status_code == 403
@@ -91,7 +101,10 @@ class TestAuthRegister:
 
     async def test_register_success(self, client: AsyncClient, new_user_request: UserCreate) -> None:
         """Register new user returns UserResponse with all fields."""
-        response = await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
+        response = await client.post(
+            "/api/v1/auth/register",
+            json=new_user_request.model_dump(mode="json") | {"password": new_user_request.password.get_secret_value()},
+        )
 
         assert response.status_code == 200
         result = UserResponse.model_validate(response.json())
@@ -105,32 +118,44 @@ class TestAuthRegister:
 
     async def test_register_duplicate_username(self, client: AsyncClient, new_user_request: UserCreate) -> None:
         """Duplicate username returns 409."""
-        await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
+        await client.post(
+            "/api/v1/auth/register",
+            json=new_user_request.model_dump(mode="json") | {"password": new_user_request.password.get_secret_value()},
+        )
 
         # Try same username with different email
         second_request = UserCreate(
             username=new_user_request.username,
             email=f"other_{uuid.uuid4().hex[:8]}@test.com",
-            password="Pass123!",
+            password=SecretStr("Pass123!"),
             role=UserRole.USER,
         )
-        response = await client.post("/api/v1/auth/register", json=second_request.model_dump())
+        response = await client.post(
+            "/api/v1/auth/register",
+            json=second_request.model_dump(mode="json") | {"password": second_request.password.get_secret_value()},
+        )
 
         assert response.status_code == 409
         assert response.json()["detail"] == "Username already registered"
 
     async def test_register_duplicate_email(self, client: AsyncClient, new_user_request: UserCreate) -> None:
         """Duplicate email returns 409."""
-        await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
+        await client.post(
+            "/api/v1/auth/register",
+            json=new_user_request.model_dump(mode="json") | {"password": new_user_request.password.get_secret_value()},
+        )
 
         # Try same email with different username
         second_request = UserCreate(
             username=f"other_{uuid.uuid4().hex[:8]}",
             email=new_user_request.email,
-            password="Pass123!",
+            password=SecretStr("Pass123!"),
             role=UserRole.USER,
         )
-        response = await client.post("/api/v1/auth/register", json=second_request.model_dump())
+        response = await client.post(
+            "/api/v1/auth/register",
+            json=second_request.model_dump(mode="json") | {"password": second_request.password.get_secret_value()},
+        )
 
         assert response.status_code == 409
         assert response.json()["detail"] == "Email already registered"
@@ -161,7 +186,10 @@ class TestAuthRegister:
         )
 
         assert response.status_code == 422
-        assert response.json() == {"status": 422, "detail": "password: String should have at least 8 characters"}
+        assert response.json() == {
+            "status": 422,
+            "detail": "password: Value should have at least 8 items after validation, not 5",
+        }
 
 
 class TestAuthMe:

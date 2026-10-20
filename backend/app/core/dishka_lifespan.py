@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger: structlog.stdlib.BoundLogger = await container.get(structlog.stdlib.BoundLogger)
 
     # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes)
-    client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True)
+    client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL.get_secret_value(), tz_aware=True)
     database = client.get_default_database(default=settings.MONGO_DB)
     await init_beanie(database=database, document_models=ALL_DOCUMENTS)
     logger.info("MongoDB initialized via Beanie")

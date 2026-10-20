@@ -7,7 +7,7 @@ import { toast } from 'svelte-sonner';
 import * as navigation from '$app/navigation';
 import Register from '#routes/register/+page.svelte';
 
-import { registerApiV1AuthRegisterPost, zUserCreate } from '#lib/api/index.ts';
+import { registerApiV1AuthRegisterPost, zUserCreateWritable } from '#lib/api/index.ts';
 import { queryClient } from '#lib/query-client.ts';
 
 describe('Register', () => {
@@ -42,7 +42,7 @@ describe('Register', () => {
             password: 'short',
             confirmPassword: 'short',
             field: 'Password',
-            expectedError: `Must be at least ${z.toJSONSchema(zUserCreate.shape.password).minLength} characters`,
+            expectedError: `Must be at least ${z.toJSONSchema(zUserCreateWritable.shape.password).minLength} characters`,
         },
     ])('shows $name under the field and sends nothing', async ({ password, confirmPassword, field, expectedError }) => {
         renderWithQueryClient(Register);

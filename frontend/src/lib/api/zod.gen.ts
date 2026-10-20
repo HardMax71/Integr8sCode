@@ -2325,8 +2325,7 @@ export const zUserCreate = z.object({
     username: z.string(),
     email: z.email(),
     role: z._default(z.optional(zUserRole), 'user'),
-    is_active: z._default(z.optional(z.boolean()), true),
-    password: z.string().check(z.minLength(8))
+    is_active: z._default(z.optional(z.boolean()), true)
 });
 
 /**
@@ -2416,7 +2415,7 @@ export const zUserUpdate = z.object({
     email: z.nullish(z.email()),
     role: z.nullish(zUserRole),
     is_active: z.nullish(z.boolean()),
-    password: z.nullish(z.string().check(z.minLength(8)))
+    password: z.optional(z.null())
 });
 
 /**
@@ -2681,6 +2680,32 @@ export const zSessionSummaryWritable = z.object({
     completed_at: z.nullable(z.iso.datetime())
 });
 
+/**
+ * UserCreate
+ *
+ * Model for creating a new user
+ */
+export const zUserCreateWritable = z.object({
+    username: z.string(),
+    email: z.email(),
+    role: z._default(z.optional(zUserRole), 'user'),
+    is_active: z._default(z.optional(z.boolean()), true),
+    password: z.string().check(z.minLength(8))
+});
+
+/**
+ * UserUpdate
+ *
+ * Model for updating a user
+ */
+export const zUserUpdateWritable = z.object({
+    username: z.nullish(z.string()),
+    email: z.nullish(z.email()),
+    role: z.nullish(zUserRole),
+    is_active: z.nullish(z.boolean()),
+    password: z.nullish(z.string().check(z.minLength(8)))
+});
+
 export const zLoginApiV1AuthLoginPostBody = zBodyLoginApiV1AuthLoginPost;
 
 /**
@@ -2688,7 +2713,7 @@ export const zLoginApiV1AuthLoginPostBody = zBodyLoginApiV1AuthLoginPost;
  */
 export const zLoginApiV1AuthLoginPostResponse = zLoginResponse;
 
-export const zRegisterApiV1AuthRegisterPostBody = zUserCreate;
+export const zRegisterApiV1AuthRegisterPostBody = zUserCreateWritable;
 
 /**
  * Successful Response
@@ -3147,7 +3172,7 @@ export const zListUsersApiV1AdminUsersGetQuery = z.object({
  */
 export const zListUsersApiV1AdminUsersGetResponse = zUserListResponse;
 
-export const zCreateUserApiV1AdminUsersPostBody = zUserCreate;
+export const zCreateUserApiV1AdminUsersPostBody = zUserCreateWritable;
 
 /**
  * Successful Response
@@ -3176,7 +3201,7 @@ export const zGetUserApiV1AdminUsersUserIdGetPath = z.object({
  */
 export const zGetUserApiV1AdminUsersUserIdGetResponse = zUserResponse;
 
-export const zUpdateUserApiV1AdminUsersUserIdPutBody = zUserUpdate;
+export const zUpdateUserApiV1AdminUsersUserIdPutBody = zUserUpdateWritable;
 
 export const zUpdateUserApiV1AdminUsersUserIdPutPath = z.object({
     user_id: z.string()

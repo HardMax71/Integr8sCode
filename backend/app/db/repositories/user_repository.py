@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import structlog
 from beanie.odm.operators.find import BaseFindOperator
 from beanie.operators import Eq, In, NotIn, Or, RegEx
+from pydantic import SecretStr
 from pymongo.errors import DuplicateKeyError
 
 from app.db.docs import (
@@ -128,7 +129,7 @@ class UserRepository:
             sagas=sagas_result.deleted_count if sagas_result else 0,
         )
 
-    async def reset_user_password(self, user_id: str, hashed_password: str) -> bool:
+    async def reset_user_password(self, user_id: str, hashed_password: SecretStr) -> bool:
         doc = await UserDocument.find_one(UserDocument.user_id == user_id)
         if not doc:
             return False

@@ -7,6 +7,7 @@ import pytest
 import structlog
 from opentelemetry.instrumentation.logging.handler import LoggingHandler
 from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter, SimpleLogRecordProcessor
+from pydantic import SecretStr
 from pymongo.logger import LogMessage
 
 from app.core.logging import (
@@ -15,6 +16,9 @@ from app.core.logging import (
     setup_log_exporter,
     setup_logger,
 )
+from app.db.docs import UserDocument
+from app.domain.enums import UserRole
+from app.domain.user import LoginResult
 from app.settings import Settings
 
 _EMAIL = "john.doe@example.com"
@@ -310,3 +314,33 @@ class TestStdlibRecordRedaction:
         assert logging.getLogger("pymongo.command").getEffectiveLevel() == expected_level
         assert logging.getLogger("aiokafka.conn").getEffectiveLevel() == expected_level
         assert "find users" not in capsys.readouterr().err
+
+
+class TestTypedSecrets:
+    """Secrets are SecretStr, so they stay masked however deep a log call nests them."""
+
+    def test_nested_secrets_stay_masked(self, test_settings: Settings, capsys: pytest.CaptureFixture[str]) -> None:
+        user = UserDocument(username="alice", email="alice@example.com", hashed_password="$2b$04$nested.hash.value")
+        login = LoginResult(
+            username="alice",
+            role=UserRole.USER,
+            access_token=SecretStr("eyJ.nested.access"),
+            csrf_token=SecretStr("nonce.nested.csrf"),
+            session_timeout_minutes=60,
+        )
+
+        setup_logger("INFO").info(
+            "Nested secrets", context={"users": [user], "login": login, "settings": test_settings}
+        )
+
+        line = next(line for line in capsys.readouterr().err.splitlines() if "Nested secrets" in line)
+        secrets = [
+            "$2b$04$nested.hash.value",
+            "eyJ.nested.access",
+            "nonce.nested.csrf",
+            test_settings.SECRET_KEY.get_secret_value(),
+            test_settings.MONGO_PASSWORD.get_secret_value(),
+            test_settings.REDIS_PASSWORD.get_secret_value(),
+        ]
+        assert [secret for secret in secrets if secret in line] == []
+        assert line.count("**********") >= 6

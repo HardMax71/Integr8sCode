@@ -11,6 +11,7 @@ from beanie.operators import In
 from dishka import AsyncContainer
 from fastapi import FastAPI
 from httpx2 import AsyncClient
+from pydantic import SecretStr
 from starlette.types import ASGIApp, Message, Scope
 
 from app.core.security import SecurityService
@@ -33,6 +34,7 @@ from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from app.schemas_pydantic.notification import NotificationListResponse, NotificationResponse
 from app.schemas_pydantic.saga import SagaStatusResponse
 from app.schemas_pydantic.saved_script import SavedScriptCreateRequest
+from app.schemas_pydantic.user import UserCreate
 from app.services.admin import AdminUserService
 from app.services.event_replay import EventReplayService
 from app.services.event_service import EventService
@@ -285,27 +287,27 @@ def error_execution_request() -> ExecutionRequest:
 
 
 @pytest.fixture
-def new_user_request() -> dict[str, str]:
-    """Unique user registration body, as a client sends it; a dumped UserCreate would hide the password."""
+def new_user_request() -> UserCreate:
+    """Unique user registration request."""
     uid = uuid.uuid4().hex[:8]
-    return {
-        "username": f"user_{uid}",
-        "email": f"user_{uid}@test.com",
-        "password": "SecurePass123!",
-        "role": UserRole.USER,
-    }
+    return UserCreate(
+        username=f"user_{uid}",
+        email=f"user_{uid}@test.com",
+        password=SecretStr("SecurePass123!"),
+        role=UserRole.USER,
+    )
 
 
 @pytest.fixture
-def new_admin_request() -> dict[str, str]:
-    """Unique admin registration body, as a client sends it."""
+def new_admin_request() -> UserCreate:
+    """Unique admin registration request."""
     uid = uuid.uuid4().hex[:8]
-    return {
-        "username": f"admin_{uid}",
-        "email": f"admin_{uid}@test.com",
-        "password": "SecurePass123!",
-        "role": UserRole.ADMIN,
-    }
+    return UserCreate(
+        username=f"admin_{uid}",
+        email=f"admin_{uid}@test.com",
+        password=SecretStr("SecurePass123!"),
+        role=UserRole.ADMIN,
+    )
 
 
 @pytest.fixture

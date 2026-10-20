@@ -5,8 +5,8 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends
 
 from app.api.dependencies import admin_user
+from app.db.docs import UserDocument
 from app.domain.rate_limit import RateLimitConfig, RateLimitRule, UserRateLimitUpdate
-from app.domain.user import User
 from app.schemas_pydantic.user import (
     MessageResponse,
     RateLimitRuleResponse,
@@ -33,7 +33,7 @@ async def get_default_rate_limit_rules() -> list[RateLimitRuleResponse]:
 
 @router.get("/{user_id}", response_model=UserRateLimitsResponse)
 async def get_user_rate_limits(
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],
     user_id: str,
 ) -> UserRateLimitsResponse:
@@ -44,7 +44,7 @@ async def get_user_rate_limits(
 
 @router.put("/{user_id}", response_model=RateLimitUpdateResponse)
 async def update_user_rate_limits(
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],
     user_id: str,
     request: RateLimitUpdateRequest,
@@ -61,7 +61,7 @@ async def update_user_rate_limits(
 
 @router.post("/{user_id}/reset")
 async def reset_user_rate_limits(
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],
     user_id: str,
 ) -> MessageResponse:

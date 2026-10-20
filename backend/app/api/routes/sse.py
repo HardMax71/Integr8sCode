@@ -7,7 +7,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.api.dependencies import current_user
 from app.api.routes.common import SSEResponse
-from app.domain.user import User
+from app.db.docs import UserDocument
 from app.schemas_pydantic.notification import NotificationResponse
 from app.schemas_pydantic.sse import SSEExecutionEventSchema
 from app.services.sse import SSEService
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/events", tags=["sse"], route_class=DishkaRoute)
     responses={200: {"model": NotificationResponse}},
 )
 async def notification_stream(
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     sse_service: FromDishka[SSEService],
 ) -> EventSourceResponse:
     """Stream notifications for authenticated user."""
@@ -38,7 +38,7 @@ async def notification_stream(
 )
 async def execution_events(
     execution_id: str,
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     sse_service: FromDishka[SSEService],
 ) -> EventSourceResponse:
     """Stream events for specific execution."""

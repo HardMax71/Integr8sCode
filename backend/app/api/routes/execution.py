@@ -8,9 +8,9 @@ from opentelemetry import trace
 
 from app.api.dependencies import admin_user, current_user
 from app.core.utils import get_client_ip
+from app.db.docs import UserDocument
 from app.domain.enums import EventType, ExecutionStatus
 from app.domain.events import DomainEvent
-from app.domain.user import User
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
@@ -33,7 +33,7 @@ router = APIRouter(route_class=DishkaRoute, tags=["execution"])
 @inject
 async def get_execution_with_access(
     execution_id: Annotated[str, Path()],
-    current_user: Annotated[User, Depends(current_user)],
+    current_user: Annotated[UserDocument, Depends(current_user)],
     execution_service: FromDishka[ExecutionService],
 ) -> ExecutionInDB:
     domain_exec = await execution_service.get_execution_for_user(execution_id, current_user)
@@ -54,7 +54,7 @@ async def get_execution_with_access(
 )
 async def create_execution(
     request: Request,
-    current_user: Annotated[User, Depends(current_user)],
+    current_user: Annotated[UserDocument, Depends(current_user)],
     execution: ExecutionRequest,
     execution_service: FromDishka[ExecutionService],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
@@ -108,7 +108,7 @@ async def get_result(
 )
 async def cancel_execution(
     execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
-    current_user: Annotated[User, Depends(current_user)],
+    current_user: Annotated[UserDocument, Depends(current_user)],
     cancel_request: CancelExecutionRequest,
     execution_service: FromDishka[ExecutionService],
 ) -> CancelResponse:
@@ -135,7 +135,7 @@ async def cancel_execution(
 )
 async def retry_execution(
     execution_id: Annotated[str, Path()],
-    current_user: Annotated[User, Depends(current_user)],
+    current_user: Annotated[UserDocument, Depends(current_user)],
     execution_service: FromDishka[ExecutionService],
 ) -> ExecutionResponse:
     """Retry a failed or completed execution."""
@@ -166,7 +166,7 @@ async def get_execution_events(
 
 @router.get("/user/executions", response_model=ExecutionListResponse)
 async def get_user_executions(
-    current_user: Annotated[User, Depends(current_user)],
+    current_user: Annotated[UserDocument, Depends(current_user)],
     execution_service: FromDishka[ExecutionService],
     status: Annotated[ExecutionStatus | None, Query(description="Filter by execution status")] = None,
     lang: Annotated[str | None, Query(description="Filter by programming language")] = None,
@@ -219,7 +219,7 @@ async def get_k8s_resource_limits(
 @router.delete("/executions/{execution_id}", response_model=DeleteResponse)
 async def delete_execution(
     execution_id: str,
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     execution_service: FromDishka[ExecutionService],
 ) -> DeleteResponse:
     """Delete an execution and its associated data (admin only)."""

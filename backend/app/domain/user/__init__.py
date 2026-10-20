@@ -19,16 +19,11 @@ from .settings_models import (
     DomainUserSettingsUpdate,
 )
 from .user_models import (
-    DomainUserCreate,
-    DomainUserUpdate,
     LoginResult,
-    PasswordReset,
-    User,
+    UserChanges,
     UserDeleteResult,
     UserFields,
     UserFilterType,
-    UserListResult,
-    UserUpdate,
 )
 
 __all__ = [
@@ -40,21 +35,16 @@ __all__ = [
     "DomainEditorSettings",
     "DomainNotificationSettings",
     "DomainSettingsHistoryEntry",
-    "DomainUserCreate",
     "DomainUserSettings",
     "DomainUserSettingsChangedEvent",
     "DomainUserSettingsUpdate",
-    "DomainUserUpdate",
     "InvalidCredentialsError",
     "LoginResult",
-    "PasswordReset",
     "SelfDeletionError",
-    "User",
+    "UserChanges",
     "UserDeleteResult",
     "UserFields",
     "UserFilterType",
-    "UserListResult",
     "UserNotFoundError",
     "UserRole",
-    "UserUpdate",
 ]

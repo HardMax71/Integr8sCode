@@ -8,6 +8,7 @@ from opentelemetry.util.types import AttributeValue
 
 from app.core.security import SecurityService
 from app.db import UserRepository
+from app.db.docs import UserDocument
 from app.domain.enums import LoginMethod, UserRole
 from app.domain.events import (
     AuthFailedEvent,
@@ -21,10 +22,8 @@ from app.domain.user import (
     AccountDeactivatedError,
     AdminAccessRequiredError,
     AuthenticationRequiredError,
-    DomainUserCreate,
     InvalidCredentialsError,
     LoginResult,
-    User,
 )
 from app.events import UnifiedProducer
 from app.services.login_lockout import LoginLockoutService
@@ -67,7 +66,7 @@ class AuthService:
             user_id=user_id,
         )
 
-    async def get_current_user(self, request: Request) -> User:
+    async def get_current_user(self, request: Request) -> UserDocument:
         token = request.cookies.get("access_token")
         if not token:
             raise AuthenticationRequiredError()
@@ -83,7 +82,7 @@ class AuthService:
 
         return user
 
-    async def get_admin(self, request: Request) -> User:
+    async def get_admin(self, request: Request) -> UserDocument:
         user = await self.get_current_user(request)
         attributes: dict[str, AttributeValue] = {
             "auth.resource": "/admin",
@@ -205,7 +204,7 @@ class AuthService:
         password: str,
         ip_address: str,
         user_agent: str | None,
-    ) -> User:
+    ) -> UserDocument:
         effective = await self._runtime_settings.get_effective_settings()
         min_len = effective.password_min_length
         if len(password) < min_len:
@@ -232,16 +231,15 @@ class AuthService:
             )
             raise ConflictError("Email already registered")
 
-        hashed_password = self.security_service.get_password_hash(password)
-        create_data = DomainUserCreate(
+        created_user = UserDocument(
             username=username,
             email=email,
-            hashed_password=hashed_password,
+            hashed_password=self.security_service.get_password_hash(password),
             role=UserRole.USER,
             is_active=True,
             is_superuser=False,
         )
-        created_user = await self.user_repo.create_user(create_data)
+        await self.user_repo.create_user(created_user)
 
         self.logger.info(
             "Registration successful",

@@ -1,10 +1,4 @@
-from __future__ import annotations
-
-from dataclasses import dataclass, field
-
-from app.domain.events import DomainEvent, EventStatistics
-from app.domain.rate_limit import UserRateLimitSummary
-from app.domain.user import User as DomainAdminUser
+from dataclasses import dataclass
 
 
 @dataclass
@@ -14,12 +8,3 @@ class DerivedCountsDomain:
     timeout: int = 0
     cancelled: int = 0
     terminal_total: int = 0
-
-
-@dataclass
-class AdminUserOverviewDomain:
-    user: DomainAdminUser
-    stats: EventStatistics
-    derived_counts: DerivedCountsDomain
-    rate_limit_summary: UserRateLimitSummary
-    recent_events: list[DomainEvent] = field(default_factory=list)

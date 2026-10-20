@@ -7,8 +7,8 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import TypeAdapter, ValidationError
 
 from app.api.dependencies import current_user
+from app.db.docs import UserDocument
 from app.domain.saved_script import SavedScriptChanges
-from app.domain.user import User
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.saved_script import (
     SavedScriptCreateRequest,
@@ -30,7 +30,7 @@ _saved_script_changes = TypeAdapter(SavedScriptChanges)
 
 @router.post("/scripts", response_model=SavedScriptResponse, responses={422: _RUNTIME_NOT_OFFERED})
 async def create_saved_script(
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     saved_script: SavedScriptCreateRequest,
     saved_script_service: FromDishka[SavedScriptService],
 ) -> SavedScriptResponse:
@@ -48,7 +48,7 @@ async def create_saved_script(
 
 @router.get("/scripts", response_model=SavedScriptListResponse)
 async def list_saved_scripts(
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     saved_script_service: FromDishka[SavedScriptService],
 ) -> SavedScriptListResponse:
     """List all saved scripts for the authenticated user."""
@@ -63,7 +63,7 @@ async def list_saved_scripts(
 )
 async def get_saved_script(
     script_id: str,
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     saved_script_service: FromDishka[SavedScriptService],
 ) -> SavedScriptResponse:
     """Get a saved script by ID."""
@@ -79,7 +79,7 @@ async def get_saved_script(
 async def update_saved_script(
     script_id: str,
     script_update: SavedScriptUpdate,
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     saved_script_service: FromDishka[SavedScriptService],
 ) -> SavedScriptResponse:
     """Update an existing saved script."""
@@ -98,7 +98,7 @@ async def update_saved_script(
 )
 async def delete_saved_script(
     script_id: str,
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     saved_script_service: FromDishka[SavedScriptService],
 ) -> None:
     """Delete a saved script."""

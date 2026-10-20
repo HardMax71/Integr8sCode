@@ -3,11 +3,13 @@ from typing import Annotated
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, Query
+from fastapi.exceptions import RequestValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from app.api.dependencies import admin_user
+from app.db.docs import UserDocument
 from app.domain.enums import UserRole
-from app.domain.user import User
-from app.domain.user import UserUpdate as UserUpdateDomain
+from app.domain.user import UserChanges
 from app.schemas_pydantic.admin_user_overview import AdminUserOverview
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.user import (
@@ -27,10 +29,12 @@ router = APIRouter(
     prefix="/admin/users", tags=["admin", "users"], route_class=DishkaRoute, dependencies=[Depends(admin_user)]
 )
 
+_user_changes = TypeAdapter(UserChanges)
+
 
 @router.get("/", response_model=UserListResponse)
 async def list_users(
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],
     limit: Annotated[int, Query(ge=1, le=1000)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -64,7 +68,7 @@ async def list_users(
     responses={409: {"model": ErrorResponse, "description": "Username already exists"}},
 )
 async def create_user(
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     user_data: UserCreate,
     admin_user_service: FromDishka[AdminUserService],
 ) -> UserResponse:
@@ -86,7 +90,7 @@ async def create_user(
     responses={404: {"model": ErrorResponse, "description": "User not found"}},
 )
 async def get_user(
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     user_id: str,
     admin_user_service: FromDishka[AdminUserService],
 ) -> UserResponse:
@@ -101,7 +105,7 @@ async def get_user(
     responses={404: {"model": ErrorResponse, "description": "User not found"}},
 )
 async def get_user_overview(
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     user_id: str,
     admin_user_service: FromDishka[AdminUserService],
 ) -> AdminUserOverview:
@@ -119,16 +123,18 @@ async def get_user_overview(
     },
 )
 async def update_user(
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     user_id: str,
     user_update: UserUpdate,
     admin_user_service: FromDishka[AdminUserService],
 ) -> UserResponse:
     """Update a user's profile fields."""
-    domain_update = UserUpdateDomain(**user_update.model_dump())
-
+    try:
+        changes = _user_changes.validate_python(user_update.model_dump(exclude_unset=True, exclude={"password"}))
+    except ValidationError as e:
+        raise RequestValidationError(e.errors()) from e
     updated_user = await admin_user_service.update_user(
-        admin_user_id=admin.user_id, user_id=user_id, update=domain_update
+        admin_user_id=admin.user_id, user_id=user_id, changes=changes, password=user_update.password
     )
     return UserResponse.model_validate(updated_user)
 
@@ -142,7 +148,7 @@ async def update_user(
     },
 )
 async def delete_user(
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     user_id: str,
     admin_user_service: FromDishka[AdminUserService],
     cascade: Annotated[bool, Query(description="Cascade delete user's data")] = True,
@@ -158,7 +164,7 @@ async def delete_user(
     responses={404: {"model": ErrorResponse, "description": "User not found"}},
 )
 async def reset_user_password(
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],
     user_id: str,
     password_request: PasswordResetRequest,
@@ -176,7 +182,7 @@ async def reset_user_password(
     responses={404: {"model": ErrorResponse, "description": "User not found"}},
 )
 async def unlock_user(
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     user_id: str,
     admin_user_service: FromDishka[AdminUserService],
     lockout_service: FromDishka[LoginLockoutService],

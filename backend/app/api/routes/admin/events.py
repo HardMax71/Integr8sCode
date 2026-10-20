@@ -10,10 +10,10 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.api.dependencies import admin_user
 from app.api.routes.common import SSEResponse
+from app.db.docs import UserDocument
 from app.domain.enums import EventType, ExportFormat
 from app.domain.events import EventFilter as DomainEventFilter
 from app.domain.replay import ReplayFilter
-from app.domain.user import User
 from app.schemas_pydantic.admin_events import (
     EventBrowseRequest,
     EventBrowseResponse,
@@ -150,7 +150,7 @@ async def stream_replay_status(
 
 @router.delete("/{event_id}", responses={404: {"model": ErrorResponse, "description": "Event not found"}})
 async def delete_event(
-    event_id: str, admin: Annotated[User, Depends(admin_user)], service: FromDishka[AdminEventsService]
+    event_id: str, admin: Annotated[UserDocument, Depends(admin_user)], service: FromDishka[AdminEventsService]
 ) -> EventDeleteResponse:
     """Delete and archive an event by ID."""
     await service.delete_event(event_id=event_id, deleted_by=admin.email)

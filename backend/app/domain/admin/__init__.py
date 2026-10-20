@@ -1,7 +1,4 @@
-from .overview_models import (
-    AdminUserOverviewDomain,
-    DerivedCountsDomain,
-)
+from .overview_models import DerivedCountsDomain
 from .replay_models import (
     ExecutionResultSummary,
     ReplaySessionData,
@@ -17,7 +14,6 @@ from .settings_models import (
 
 __all__ = [
     # Overview
-    "AdminUserOverviewDomain",
     "DerivedCountsDomain",
     # Settings
     "AuditAction",

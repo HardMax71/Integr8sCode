@@ -5,8 +5,8 @@ import pytest
 import structlog
 
 from app.db import UserRepository
+from app.db.repositories.user_repository import UserListResult
 from app.domain.rate_limit import UserRateLimitSummary
-from app.domain.user import UserListResult
 from app.services.admin import AdminUserService
 from app.services.rate_limit_service import RateLimitService
 

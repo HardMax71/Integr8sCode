@@ -8,6 +8,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from app.core.exceptions.handlers import _map_to_status_code
 from app.db import ExecutionRepository
+from app.db.docs import UserDocument
 from app.domain.admin import SystemSettings
 from app.domain.enums import EventType, ExecutionStatus, UserRole
 from app.domain.exceptions import ConflictError, InfrastructureError
@@ -19,7 +20,6 @@ from app.domain.execution import (
     RuntimeNotSupportedError,
 )
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
-from app.domain.user import User
 from app.events import UnifiedProducer
 from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION, POD_RUNTIME_CONFIGS
 from app.services.execution_queue import ExecutionQueueService
@@ -32,9 +32,9 @@ from tests.unit.conftest import make_execution
 pytestmark = pytest.mark.unit
 
 
-def _user(user_id: str) -> User:
+def _user(user_id: str) -> UserDocument:
     now = datetime.now(timezone.utc)
-    return User(
+    return UserDocument(
         user_id=user_id,
         username=user_id,
         email=f"{user_id}@example.com",

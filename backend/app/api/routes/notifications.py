@@ -7,9 +7,9 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import TypeAdapter, ValidationError
 
 from app.api.dependencies import current_user
+from app.db.docs import UserDocument
 from app.domain.enums import NotificationChannel, NotificationStatus
 from app.domain.notification import SubscriptionChanges
-from app.domain.user import User
 from app.schemas_pydantic.notification import (
     DeleteNotificationResponse,
     NotificationListResponse,
@@ -27,7 +27,7 @@ _subscription_changes = TypeAdapter(SubscriptionChanges)
 
 @router.get("", response_model=NotificationListResponse)
 async def get_notifications(
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     notification_service: FromDishka[NotificationService],
     status: Annotated[NotificationStatus | None, Query()] = None,
     include_tags: Annotated[list[str] | None, Query(description="Only notifications with any of these tags")] = None,
@@ -54,7 +54,7 @@ async def get_notifications(
 @router.put("/{notification_id}/read", status_code=204)
 async def mark_notification_read(
     notification_id: str,
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     notification_service: FromDishka[NotificationService],
 ) -> Response:
     """Mark a single notification as read."""
@@ -64,7 +64,7 @@ async def mark_notification_read(
 
 @router.post("/mark-all-read", status_code=204)
 async def mark_all_read(
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     notification_service: FromDishka[NotificationService],
 ) -> Response:
     """Mark all notifications as read."""
@@ -74,7 +74,7 @@ async def mark_all_read(
 
 @router.get("/subscriptions", response_model=SubscriptionsResponse)
 async def get_subscriptions(
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     notification_service: FromDishka[NotificationService],
 ) -> SubscriptionsResponse:
     """Get all notification channel subscriptions for the authenticated user."""
@@ -88,7 +88,7 @@ async def get_subscriptions(
 async def update_subscription(
     channel: NotificationChannel,
     subscription: SubscriptionUpdate,
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     notification_service: FromDishka[NotificationService],
 ) -> NotificationSubscription:
     """Update subscription settings for a notification channel."""
@@ -106,7 +106,7 @@ async def update_subscription(
 
 @router.get("/unread-count", response_model=UnreadCountResponse)
 async def get_unread_count(
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     notification_service: FromDishka[NotificationService],
 ) -> UnreadCountResponse:
     """Get the count of unread notifications."""
@@ -117,7 +117,7 @@ async def get_unread_count(
 @router.delete("/{notification_id}", response_model=DeleteNotificationResponse)
 async def delete_notification(
     notification_id: str,
-    user: Annotated[User, Depends(current_user)],
+    user: Annotated[UserDocument, Depends(current_user)],
     notification_service: FromDishka[NotificationService],
 ) -> DeleteNotificationResponse:
     """Delete a notification."""

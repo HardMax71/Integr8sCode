@@ -3,11 +3,10 @@ from uuid import uuid4
 
 import pytest
 
-from app.db.docs import ExecutionDocument
+from app.db.docs import ExecutionDocument, UserDocument
 from app.db.repositories import ExecutionRepository, SagaRepository
 from app.domain.enums import SagaState, UserRole
 from app.domain.saga import Saga, SagaAccessDeniedError, SagaContextData, SagaListResult, SagaNotFoundError
-from app.domain.user import User
 from app.services.saga import SagaService
 
 pytestmark = [pytest.mark.e2e]
@@ -16,9 +15,9 @@ pytestmark = [pytest.mark.e2e]
 def make_test_user(
     user_id: str = "test_user_1",
     role: UserRole = UserRole.USER,
-) -> User:
+) -> UserDocument:
     """Create a test user for saga access checks."""
-    return User(
+    return UserDocument(
         user_id=user_id,
         username=user_id,
         email=f"{user_id}@example.com",

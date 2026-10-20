@@ -8,7 +8,7 @@ from opentelemetry import trace
 from pydantic import TypeAdapter
 
 from app.db import ExecutionRepository
-from app.db.docs import ExecutionDocument
+from app.db.docs import ExecutionDocument, UserDocument
 from app.domain.enums import CancelStatus, EventType, ExecutionStatus, QueuePriority, UserRole
 from app.domain.events import (
     BaseEvent,
@@ -29,7 +29,6 @@ from app.domain.execution import (
     RuntimeNotSupportedError,
 )
 from app.domain.idempotency import IdempotencyStatus, KeyStrategy
-from app.domain.user import User
 from app.events import UnifiedProducer
 from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION, RUNTIME_REGISTRY
 from app.services.execution_queue import ExecutionQueueService
@@ -395,7 +394,7 @@ class ExecutionService:
 
         return execution
 
-    async def get_execution_for_user(self, execution_id: str, user: User) -> ExecutionDocument:
+    async def get_execution_for_user(self, execution_id: str, user: UserDocument) -> ExecutionDocument:
         """
         Get an execution the user is allowed to see: their own, or any if they are an admin.
 
@@ -416,7 +415,7 @@ class ExecutionService:
             raise ExecutionAccessDeniedError(execution_id)
         return execution
 
-    async def retry_execution(self, execution_id: str, user: User) -> ExecutionDocument:
+    async def retry_execution(self, execution_id: str, user: UserDocument) -> ExecutionDocument:
         """
         Re-run an execution's script as a new execution owned by the requesting user.
 

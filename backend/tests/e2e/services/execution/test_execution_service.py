@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import pytest
 
 from app.db import ExecutionRepository
-from app.db.docs import ExecutionDocument
+from app.db.docs import ExecutionDocument, UserDocument
 from app.domain.enums import EventType, ExecutionStatus, UserRole
 from app.domain.execution import ResourceLimitsDomain
 from app.domain.execution.exceptions import (
@@ -12,7 +12,6 @@ from app.domain.execution.exceptions import (
     ExecutionNotFoundError,
     ExecutionNotRetryableError,
 )
-from app.domain.user import User
 from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
@@ -20,9 +19,9 @@ from app.services.execution_service import ExecutionService
 pytestmark = [pytest.mark.e2e]
 
 
-def _user(user_id: str, role: UserRole = UserRole.USER) -> User:
+def _user(user_id: str, role: UserRole = UserRole.USER) -> UserDocument:
     now = datetime.now(timezone.utc)
-    return User(
+    return UserDocument(
         user_id=user_id,
         username=user_id,
         email=f"{user_id}@example.com",

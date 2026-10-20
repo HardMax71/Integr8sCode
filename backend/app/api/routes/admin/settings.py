@@ -5,8 +5,8 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends
 
 from app.api.dependencies import admin_user
+from app.db.docs import UserDocument
 from app.domain.admin import SystemSettings
-from app.domain.user import User
 from app.schemas_pydantic.admin_settings import SystemSettingsSchema
 from app.schemas_pydantic.common import ErrorResponse
 from app.services.admin import AdminSettingsService
@@ -22,7 +22,7 @@ router = APIRouter(
     responses={500: {"model": ErrorResponse, "description": "Failed to load system settings"}},
 )
 async def get_system_settings(
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     service: FromDishka[AdminSettingsService],
 ) -> SystemSettingsSchema:
     """Get the current system-wide settings."""
@@ -40,7 +40,7 @@ async def get_system_settings(
     },
 )
 async def update_system_settings(
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     settings: SystemSettingsSchema,
     service: FromDishka[AdminSettingsService],
 ) -> SystemSettingsSchema:
@@ -56,7 +56,7 @@ async def update_system_settings(
     responses={500: {"model": ErrorResponse, "description": "Failed to reset settings"}},
 )
 async def reset_system_settings(
-    admin: Annotated[User, Depends(admin_user)],
+    admin: Annotated[UserDocument, Depends(admin_user)],
     service: FromDishka[AdminSettingsService],
 ) -> SystemSettingsSchema:
     """Reset system-wide settings to defaults."""

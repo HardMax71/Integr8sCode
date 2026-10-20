@@ -51,16 +51,15 @@ class AllocateResourcesStep(SagaStep[ExecutionRequestedEvent]):
         if active_count >= 100:
             raise ValueError("Resource limit exceeded")
 
-        allocation = await self.alloc_repo.create_allocation(
-            ResourceAllocationDocument(
-                execution_id=execution_id,
-                language=event.language,
-                cpu_request=event.cpu_request,
-                memory_request=event.memory_request,
-                cpu_limit=event.cpu_limit,
-                memory_limit=event.memory_limit,
-            )
+        allocation = ResourceAllocationDocument(
+            execution_id=execution_id,
+            language=event.language,
+            cpu_request=event.cpu_request,
+            memory_request=event.memory_request,
+            cpu_limit=event.cpu_limit,
+            memory_limit=event.memory_limit,
         )
+        await self.alloc_repo.create_allocation(allocation)
 
         context.set("allocation_id", allocation.allocation_id)
         context.set("resources_allocated", True)

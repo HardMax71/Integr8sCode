@@ -7,7 +7,7 @@ from app.db.docs.event import (
     EventArchiveDocument,
     EventDocument,
 )
-from app.db.docs.execution import ExecutionDocument, ResourceUsage
+from app.db.docs.execution import ExecutionDocument
 from app.db.docs.notification import (
     NotificationDocument,
     NotificationSubscriptionDocument,
@@ -49,7 +49,6 @@ __all__ = [
     "UserDocument",
     # Execution
     "ExecutionDocument",
-    "ResourceUsage",
     # Saved Script
     "SavedScriptDocument",
     # Notification

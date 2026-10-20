@@ -15,9 +15,8 @@ class ResourceAllocationRepository:
             ResourceAllocationDocument.language == language,
         ).count()
 
-    async def create_allocation(self, allocation: ResourceAllocationDocument) -> ResourceAllocationDocument:
+    async def create_allocation(self, allocation: ResourceAllocationDocument) -> None:
         await allocation.insert()
-        return allocation
 
     async def release_allocation(self, allocation_id: str) -> bool:
         doc = await ResourceAllocationDocument.find_one(ResourceAllocationDocument.allocation_id == allocation_id)

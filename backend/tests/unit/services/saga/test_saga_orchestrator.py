@@ -101,9 +101,8 @@ class _FakeAlloc(ResourceAllocationRepository):
     async def count_active(self, language: str) -> int:
         return 0
 
-    async def create_allocation(self, allocation: ResourceAllocationDocument) -> ResourceAllocationDocument:
+    async def create_allocation(self, allocation: ResourceAllocationDocument) -> None:
         self.allocations.append(allocation)
-        return allocation
 
     async def release_allocation(self, allocation_id: str) -> bool:
         return True

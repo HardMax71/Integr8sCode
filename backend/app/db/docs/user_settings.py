@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from beanie import Document, Indexed
 from pydantic import BaseModel, ConfigDict, Field
@@ -43,7 +43,7 @@ class UserSettingsDocument(Document):
     Copied from UserSettings schema.
     """
 
-    user_id: Indexed(str, unique=True)  # type: ignore[valid-type]
+    user_id: Annotated[str, Indexed(unique=True)]
     theme: Theme = Theme.SYSTEM
     timezone: str = "UTC"
     date_format: str = "YYYY-MM-DD"

@@ -371,13 +371,15 @@ class UserResponse(BaseModel):
 ## Backend: Beanie ODM (MongoDB)
 
 ```python
+from typing import Annotated
+
 from beanie import Document, Indexed
 from pydantic import ConfigDict, Field
 
 class UserDocument(Document):
-    username: Indexed(str, unique=True)  # type: ignore[valid-type]
-    email: Indexed(EmailStr, unique=True)  # type: ignore[valid-type]
-    user_id: Indexed(str, unique=True) = Field(default_factory=lambda: str(uuid4()))  # type: ignore[valid-type]
+    username: Annotated[str, Indexed(unique=True)]
+    email: Annotated[EmailStr, Indexed(unique=True)]
+    user_id: Annotated[str, Indexed(unique=True)] = Field(default_factory=lambda: str(uuid4()))
     role: UserRole = UserRole.USER
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -390,7 +392,7 @@ class UserDocument(Document):
 
 - Documents in `app/db/docs/`; only top-level collection models extend `Document`
 - Embedded sub-documents use plain `BaseModel` (no `EmbeddedDocument`)
-- `Indexed(type, ...)` requires `# type: ignore[valid-type]` for mypy
+- Indexed fields are `Annotated[type, Indexed(...)]`, so mypy sees the real type; an optional one is `Annotated[type | None, Indexed()]`, since `Indexed(type) | None` creates no index
 - `arbitrary_types_allowed=True` required on Document models
 - Compound indexes via `Settings.indexes = [IndexModel([...])]`
 - Update pattern: `await doc.set({"field": value, "updated_at": now})`

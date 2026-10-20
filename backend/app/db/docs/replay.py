@@ -1,5 +1,6 @@
 import dataclasses
 from datetime import datetime, timezone
+from typing import Annotated
 from uuid import uuid4
 
 from beanie import Document, Indexed
@@ -43,7 +44,7 @@ class ReplaySessionDocument(Document):
     ReplayService and AdminEventsRepository.
     """
 
-    session_id: Indexed(str, unique=True)  # type: ignore[valid-type]
+    session_id: Annotated[str, Indexed(unique=True)]
     config: ReplayConfig
     status: ReplayStatus = ReplayStatus.CREATED  # Indexed via Settings.indexes
 
@@ -52,7 +53,7 @@ class ReplaySessionDocument(Document):
     failed_events: int = 0
     skipped_events: int = 0
 
-    created_at: Indexed(datetime) = Field(default_factory=lambda: datetime.now(timezone.utc))  # type: ignore[valid-type]
+    created_at: Annotated[datetime, Indexed()] = Field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: datetime | None = None
     completed_at: datetime | None = None
     last_event_at: datetime | None = None

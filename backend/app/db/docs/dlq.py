@@ -1,5 +1,6 @@
 import dataclasses
 from datetime import datetime, timezone
+from typing import Annotated
 
 from beanie import Document, Indexed
 from pydantic import ConfigDict, Field
@@ -15,16 +16,16 @@ class DLQMessageDocument(Document):
     model_config = ConfigDict(from_attributes=True)
 
     event: DomainEvent  # Discriminated union - contains event_id, event_type
-    original_topic: Indexed(str) = ""  # type: ignore[valid-type]
+    original_topic: Annotated[str, Indexed()] = ""
     consumer_group: str = ""
     error: str = "Unknown error"
-    retry_count: Indexed(int) = 0  # type: ignore[valid-type]
-    failed_at: Indexed(datetime) = Field(default_factory=lambda: datetime.now(timezone.utc))  # type: ignore[valid-type]
+    retry_count: Annotated[int, Indexed()] = 0
+    failed_at: Annotated[datetime, Indexed()] = Field(default_factory=lambda: datetime.now(timezone.utc))
     status: DLQMessageStatus = DLQMessageStatus.PENDING
     producer_id: str = "unknown"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_updated: datetime | None = None
-    next_retry_at: Indexed(datetime) | None = None  # type: ignore[valid-type]
+    next_retry_at: datetime | None = None
     retried_at: datetime | None = None
     discarded_at: datetime | None = None
     discard_reason: str | None = None

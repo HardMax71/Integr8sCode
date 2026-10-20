@@ -12,8 +12,6 @@ from app.domain.admin import SystemSettings
 from app.domain.enums import EventType, ExecutionStatus, UserRole
 from app.domain.exceptions import ConflictError, InfrastructureError
 from app.domain.execution import (
-    DomainExecution,
-    DomainExecutionCreate,
     ExecutionAccessDeniedError,
     ExecutionLimitExceededError,
     ExecutionNotRetryableError,
@@ -29,7 +27,7 @@ from app.services.execution_service import ExecutionService
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager, RedisIdempotencyRepository
 from app.services.runtime_settings import RuntimeSettingsLoader
 from app.settings import Settings
-from tests.unit.conftest import make_domain_execution
+from tests.unit.conftest import make_execution
 
 pytestmark = pytest.mark.unit
 
@@ -47,11 +45,6 @@ def _user(user_id: str) -> User:
         created_at=now,
         updated_at=now,
     )
-
-
-def _created(data: DomainExecutionCreate) -> DomainExecution:
-    """What the repository returns for a create: an execution under the id the service chose."""
-    return make_domain_execution(execution_id=data.execution_id)
 
 
 @pytest.fixture
@@ -93,7 +86,7 @@ def service(
 async def test_retry_of_an_unoffered_runtime_is_rejected(
     service: ExecutionService, repo: AsyncMock, producer: AsyncMock, lang: str, lang_version: str
 ) -> None:
-    repo.get_execution.return_value = make_domain_execution(
+    repo.get_execution.return_value = make_execution(
         status=ExecutionStatus.COMPLETED, lang=lang, lang_version=lang_version, user_id="owner"
     )
 
@@ -109,7 +102,7 @@ async def test_retry_of_an_unoffered_runtime_is_rejected(
 async def test_retry_of_an_unfinished_execution_is_rejected(
     service: ExecutionService, repo: AsyncMock, producer: AsyncMock, status: ExecutionStatus
 ) -> None:
-    repo.get_execution.return_value = make_domain_execution(status=status, user_id="owner")
+    repo.get_execution.return_value = make_execution(status=status, user_id="owner")
 
     with pytest.raises(ExecutionNotRetryableError) as exc:
         await service.retry_execution("e1", _user("owner"))
@@ -120,7 +113,7 @@ async def test_retry_of_an_unfinished_execution_is_rejected(
 
 
 async def test_execution_without_owner_is_hidden_from_other_users(service: ExecutionService, repo: AsyncMock) -> None:
-    repo.get_execution.return_value = make_domain_execution(status=ExecutionStatus.COMPLETED, user_id=None)
+    repo.get_execution.return_value = make_execution(status=ExecutionStatus.COMPLETED, user_id=None)
 
     with pytest.raises(ExecutionAccessDeniedError) as exc:
         await service.get_execution_for_user("e1", _user("someone"))
@@ -217,22 +210,21 @@ async def _run(service: ExecutionService) -> str:
 async def test_failed_request_releases_its_idempotency_key(
     idem_service: ExecutionService, repo: AsyncMock, idem_repo: _MemoryIdempotencyRepo
 ) -> None:
-    repo.create_execution.side_effect = [InfrastructureError("mongo down"), make_domain_execution(execution_id="e2")]
+    repo.create_execution.side_effect = [InfrastructureError("mongo down"), None]
 
     with pytest.raises(InfrastructureError, match="mongo down"):
         await _run(idem_service)
     assert _HTTP_KEY not in idem_repo.records
 
-    assert await _run(idem_service) == "e2"
+    assert await _run(idem_service) == repo.create_execution.await_args.args[0].execution_id
     assert repo.create_execution.await_count == 2
     assert idem_repo.records[_HTTP_KEY].status == IdempotencyStatus.COMPLETED
 
 
 async def test_completed_request_replays_the_cached_execution(idem_service: ExecutionService, repo: AsyncMock) -> None:
-    repo.create_execution.return_value = make_domain_execution(execution_id="e1")
+    first = await _run(idem_service)
 
-    assert await _run(idem_service) == "e1"
-    assert await _run(idem_service) == "e1"
+    assert await _run(idem_service) == first
     repo.create_execution.assert_awaited_once()
 
 
@@ -273,7 +265,6 @@ async def test_execute_refuses_a_user_at_the_execution_limit(
 async def test_execute_reserves_the_slot_under_the_new_execution_id(
     service: ExecutionService, repo: AsyncMock, queue: AsyncMock
 ) -> None:
-    repo.create_execution.side_effect = _created
 
     created = await service.execute_script(script="print(1)", user_id="u1")
 
@@ -285,7 +276,6 @@ async def test_execute_reserves_the_slot_under_the_new_execution_id(
 async def test_execute_gives_the_slot_back_when_submission_fails(
     service: ExecutionService, repo: AsyncMock, producer: AsyncMock, queue: AsyncMock, failing: str
 ) -> None:
-    repo.create_execution.side_effect = _created
     if failing == "create":
         repo.create_execution.side_effect = InfrastructureError("mongo down")
     else:
@@ -301,7 +291,6 @@ async def test_execute_gives_the_slot_back_when_submission_fails(
 async def test_execute_reports_the_submission_on_a_span(
     service: ExecutionService, repo: AsyncMock, span_exporter: InMemorySpanExporter
 ) -> None:
-    repo.create_execution.side_effect = _created
 
     await service.execute_script(script="print(1)", user_id="u1")
 
@@ -315,7 +304,6 @@ async def test_execute_reports_the_submission_on_a_span(
 async def test_failed_publish_reports_the_error_on_the_span(
     service: ExecutionService, repo: AsyncMock, producer: AsyncMock, span_exporter: InMemorySpanExporter
 ) -> None:
-    repo.create_execution.side_effect = _created
     producer.produce.side_effect = RuntimeError("kafka down")
 
     with pytest.raises(InfrastructureError):

@@ -4,9 +4,9 @@ import pytest
 import pytest_asyncio
 from httpx2 import AsyncClient
 
+from app.db.docs import ExecutionDocument
 from app.db.repositories import ExecutionRepository
 from app.domain.enums import ExecutionStatus, QueuePriority
-from app.domain.execution import DomainExecution, DomainExecutionCreate
 from app.schemas_pydantic.admin_executions import (
     AdminExecutionListResponse,
     AdminExecutionResponse,
@@ -17,15 +17,16 @@ pytestmark = [pytest.mark.e2e]
 
 
 @pytest_asyncio.fixture
-async def stored_execution(execution_repository: ExecutionRepository) -> DomainExecution:
+async def stored_execution(execution_repository: ExecutionRepository) -> ExecutionDocument:
     """Insert a test execution directly into DB."""
-    create_data = DomainExecutionCreate(
+    execution = ExecutionDocument(
         script="print('hello')",
         user_id=f"test-user-{uuid.uuid4().hex[:8]}",
         status=ExecutionStatus.QUEUED,
         priority=QueuePriority.NORMAL,
     )
-    return await execution_repository.create_execution(create_data)
+    await execution_repository.create_execution(execution)
+    return execution
 
 
 class TestListExecutions:
@@ -34,7 +35,7 @@ class TestListExecutions:
     async def test_list_executions(
         self,
         test_admin: AsyncClient,
-        stored_execution: DomainExecution,
+        stored_execution: ExecutionDocument,
     ) -> None:
         """Admin can list executions."""
         response = await test_admin.get("/api/v1/admin/executions/")
@@ -48,7 +49,7 @@ class TestListExecutions:
     async def test_list_executions_with_status_filter(
         self,
         test_admin: AsyncClient,
-        stored_execution: DomainExecution,
+        stored_execution: ExecutionDocument,
     ) -> None:
         """Filter executions by status."""
         response = await test_admin.get(
@@ -65,7 +66,7 @@ class TestListExecutions:
     async def test_list_executions_with_priority_filter(
         self,
         test_admin: AsyncClient,
-        stored_execution: DomainExecution,
+        stored_execution: ExecutionDocument,
     ) -> None:
         """Filter executions by priority."""
         response = await test_admin.get(
@@ -82,7 +83,7 @@ class TestListExecutions:
     async def test_list_executions_with_user_id_filter(
         self,
         test_admin: AsyncClient,
-        stored_execution: DomainExecution,
+        stored_execution: ExecutionDocument,
     ) -> None:
         """Filter executions by user_id."""
         response = await test_admin.get(
@@ -99,7 +100,7 @@ class TestListExecutions:
     async def test_list_executions_pagination(
         self,
         test_admin: AsyncClient,
-        stored_execution: DomainExecution,
+        stored_execution: ExecutionDocument,
     ) -> None:
         """Pagination params are forwarded correctly."""
         response = await test_admin.get(
@@ -136,7 +137,7 @@ class TestUpdatePriority:
     async def test_update_priority(
         self,
         test_admin: AsyncClient,
-        stored_execution: DomainExecution,
+        stored_execution: ExecutionDocument,
     ) -> None:
         """Admin can update execution priority."""
         response = await test_admin.put(
@@ -163,7 +164,7 @@ class TestUpdatePriority:
     async def test_update_priority_invalid_priority(
         self,
         test_admin: AsyncClient,
-        stored_execution: DomainExecution,
+        stored_execution: ExecutionDocument,
     ) -> None:
         """Invalid priority value returns 422."""
         response = await test_admin.put(

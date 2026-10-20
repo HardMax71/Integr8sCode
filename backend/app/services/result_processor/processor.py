@@ -77,7 +77,9 @@ class ResultProcessor:
             meta = event.metadata
             try:
                 await self._execution_repo.write_terminal_result(result)
-                await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
+                await self._publish_result_stored(
+                    event.execution_id, len(event.stdout) + len(event.stderr), meta.user_id, event.aggregate_id
+                )
             except PRODUCE_ERRORS as e:
                 self.logger.error(
                     "Failed to handle ExecutionCompletedEvent", execution_id=event.execution_id, exc_info=True
@@ -112,7 +114,9 @@ class ResultProcessor:
             meta = event.metadata
             try:
                 await self._execution_repo.write_terminal_result(result)
-                await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
+                await self._publish_result_stored(
+                    event.execution_id, len(event.stdout) + len(event.stderr), meta.user_id, event.aggregate_id
+                )
             except PRODUCE_ERRORS as e:
                 self.logger.error(
                     "Failed to handle ExecutionFailedEvent", execution_id=event.execution_id, exc_info=True
@@ -147,7 +151,9 @@ class ResultProcessor:
             meta = event.metadata
             try:
                 await self._execution_repo.write_terminal_result(result)
-                await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
+                await self._publish_result_stored(
+                    event.execution_id, len(event.stdout) + len(event.stderr), meta.user_id, event.aggregate_id
+                )
             except PRODUCE_ERRORS as e:
                 self.logger.error(
                     "Failed to handle ExecutionTimeoutEvent", execution_id=event.execution_id, exc_info=True
@@ -155,14 +161,13 @@ class ResultProcessor:
                 await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
 
     async def _publish_result_stored(
-        self, result: ExecutionResultDomain, user_id: str, aggregate_id: str | None
+        self, execution_id: str, size_bytes: int, user_id: str, aggregate_id: str | None
     ) -> None:
         """Publish result stored event."""
-        size_bytes = len(result.stdout) + len(result.stderr)
         event = ResultStoredEvent(
-            execution_id=result.execution_id,
+            execution_id=execution_id,
             aggregate_id=aggregate_id,
-            storage_path=result.execution_id,
+            storage_path=execution_id,
             size_bytes=size_bytes,
             storage_type=StorageType.DATABASE,
             metadata=EventMetadata(
@@ -171,7 +176,7 @@ class ResultProcessor:
                 user_id=user_id,
             ),
         )
-        await self._producer.produce(event_to_produce=event, key=result.execution_id)
+        await self._producer.produce(event_to_produce=event, key=execution_id)
 
     async def _publish_result_failed(
         self, execution_id: str, error_message: str, user_id: str, aggregate_id: str | None

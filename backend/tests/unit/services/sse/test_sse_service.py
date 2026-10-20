@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 import structlog
 
+from app.db.docs import ExecutionDocument
 from app.domain.enums import (
     EventType,
     ExecutionStatus,
@@ -16,7 +17,7 @@ from app.domain.enums import (
     ReplayStatus,
     UserRole,
 )
-from app.domain.execution.models import DomainExecution, ExecutionResultDomain
+from app.domain.execution.models import ExecutionResultDomain
 from app.domain.sse import DomainNotificationSSEPayload, DomainReplaySSEPayload, SSEExecutionEventData
 from app.services.sse import SSEService
 
@@ -83,13 +84,13 @@ class _FakeExecRepo:
 
     def __init__(
         self,
-        execution: DomainExecution | None = None,
+        execution: ExecutionDocument | None = None,
         result: ExecutionResultDomain | None = None,
     ) -> None:
         self._execution = execution
         self._result = result
 
-    async def get_execution(self, execution_id: str) -> DomainExecution | None:
+    async def get_execution(self, execution_id: str) -> ExecutionDocument | None:
         return self._execution
 
     async def get_terminal_result(self, execution_id: str) -> ExecutionResultDomain | None:
@@ -110,7 +111,7 @@ def _make_service(bus: _FakeBus, exec_repo: _FakeExecRepo | None = None) -> SSES
 
 
 async def test_execution_stream_prepends_status_from_db() -> None:
-    execution = DomainExecution(execution_id="exec-1", status=ExecutionStatus.RUNNING)
+    execution = ExecutionDocument(script="x", execution_id="exec-1", status=ExecutionStatus.RUNNING)
     bus = _FakeBus()
     svc = _make_service(bus, _FakeExecRepo(execution=execution))
 
@@ -132,7 +133,8 @@ async def test_execution_stream_prepends_status_from_db() -> None:
 async def test_execution_stream_closes_on_terminal_event() -> None:
     bus = _FakeBus()
     svc = _make_service(
-        bus, _FakeExecRepo(execution=DomainExecution(execution_id="exec-1", status=ExecutionStatus.RUNNING))
+        bus,
+        _FakeExecRepo(execution=ExecutionDocument(script="x", execution_id="exec-1", status=ExecutionStatus.RUNNING)),
     )
 
     agen = await svc.create_execution_stream("exec-1", user_id="u1", user_role=UserRole.USER)
@@ -165,7 +167,10 @@ async def test_execution_stream_enriches_result_stored() -> None:
     bus = _FakeBus()
     svc = _make_service(
         bus,
-        _FakeExecRepo(execution=DomainExecution(execution_id="exec-2", status=ExecutionStatus.RUNNING), result=result),
+        _FakeExecRepo(
+            execution=ExecutionDocument(script="x", execution_id="exec-2", status=ExecutionStatus.RUNNING),
+            result=result,
+        ),
     )
 
     agen = await svc.create_execution_stream("exec-2", user_id="u1", user_role=UserRole.USER)
@@ -193,7 +198,7 @@ async def test_execution_stream_for_finished_execution_sends_result_and_closes()
     result = ExecutionResultDomain(
         execution_id="exec-3", status=ExecutionStatus.COMPLETED, exit_code=0, stdout="done", stderr=""
     )
-    execution = DomainExecution(execution_id="exec-3", status=ExecutionStatus.COMPLETED)
+    execution = ExecutionDocument(script="x", execution_id="exec-3", status=ExecutionStatus.COMPLETED)
     bus = _FakeBus()
     svc = _make_service(bus, _FakeExecRepo(execution=execution, result=result))
 

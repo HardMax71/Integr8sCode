@@ -1,4 +1,3 @@
-import dataclasses
 from datetime import datetime, timezone
 from typing import Any
 
@@ -8,35 +7,19 @@ from beanie.operators import In
 
 from app.db.docs import ExecutionDocument
 from app.domain.enums import EXECUTION_ACTIVE, ExecutionStatus, QueuePriority
-from app.domain.events import ResourceUsageDomain
-from app.domain.execution import (
-    DomainExecution,
-    DomainExecutionCreate,
-    ExecutionResultDomain,
-)
-
-_exec_fields = set(DomainExecution.__dataclass_fields__)
-_result_fields = set(ExecutionResultDomain.__dataclass_fields__)
+from app.domain.execution import ExecutionResultDomain
 
 
 class ExecutionRepository:
     def __init__(self, logger: structlog.stdlib.BoundLogger):
         self.logger = logger
 
-    def _to_domain(self, doc: ExecutionDocument) -> DomainExecution:
-        data = doc.model_dump(include=_exec_fields)
-        if data.get("resource_usage"):
-            data["resource_usage"] = ResourceUsageDomain(**data["resource_usage"])
-        return DomainExecution(**data)
+    async def create_execution(self, execution: ExecutionDocument) -> None:
+        self.logger.info("Inserting execution into MongoDB", execution_id=execution.execution_id)
+        await execution.insert()
+        self.logger.info("Inserted execution", execution_id=execution.execution_id)
 
-    async def create_execution(self, create_data: DomainExecutionCreate) -> DomainExecution:
-        doc = ExecutionDocument(**dataclasses.asdict(create_data))
-        self.logger.info("Inserting execution into MongoDB", execution_id=doc.execution_id)
-        await doc.insert()
-        self.logger.info("Inserted execution", execution_id=doc.execution_id)
-        return self._to_domain(doc)
-
-    async def get_execution(self, execution_id: str) -> DomainExecution | None:
+    async def get_execution(self, execution_id: str) -> ExecutionDocument | None:
         self.logger.info("Searching for execution in MongoDB", execution_id=execution_id)
         doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
         if not doc:
@@ -44,7 +27,7 @@ class ExecutionRepository:
             return None
 
         self.logger.info("Found execution in MongoDB", execution_id=execution_id)
-        return self._to_domain(doc)
+        return doc
 
     async def write_terminal_result(self, result: ExecutionResultDomain) -> bool:
         """Atomically write a terminal result, guarded by non-terminal status check.
@@ -63,7 +46,7 @@ class ExecutionRepository:
                     "exit_code": result.exit_code,
                     "stdout": result.stdout,
                     "stderr": result.stderr,
-                    "resource_usage": dataclasses.asdict(result.resource_usage) if result.resource_usage else None,
+                    "resource_usage": result.resource_usage,
                     "error_type": result.error_type,
                     "updated_at": datetime.now(timezone.utc),
                 }
@@ -88,7 +71,7 @@ class ExecutionRepository:
 
     async def get_executions(
         self, query: dict[str, Any], limit: int = 50, skip: int = 0, sort: list[tuple[str, int]] | None = None
-    ) -> list[DomainExecution]:
+    ) -> list[ExecutionDocument]:
         find_query = ExecutionDocument.find(query)
         if sort:
             beanie_sort = [
@@ -96,18 +79,17 @@ class ExecutionRepository:
                 for field, direction in sort
             ]
             find_query = find_query.sort(beanie_sort)
-        docs = await find_query.skip(skip).limit(limit).to_list()
-        return [self._to_domain(doc) for doc in docs]
+        return await find_query.skip(skip).limit(limit).to_list()
 
     async def count_executions(self, query: dict[str, Any]) -> int:
         return await ExecutionDocument.find(query).count()
 
-    async def update_priority(self, execution_id: str, priority: QueuePriority) -> DomainExecution | None:
+    async def update_priority(self, execution_id: str, priority: QueuePriority) -> ExecutionDocument | None:
         doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
         if not doc:
             return None
         await doc.set({"priority": priority, "updated_at": datetime.now(timezone.utc)})
-        return self._to_domain(doc)
+        return doc
 
     async def get_terminal_result(self, execution_id: str) -> ExecutionResultDomain | None:
         """Return the stored result of a finished execution, or None while it hasn't finished.
@@ -117,10 +99,18 @@ class ExecutionRepository:
         doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
         if not doc or not doc.status.is_terminal:
             return None
-        data = doc.model_dump(include=_result_fields)
-        if data.get("resource_usage"):
-            data["resource_usage"] = ResourceUsageDomain(**data["resource_usage"])
-        return ExecutionResultDomain(**data)
+        return ExecutionResultDomain(
+            execution_id=doc.execution_id,
+            status=doc.status,
+            exit_code=doc.exit_code,
+            stdout=doc.stdout,
+            stderr=doc.stderr,
+            lang=doc.lang,
+            lang_version=doc.lang_version,
+            resource_usage=doc.resource_usage,
+            created_at=doc.created_at,
+            error_type=doc.error_type,
+        )
 
     async def aggregate_stats(self, query: dict[str, Any]) -> dict[str, Any]:
         """Compute execution statistics entirely in MongoDB via aggregation pipeline."""

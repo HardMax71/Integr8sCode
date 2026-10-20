@@ -10,9 +10,8 @@ class SavedScriptRepository:
     def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
         self.logger = logger
 
-    async def create_saved_script(self, script: SavedScriptDocument) -> SavedScriptDocument:
+    async def create_saved_script(self, script: SavedScriptDocument) -> None:
         await script.insert()
-        return script
 
     async def get_saved_script(self, script_id: str, user_id: str) -> SavedScriptDocument | None:
         return await SavedScriptDocument.find_one(

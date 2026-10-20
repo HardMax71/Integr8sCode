@@ -7,10 +7,10 @@ import structlog
 from pydantic import TypeAdapter
 
 from app.db import ExecutionRepository
+from app.db.docs import ExecutionDocument
 from app.domain.enums import EventType, SSEControlEvent, UserRole
 from app.domain.exceptions import ForbiddenError
 from app.domain.execution import ExecutionNotFoundError
-from app.domain.execution.models import DomainExecution
 from app.domain.sse import DomainNotificationSSEPayload, DomainReplaySSEPayload, SSEExecutionEventData
 from app.infrastructure.kafka.topics import EXECUTION_PIPELINE_TERMINAL_EVENT_TYPES
 from app.services.sse.redis_bus import SSERedisBus
@@ -48,7 +48,7 @@ class SSEService:
             raise ForbiddenError("Access denied")
         return self._execution_pipeline(execution)
 
-    async def _execution_pipeline(self, execution: DomainExecution) -> AsyncGenerator[dict[str, Any], None]:
+    async def _execution_pipeline(self, execution: ExecutionDocument) -> AsyncGenerator[dict[str, Any], None]:
         execution_id = execution.execution_id
         yield {
             "data": _exec_adapter.dump_json(

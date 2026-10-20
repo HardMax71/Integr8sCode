@@ -31,16 +31,15 @@ class SavedScriptService:
         )
         self._ensure_runtime_offered(lang, lang_version)
 
-        created_script = await self.saved_script_repo.create_saved_script(
-            SavedScriptDocument(
-                user_id=user_id,
-                name=name,
-                script=script,
-                lang=lang,
-                lang_version=lang_version,
-                description=description,
-            )
+        created_script = SavedScriptDocument(
+            user_id=user_id,
+            name=name,
+            script=script,
+            lang=lang,
+            lang_version=lang_version,
+            description=description,
         )
+        await self.saved_script_repo.create_saved_script(created_script)
 
         self.logger.info(
             "Successfully created saved script",

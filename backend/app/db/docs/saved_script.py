@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Annotated
 from uuid import uuid4
 
 from beanie import Document, Indexed
@@ -21,8 +22,8 @@ class SavedScriptDocument(Document):
     description: str | None = None
 
     # From SavedScriptInDB
-    script_id: Indexed(str, unique=True) = Field(default_factory=lambda: str(uuid4()))  # type: ignore[valid-type]
-    user_id: Indexed(str)  # type: ignore[valid-type]
+    script_id: Annotated[str, Indexed(unique=True)] = Field(default_factory=lambda: str(uuid4()))
+    user_id: Annotated[str, Indexed()]
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

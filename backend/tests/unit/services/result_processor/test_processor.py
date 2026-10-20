@@ -5,6 +5,7 @@ import structlog
 from opentelemetry import trace
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from app.db.docs import ExecutionDocument
 from app.domain.admin import SystemSettings
 from app.domain.enums import ExecutionErrorType, ExecutionStatus
 from app.domain.events import (
@@ -17,7 +18,6 @@ from app.domain.events import (
     ResourceUsageDomain,
 )
 from app.domain.execution import ExecutionNotFoundError
-from app.domain.execution.models import DomainExecution
 from app.runtime_registry import POD_RUNTIME_CONFIGS, parse_quantity
 from app.services.result_processor import ResultProcessor
 from app.services.runtime_settings import RuntimeSettingsLoader
@@ -92,7 +92,9 @@ class TestHandleExecutionCompleted:
 
     async def test_stores_result_and_publishes(self, tracer: trace.Tracer, span_exporter: InMemorySpanExporter) -> None:
         repo = AsyncMock()
-        repo.get_execution.return_value = DomainExecution(execution_id="e1", lang="python", lang_version="3.11")
+        repo.get_execution.return_value = ExecutionDocument(
+            script="x", execution_id="e1", lang="python", lang_version="3.11"
+        )
         repo.write_terminal_result.return_value = True
         producer = AsyncMock()
         processor = _make_processor(tracer, exec_repo=repo, producer=producer)
@@ -141,7 +143,7 @@ class TestHandleExecutionCompleted:
         expected_percent: float,
     ) -> None:
         repo = AsyncMock()
-        repo.get_execution.return_value = DomainExecution(execution_id="e1", lang=lang, lang_version="1")
+        repo.get_execution.return_value = ExecutionDocument(script="x", execution_id="e1", lang=lang, lang_version="1")
         processor = _make_processor(tracer, exec_repo=repo, admin_memory_limit="128Mi")
 
         event = ExecutionCompletedEvent(
@@ -160,7 +162,9 @@ class TestHandleExecutionCompleted:
 class TestHandleExecutionFailed:
     async def test_stores_result_and_publishes(self, tracer: trace.Tracer, span_exporter: InMemorySpanExporter) -> None:
         repo = AsyncMock()
-        repo.get_execution.return_value = DomainExecution(execution_id="e2", lang="python", lang_version="3.11")
+        repo.get_execution.return_value = ExecutionDocument(
+            script="x", execution_id="e2", lang="python", lang_version="3.11"
+        )
         repo.write_terminal_result.return_value = True
         producer = AsyncMock()
         processor = _make_processor(tracer, exec_repo=repo, producer=producer)
@@ -191,7 +195,9 @@ class TestHandleExecutionFailed:
 class TestHandleExecutionTimeout:
     async def test_stores_result_and_publishes(self, tracer: trace.Tracer, span_exporter: InMemorySpanExporter) -> None:
         repo = AsyncMock()
-        repo.get_execution.return_value = DomainExecution(execution_id="e3", lang="python", lang_version="3.11")
+        repo.get_execution.return_value = ExecutionDocument(
+            script="x", execution_id="e3", lang="python", lang_version="3.11"
+        )
         repo.write_terminal_result.return_value = True
         producer = AsyncMock()
         processor = _make_processor(tracer, exec_repo=repo, producer=producer)

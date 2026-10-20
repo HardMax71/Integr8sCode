@@ -4,8 +4,9 @@ from datetime import datetime, timezone
 import pytest
 
 from app.db import ExecutionRepository
+from app.db.docs import ExecutionDocument
 from app.domain.enums import EventType, ExecutionStatus, UserRole
-from app.domain.execution import DomainExecutionCreate, ResourceLimitsDomain
+from app.domain.execution import ResourceLimitsDomain
 from app.domain.execution.exceptions import (
     ExecutionAccessDeniedError,
     ExecutionNotFoundError,
@@ -37,18 +38,17 @@ def _user(user_id: str, role: UserRole = UserRole.USER) -> User:
 async def _stored_execution(repo: ExecutionRepository, status: ExecutionStatus) -> tuple[str, str]:
     """Insert an execution directly, so no worker picks it up and its status stays put."""
     owner_id = f"test_user_{uuid.uuid4().hex[:8]}"
-    created = await repo.create_execution(
-        DomainExecutionCreate(script="print('stored')", user_id=owner_id, status=status)
-    )
+    created = ExecutionDocument(script="print('stored')", user_id=owner_id, status=status)
+    await repo.create_execution(created)
     return created.execution_id, owner_id
 
 
 async def _stored_executions(repo: ExecutionRepository, count: int) -> tuple[str, set[str]]:
     """Insert ``count`` queued executions for a fresh user; returns the user id and the execution ids."""
     user_id = f"test_user_{uuid.uuid4().hex[:8]}"
-    created = [
-        await repo.create_execution(DomainExecutionCreate(script=f"print({i})", user_id=user_id)) for i in range(count)
-    ]
+    created = [ExecutionDocument(script=f"print({i})", user_id=user_id) for i in range(count)]
+    for execution in created:
+        await repo.create_execution(execution)
     return user_id, {e.execution_id for e in created}
 
 
@@ -284,9 +284,7 @@ class TestGetUserExecutions:
     ) -> None:
         """Filter executions by language."""
         user_id, python_ids = await _stored_executions(execution_repository, 1)
-        await execution_repository.create_execution(
-            DomainExecutionCreate(script="echo hi", user_id=user_id, lang="bash")
-        )
+        await execution_repository.create_execution(ExecutionDocument(script="echo hi", user_id=user_id, lang="bash"))
 
         executions = await execution_service.get_user_executions(user_id=user_id, lang="python", limit=10, skip=0)
 

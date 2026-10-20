@@ -14,7 +14,7 @@ from httpx2 import AsyncClient
 from starlette.types import ASGIApp, Message, Scope
 
 from app.core.security import SecurityService
-from app.db.docs import EventDocument, NotificationDocument
+from app.db.docs import EventDocument, ExecutionDocument, NotificationDocument
 from app.db.docs.saga import SagaDocument
 from app.db.repositories import (
     AdminEventsRepository,
@@ -27,7 +27,6 @@ from app.db.repositories import (
     SavedScriptRepository,
 )
 from app.domain.enums import EventType, ExecutionStatus, NotificationStatus, UserRole
-from app.domain.execution import DomainExecutionCreate
 from app.events import UnifiedProducer
 from app.runtime_registry import DEFAULT_LANG
 from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
@@ -336,9 +335,8 @@ async def store_execution(
     """Insert an execution owned by the client's user straight into MongoDB, for tests that need the row, not a pod."""
     me = await client.get("/api/v1/auth/me")
     repo = ExecutionRepository(structlog.get_logger("tests"))
-    created = await repo.create_execution(
-        DomainExecutionCreate(script="print('stored')", user_id=me.json()["user_id"], status=status, lang=lang)
-    )
+    created = ExecutionDocument(script="print('stored')", user_id=me.json()["user_id"], status=status, lang=lang)
+    await repo.create_execution(created)
     return created.execution_id
 
 

@@ -10,7 +10,6 @@ from app.domain.events import (
     ExecutionCompletedEvent,
     ResourceUsageDomain,
 )
-from app.domain.execution import DomainExecutionCreate
 from app.events.core import UnifiedProducer
 from app.services.result_processor import ResultProcessor
 from app.services.runtime_settings import RuntimeSettingsLoader
@@ -29,13 +28,12 @@ async def test_result_processor_persists_and_emits(
     # Dependencies
 
     # Create a base execution to satisfy ResultProcessor lookup
-    created = await execution_repository.create_execution(
-        DomainExecutionCreate(
-            script="print('x')",
-            user_id="u1",
-            status=ExecutionStatus.RUNNING,
-        )
+    created = ExecutionDocument(
+        script="print('x')",
+        user_id="u1",
+        status=ExecutionStatus.RUNNING,
     )
+    await execution_repository.create_execution(created)
     execution_id = created.execution_id
 
     # Build the processor

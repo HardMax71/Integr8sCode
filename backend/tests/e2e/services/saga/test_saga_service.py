@@ -3,9 +3,9 @@ from uuid import uuid4
 
 import pytest
 
+from app.db.docs import ExecutionDocument
 from app.db.repositories import ExecutionRepository, SagaRepository
 from app.domain.enums import SagaState, UserRole
-from app.domain.execution import DomainExecutionCreate
 from app.domain.saga import Saga, SagaAccessDeniedError, SagaContextData, SagaListResult, SagaNotFoundError
 from app.domain.user import User
 from app.services.saga import SagaService
@@ -36,12 +36,11 @@ async def create_execution_for_user(
     user_id: str,
 ) -> str:
     """Create an execution record for a user and return its ID."""
-    execution = await exec_repo.create_execution(
-        DomainExecutionCreate(
-            script="print('test')",
-            user_id=user_id,
-        )
+    execution = ExecutionDocument(
+        script="print('test')",
+        user_id=user_id,
     )
+    await exec_repo.create_execution(execution)
     return execution.execution_id
 
 

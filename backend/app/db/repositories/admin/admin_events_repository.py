@@ -25,7 +25,6 @@ from app.domain.events import (
     EventSummary,
     EventTypeCount,
     HourlyEventCount,
-    ResourceUsageDomain,
     UserEventCount,
 )
 from app.domain.replay import ReplayError as DomainReplayError
@@ -287,7 +286,7 @@ class AdminEventsRepository:
                 lang_version=d.lang_version,
                 created_at=d.created_at,
                 updated_at=d.updated_at,
-                resource_usage=ResourceUsageDomain(**d.resource_usage.model_dump()) if d.resource_usage else None,
+                resource_usage=d.resource_usage,
                 error_type=d.error_type,
             )
             for d in exec_docs

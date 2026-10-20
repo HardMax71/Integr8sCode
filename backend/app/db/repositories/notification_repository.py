@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 
 import structlog
@@ -13,9 +14,8 @@ class NotificationRepository:
     def __init__(self, logger: structlog.stdlib.BoundLogger):
         self.logger = logger
 
-    async def create_notification(self, notification: NotificationDocument) -> NotificationDocument:
+    async def create_notification(self, notification: NotificationDocument) -> None:
         await notification.insert()
-        return notification
 
     async def update_notification(self, notification_id: str, user_id: str, changes: NotificationChanges) -> bool:
         doc = await NotificationDocument.find_one(
@@ -26,6 +26,25 @@ class NotificationRepository:
             return False
         await doc.update({"$set": changes})
         return True
+
+    def _list_conditions(
+        self,
+        user_id: str,
+        status: NotificationStatus | None,
+        include_tags: list[str] | None,
+        exclude_tags: list[str] | None,
+        tag_prefix: str | None,
+    ) -> list[Mapping[str, object] | bool]:
+        conditions: list[Mapping[str, object] | bool] = [NotificationDocument.user_id == user_id]
+        if status:
+            conditions.append(NotificationDocument.status == status)
+        if include_tags:
+            conditions.append(In(NotificationDocument.tags, include_tags))
+        if exclude_tags:
+            conditions.append(NotIn(NotificationDocument.tags, exclude_tags))
+        if tag_prefix:
+            conditions.append(ElemMatch(NotificationDocument.tags, {"$regex": f"^{tag_prefix}"}))
+        return conditions
 
     async def mark_as_read(self, notification_id: str, user_id: str) -> bool:
         doc = await NotificationDocument.find_one(
@@ -65,14 +84,7 @@ class NotificationRepository:
         exclude_tags: list[str] | None = None,
         tag_prefix: str | None = None,
     ) -> list[NotificationDocument]:
-        conditions = [
-            NotificationDocument.user_id == user_id,
-            NotificationDocument.status == status if status else None,
-            In(NotificationDocument.tags, include_tags) if include_tags else None,
-            NotIn(NotificationDocument.tags, exclude_tags) if exclude_tags else None,
-            ElemMatch(NotificationDocument.tags, {"$regex": f"^{tag_prefix}"}) if tag_prefix else None,
-        ]
-        conditions = [c for c in conditions if c is not None]
+        conditions = self._list_conditions(user_id, status, include_tags, exclude_tags, tag_prefix)
         return (
             await NotificationDocument.find(*conditions)
             .sort([("created_at", SortDirection.DESCENDING)])
@@ -89,14 +101,7 @@ class NotificationRepository:
         exclude_tags: list[str] | None = None,
         tag_prefix: str | None = None,
     ) -> int:
-        conditions = [
-            NotificationDocument.user_id == user_id,
-            NotificationDocument.status == status if status else None,
-            In(NotificationDocument.tags, include_tags) if include_tags else None,
-            NotIn(NotificationDocument.tags, exclude_tags) if exclude_tags else None,
-            ElemMatch(NotificationDocument.tags, {"$regex": f"^{tag_prefix}"}) if tag_prefix else None,
-        ]
-        conditions = [c for c in conditions if c is not None]
+        conditions = self._list_conditions(user_id, status, include_tags, exclude_tags, tag_prefix)
         return await NotificationDocument.find(*conditions).count()
 
     async def get_unread_count(self, user_id: str) -> int:

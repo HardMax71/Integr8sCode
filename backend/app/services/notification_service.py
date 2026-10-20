@@ -182,19 +182,18 @@ class NotificationService:
             )
 
         # Create notification
-        notification = await self.repository.create_notification(
-            NotificationDocument(
-                user_id=user_id,
-                channel=channel,
-                subject=subject,
-                body=body,
-                action_url=action_url,
-                severity=severity,
-                tags=tags,
-                scheduled_for=scheduled_for,
-                metadata=metadata or {},
-            )
+        notification = NotificationDocument(
+            user_id=user_id,
+            channel=channel,
+            subject=subject,
+            body=body,
+            action_url=action_url,
+            severity=severity,
+            tags=tags,
+            scheduled_for=scheduled_for,
+            metadata=metadata or {},
         )
+        await self.repository.create_notification(notification)
 
         # Deliver immediately if not scheduled; scheduled notifications are
         # picked up by the NotificationScheduler worker.

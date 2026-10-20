@@ -131,6 +131,44 @@ class TestUpdateSavedScript:
         assert updated.script == "new content"
         assert updated.updated_at > script.updated_at
 
+    @pytest.mark.parametrize(
+        ("update_request", "description"),
+        [(SavedScriptUpdate(description=None), None), (SavedScriptUpdate(name="renamed"), "keep me")],
+        ids=["null-clears", "left-out-keeps"],
+    )
+    async def test_update_sets_only_the_fields_sent(
+        self,
+        test_user: AsyncClient,
+        new_script_request: SavedScriptCreateRequest,
+        update_request: SavedScriptUpdate,
+        description: str | None,
+    ) -> None:
+        """A null clears a nullable field, and a field left out keeps its value."""
+        described = new_script_request.model_copy(update={"description": "keep me"})
+        created = await test_user.post("/api/v1/scripts", json=described.model_dump())
+        script_id = created.json()["script_id"]
+
+        response = await test_user.put(
+            f"/api/v1/scripts/{script_id}", json=update_request.model_dump(exclude_unset=True)
+        )
+
+        assert response.status_code == 200
+        assert SavedScriptResponse.model_validate(response.json()).description == description
+
+    async def test_update_rejects_null_for_a_required_field(
+        self, test_user: AsyncClient, new_script_request: SavedScriptCreateRequest
+    ) -> None:
+        """A null name can't be stored, so it's a 422 like any other invalid body."""
+        created = await test_user.post("/api/v1/scripts", json=new_script_request.model_dump())
+        script_id = created.json()["script_id"]
+
+        response = await test_user.put(
+            f"/api/v1/scripts/{script_id}", json=SavedScriptUpdate(name=None).model_dump(exclude_unset=True)
+        )
+
+        assert response.status_code == 422
+        assert response.json() == {"status": 422, "detail": "name: Input should be a valid string"}
+
     async def test_update_other_users_script_forbidden(
         self, test_user: AsyncClient, another_user: AsyncClient, new_script_request: SavedScriptCreateRequest
     ) -> None:

@@ -2,12 +2,9 @@ import uuid
 
 import pytest
 
-from app.domain.saved_script import (
-    DomainSavedScript,
-    DomainSavedScriptCreate,
-    DomainSavedScriptUpdate,
-    SavedScriptNotFoundError,
-)
+from app.db.docs import SavedScriptDocument
+from app.domain.saved_script import SavedScriptChanges, SavedScriptNotFoundError
+from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION
 from app.services.saved_script_service import SavedScriptService
 
 pytestmark = [pytest.mark.e2e]
@@ -17,15 +14,20 @@ def _unique_user_id() -> str:
     return f"script_user_{uuid.uuid4().hex[:8]}"
 
 
-def _create_payload(
+async def _create(
+    service: SavedScriptService,
+    user_id: str,
     name: str = "test_script",
     description: str | None = None,
     script: str = "print('hello world')",
-) -> DomainSavedScriptCreate:
-    return DomainSavedScriptCreate(
+) -> SavedScriptDocument:
+    return await service.create_saved_script(
+        user_id=user_id,
         name=name,
-        description=description,
         script=script,
+        lang=DEFAULT_LANG,
+        lang_version=DEFAULT_LANG_VERSION,
+        description=description,
     )
 
 
@@ -36,10 +38,8 @@ class TestCreateSavedScript:
         """Create a basic saved script."""
         user_id = _unique_user_id()
 
-        payload = _create_payload(name="Basic Script")
-        created = await saved_script_service.create_saved_script(payload, user_id)
+        created = await _create(saved_script_service, user_id, name="Basic Script")
 
-        assert isinstance(created, DomainSavedScript)
         assert created.script_id is not None
         assert created.user_id == user_id
         assert created.name == "Basic Script"
@@ -51,11 +51,12 @@ class TestCreateSavedScript:
         """Create saved script with description."""
         user_id = _unique_user_id()
 
-        payload = _create_payload(
+        created = await _create(
+            saved_script_service,
+            user_id,
             name="Described Script",
             description="This script does something useful",
         )
-        created = await saved_script_service.create_saved_script(payload, user_id)
 
         assert created.description == "This script does something useful"
 
@@ -69,8 +70,7 @@ class TestCreateSavedScript:
 if __name__ == '__main__':
     hello()
 """
-        payload = _create_payload(name="Multiline", script=multiline_script)
-        created = await saved_script_service.create_saved_script(payload, user_id)
+        created = await _create(saved_script_service, user_id, name="Multiline", script=multiline_script)
 
         assert created.script == multiline_script
         assert "def hello():" in created.script
@@ -81,8 +81,7 @@ if __name__ == '__main__':
 
         scripts = []
         for i in range(3):
-            payload = _create_payload(name=f"Script {i}", script=f"print({i})")
-            created = await saved_script_service.create_saved_script(payload, user_id)
+            created = await _create(saved_script_service, user_id, name=f"Script {i}", script=f"print({i})")
             scripts.append(created)
 
         # All should have unique IDs
@@ -95,22 +94,20 @@ if __name__ == '__main__':
         user2 = _unique_user_id()
 
         # Create scripts for each user
-        payload1 = _create_payload(name="User1 Script")
-        script1 = await saved_script_service.create_saved_script(payload1, user1)
+        script1 = await _create(saved_script_service, user1, name="User1 Script")
 
-        payload2 = _create_payload(name="User2 Script")
-        script2 = await saved_script_service.create_saved_script(payload2, user2)
+        script2 = await _create(saved_script_service, user2, name="User2 Script")
 
         # List each user's scripts
         user1_result = await saved_script_service.list_saved_scripts(user1)
         user2_result = await saved_script_service.list_saved_scripts(user2)
 
         # Should only see their own
-        assert any(s.script_id == script1.script_id for s in user1_result.scripts)
-        assert not any(s.script_id == script2.script_id for s in user1_result.scripts)
+        assert any(s.script_id == script1.script_id for s in user1_result)
+        assert not any(s.script_id == script2.script_id for s in user1_result)
 
-        assert any(s.script_id == script2.script_id for s in user2_result.scripts)
-        assert not any(s.script_id == script1.script_id for s in user2_result.scripts)
+        assert any(s.script_id == script2.script_id for s in user2_result)
+        assert not any(s.script_id == script1.script_id for s in user2_result)
 
 
 class TestGetSavedScript:
@@ -121,8 +118,7 @@ class TestGetSavedScript:
         user_id = _unique_user_id()
 
         # Create
-        payload = _create_payload(name="To Retrieve")
-        created = await saved_script_service.create_saved_script(payload, user_id)
+        created = await _create(saved_script_service, user_id, name="To Retrieve")
 
         # Get
         retrieved = await saved_script_service.get_saved_script(str(created.script_id), user_id)
@@ -145,8 +141,7 @@ class TestGetSavedScript:
         other_user = _unique_user_id()
 
         # Create as owner
-        payload = _create_payload(name="Private Script")
-        created = await saved_script_service.create_saved_script(payload, owner)
+        created = await _create(saved_script_service, owner, name="Private Script")
 
         # Try to get as other user
         with pytest.raises(SavedScriptNotFoundError):
@@ -161,11 +156,10 @@ class TestUpdateSavedScript:
         user_id = _unique_user_id()
 
         # Create
-        payload = _create_payload(name="Original Name")
-        created = await saved_script_service.create_saved_script(payload, user_id)
+        created = await _create(saved_script_service, user_id, name="Original Name")
 
         # Update
-        update = DomainSavedScriptUpdate(name="Updated Name", script=created.script)
+        update = SavedScriptChanges(name="Updated Name", script=created.script)
         updated = await saved_script_service.update_saved_script(str(created.script_id), user_id, update)
 
         assert updated is not None
@@ -176,11 +170,10 @@ class TestUpdateSavedScript:
         user_id = _unique_user_id()
 
         # Create
-        payload = _create_payload(script="print('original')")
-        created = await saved_script_service.create_saved_script(payload, user_id)
+        created = await _create(saved_script_service, user_id, script="print('original')")
 
         # Update
-        update = DomainSavedScriptUpdate(name=created.name, script="print('updated')")
+        update = SavedScriptChanges(name=created.name, script="print('updated')")
         updated = await saved_script_service.update_saved_script(str(created.script_id), user_id, update)
 
         assert updated.script == "print('updated')"
@@ -190,12 +183,11 @@ class TestUpdateSavedScript:
         user_id = _unique_user_id()
 
         # Create without description
-        payload = _create_payload(name="No Desc")
-        created = await saved_script_service.create_saved_script(payload, user_id)
+        created = await _create(saved_script_service, user_id, name="No Desc")
         assert created.description is None
 
         # Update with description
-        update = DomainSavedScriptUpdate(
+        update = SavedScriptChanges(
             name=created.name,
             script=created.script,
             description="Now has description",
@@ -208,7 +200,7 @@ class TestUpdateSavedScript:
         """Update nonexistent script raises error."""
         user_id = _unique_user_id()
 
-        update = DomainSavedScriptUpdate(name="New Name", script="print(1)")
+        update = SavedScriptChanges(name="New Name", script="print(1)")
         with pytest.raises(SavedScriptNotFoundError):
             await saved_script_service.update_saved_script("nonexistent-id", user_id, update)
 
@@ -218,11 +210,10 @@ class TestUpdateSavedScript:
         other_user = _unique_user_id()
 
         # Create as owner
-        payload = _create_payload(name="Owner Script")
-        created = await saved_script_service.create_saved_script(payload, owner)
+        created = await _create(saved_script_service, owner, name="Owner Script")
 
         # Try to update as other user
-        update = DomainSavedScriptUpdate(name="Hacked Name", script="print('hacked')")
+        update = SavedScriptChanges(name="Hacked Name", script="print('hacked')")
         with pytest.raises(SavedScriptNotFoundError):
             await saved_script_service.update_saved_script(str(created.script_id), other_user, update)
 
@@ -235,8 +226,7 @@ class TestDeleteSavedScript:
         user_id = _unique_user_id()
 
         # Create
-        payload = _create_payload(name="To Delete")
-        created = await saved_script_service.create_saved_script(payload, user_id)
+        created = await _create(saved_script_service, user_id, name="To Delete")
 
         # Delete
         await saved_script_service.delete_saved_script(str(created.script_id), user_id)
@@ -258,8 +248,7 @@ class TestDeleteSavedScript:
         other_user = _unique_user_id()
 
         # Create as owner
-        payload = _create_payload(name="Owner Script")
-        created = await saved_script_service.create_saved_script(payload, owner)
+        created = await _create(saved_script_service, owner, name="Owner Script")
 
         # Try to delete as other user
         with pytest.raises(SavedScriptNotFoundError):
@@ -279,8 +268,7 @@ class TestListSavedScripts:
 
         result = await saved_script_service.list_saved_scripts(user_id)
 
-        assert isinstance(result.scripts, list)
-        assert len(result.scripts) == 0
+        assert result == []
 
     async def test_list_saved_scripts_multiple(self, saved_script_service: SavedScriptService) -> None:
         """List multiple scripts for user."""
@@ -289,14 +277,13 @@ class TestListSavedScripts:
         # Create multiple scripts
         script_names = ["Script A", "Script B", "Script C"]
         for name in script_names:
-            payload = _create_payload(name=name)
-            await saved_script_service.create_saved_script(payload, user_id)
+            await _create(saved_script_service, user_id, name=name)
 
         # List
         result = await saved_script_service.list_saved_scripts(user_id)
 
-        assert len(result.scripts) == 3
-        names = [s.name for s in result.scripts]
+        assert len(result) == 3
+        names = [s.name for s in result]
         for expected_name in script_names:
             assert expected_name in names
 
@@ -307,21 +294,19 @@ class TestListSavedScripts:
 
         # Create scripts for user1
         for i in range(2):
-            payload = _create_payload(name=f"User1 Script {i}")
-            await saved_script_service.create_saved_script(payload, user1)
+            await _create(saved_script_service, user1, name=f"User1 Script {i}")
 
         # Create scripts for user2
         for i in range(3):
-            payload = _create_payload(name=f"User2 Script {i}")
-            await saved_script_service.create_saved_script(payload, user2)
+            await _create(saved_script_service, user2, name=f"User2 Script {i}")
 
         # List user1's scripts
         user1_result = await saved_script_service.list_saved_scripts(user1)
-        assert sorted(s.name for s in user1_result.scripts) == ["User1 Script 0", "User1 Script 1"]
+        assert sorted(s.name for s in user1_result) == ["User1 Script 0", "User1 Script 1"]
 
         # List user2's scripts
         user2_result = await saved_script_service.list_saved_scripts(user2)
-        assert sorted(s.name for s in user2_result.scripts) == ["User2 Script 0", "User2 Script 1", "User2 Script 2"]
+        assert sorted(s.name for s in user2_result) == ["User2 Script 0", "User2 Script 1", "User2 Script 2"]
 
 
 class TestSavedScriptIntegration:
@@ -332,12 +317,13 @@ class TestSavedScriptIntegration:
         user_id = _unique_user_id()
 
         # Create
-        payload = _create_payload(
+        created = await _create(
+            saved_script_service,
+            user_id,
             name="Lifecycle Script",
             description="Testing lifecycle",
             script="print('v1')",
         )
-        created = await saved_script_service.create_saved_script(payload, user_id)
         script_id = str(created.script_id)
 
         # Read
@@ -345,7 +331,7 @@ class TestSavedScriptIntegration:
         assert retrieved.name == "Lifecycle Script"
 
         # Update
-        update = DomainSavedScriptUpdate(
+        update = SavedScriptChanges(
             name="Updated Lifecycle Script",
             description="Updated description",
             script="print('v2')",
@@ -356,7 +342,7 @@ class TestSavedScriptIntegration:
 
         # List - should include our script
         result = await saved_script_service.list_saved_scripts(user_id)
-        assert any(s.script_id == created.script_id for s in result.scripts)
+        assert any(s.script_id == created.script_id for s in result)
 
         # Delete
         await saved_script_service.delete_saved_script(script_id, user_id)
@@ -378,8 +364,7 @@ def greet(name: str) -> str:
 # Math symbols: ∑ ∫ √ ∞
 print(greet("World"))
 """
-        payload = _create_payload(name="Special Chars", script=special_script)
-        created = await saved_script_service.create_saved_script(payload, user_id)
+        created = await _create(saved_script_service, user_id, name="Special Chars", script=special_script)
 
         # Retrieve and verify
         retrieved = await saved_script_service.get_saved_script(str(created.script_id), user_id)

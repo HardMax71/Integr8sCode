@@ -8,7 +8,6 @@ import pytest
 from app.db.docs import ExecutionDocument, SavedScriptDocument
 from app.domain.enums import ExecutionStatus
 from app.domain.execution import DomainExecution, DomainExecutionCreate, ExecutionResultDomain
-from app.domain.saved_script import DomainSavedScript, DomainSavedScriptCreate
 from app.runtime_registry import (
     DEFAULT_LANG,
     DEFAULT_LANG_VERSION,
@@ -94,8 +93,6 @@ def test_every_lang_version_default_uses_the_registry_default() -> None:
         "ExecutionResultDomain": ExecutionResultDomain(
             execution_id="e", status=ExecutionStatus.COMPLETED, exit_code=0, stdout="", stderr="", created_at=now
         ),
-        "DomainSavedScriptCreate": DomainSavedScriptCreate(name="n", script="x"),
-        "DomainSavedScript": DomainSavedScript(name="n", script="x"),
     }
     for name, obj in defaults.items():
         assert (obj.lang, obj.lang_version) == (DEFAULT_LANG, DEFAULT_LANG_VERSION), name

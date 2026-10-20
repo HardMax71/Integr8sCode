@@ -1,14 +1,9 @@
 import structlog
 
 from app.db import SavedScriptRepository
+from app.db.docs import SavedScriptDocument
 from app.domain.execution import RuntimeNotSupportedError
-from app.domain.saved_script import (
-    DomainSavedScript,
-    DomainSavedScriptCreate,
-    DomainSavedScriptListResult,
-    DomainSavedScriptUpdate,
-    SavedScriptNotFoundError,
-)
+from app.domain.saved_script import SavedScriptChanges, SavedScriptNotFoundError
 from app.runtime_registry import RUNTIME_REGISTRY
 
 
@@ -19,17 +14,33 @@ class SavedScriptService:
 
     # --8<-- [start:create_saved_script]
     async def create_saved_script(
-        self, saved_script_create: DomainSavedScriptCreate, user_id: str
-    ) -> DomainSavedScript:
+        self,
+        *,
+        user_id: str,
+        name: str,
+        script: str,
+        lang: str,
+        lang_version: str,
+        description: str | None,
+    ) -> SavedScriptDocument:
         self.logger.info(
             "Creating new saved script",
             user_id=user_id,
-            script_name=saved_script_create.name,
-            script_length=len(saved_script_create.script),
+            script_name=name,
+            script_length=len(script),
         )
-        self._ensure_runtime_offered(saved_script_create.lang, saved_script_create.lang_version)
+        self._ensure_runtime_offered(lang, lang_version)
 
-        created_script = await self.saved_script_repo.create_saved_script(saved_script_create, user_id)
+        created_script = await self.saved_script_repo.create_saved_script(
+            SavedScriptDocument(
+                user_id=user_id,
+                name=name,
+                script=script,
+                lang=lang,
+                lang_version=lang_version,
+                description=description,
+            )
+        )
 
         self.logger.info(
             "Successfully created saved script",
@@ -41,7 +52,7 @@ class SavedScriptService:
 
     # --8<-- [end:create_saved_script]
 
-    async def get_saved_script(self, script_id: str, user_id: str) -> DomainSavedScript:
+    async def get_saved_script(self, script_id: str, user_id: str) -> SavedScriptDocument:
         self.logger.info(
             "Retrieving saved script",
             user_id=user_id,
@@ -65,21 +76,24 @@ class SavedScriptService:
         return script
 
     async def update_saved_script(
-        self, script_id: str, user_id: str, update_data: DomainSavedScriptUpdate
-    ) -> DomainSavedScript:
+        self, script_id: str, user_id: str, changes: SavedScriptChanges
+    ) -> SavedScriptDocument:
         self.logger.info(
             "Updating saved script",
             user_id=user_id,
             script_id=script_id,
-            script_name=update_data.name,
-            script_length=len(update_data.script) if update_data.script else None,
+            script_name=changes.get("name"),
+            script_length=len(changes["script"]) if "script" in changes else None,
         )
-        await self._ensure_updated_runtime_offered(script_id, user_id, update_data)
-
-        await self.saved_script_repo.update_saved_script(script_id, user_id, update_data)
-        updated_script = await self.saved_script_repo.get_saved_script(script_id, user_id)
-        if not updated_script:
+        stored = await self.saved_script_repo.get_saved_script(script_id, user_id)
+        if not stored:
             raise SavedScriptNotFoundError(script_id)
+        if "lang" in changes or "lang_version" in changes:
+            self._ensure_runtime_offered(
+                changes.get("lang", stored.lang), changes.get("lang_version", stored.lang_version)
+            )
+
+        updated_script = await self.saved_script_repo.update_saved_script(stored, changes)
 
         self.logger.info(
             "Successfully updated script",
@@ -110,7 +124,7 @@ class SavedScriptService:
             user_id=user_id,
         )
 
-    async def list_saved_scripts(self, user_id: str) -> DomainSavedScriptListResult:
+    async def list_saved_scripts(self, user_id: str) -> list[SavedScriptDocument]:
         self.logger.info(
             "Listing saved scripts",
             user_id=user_id,
@@ -123,21 +137,7 @@ class SavedScriptService:
             user_id=user_id,
             script_count=len(scripts),
         )
-        return DomainSavedScriptListResult(scripts=scripts)
-
-    async def _ensure_updated_runtime_offered(
-        self, script_id: str, user_id: str, update_data: DomainSavedScriptUpdate
-    ) -> None:
-        lang, lang_version = update_data.lang, update_data.lang_version
-        if lang is None and lang_version is None:
-            return
-        if lang is None or lang_version is None:
-            stored = await self.saved_script_repo.get_saved_script(script_id, user_id)
-            if not stored:
-                raise SavedScriptNotFoundError(script_id)
-            lang = stored.lang if lang is None else lang
-            lang_version = stored.lang_version if lang_version is None else lang_version
-        self._ensure_runtime_offered(lang, lang_version)
+        return scripts
 
     def _ensure_runtime_offered(self, lang: str, lang_version: str) -> None:
         if lang_version in RUNTIME_REGISTRY.get(lang, {}):

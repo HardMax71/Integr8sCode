@@ -15,7 +15,7 @@ graph LR
 
 An `execution_requested` event doesn't start a saga right away. The orchestrator first puts it in a Redis priority queue (`ExecutionQueueService`), then calls `try_schedule_from_queue`. That runs a Lua script which pops the highest priority execution only if the active set holds fewer than `max_concurrent_executions` entries. The limit is an admin system setting with a default of 10, and it's the real concurrency gate for the whole platform. The same scheduling runs every 10 seconds from APScheduler, and again whenever an execution finishes.
 
-When an execution is popped, the orchestrator creates its saga document directly in the `RUNNING` state (a unique index on `execution_id` and `saga_name` stops a second saga for the same execution), publishes `saga_started`, and runs the three steps of the execution saga: validate, allocate resources, create pod. [Resource allocation](../saga/resource-allocation.md) covers the steps in detail. Before each step the document gets `current_step`. After a step succeeds, the document gets the step name in `completed_steps` plus the saga context, and only then is the step's compensation registered.
+When an execution is popped, the orchestrator creates its saga document directly in the `RUNNING` state (a unique index on `execution_id` and `saga_name` stops a second saga for the same execution), publishes `saga_started`, and runs the two steps of the execution saga: validate, then create pod. Before each step the document gets `current_step`. After a step succeeds, the document gets the step name in `completed_steps` plus the saga context, and only then is the step's compensation registered.
 
 If a step raises or returns false, the registered compensations run in reverse order. The saga moves to `COMPENSATING` and ends as `FAILED`. Compensation only ever runs on this path and when someone cancels the saga through the API.
 
@@ -40,7 +40,7 @@ stateDiagram-v2
 
 `check_timeouts` runs every 30 seconds. It marks any `RUNNING` or `COMPENSATING` saga created more than 300 seconds ago as `TIMEOUT`. It only writes the state: it doesn't compensate and doesn't release the queue slot.
 
-`POST /api/v1/sagas/{saga_id}/cancel` runs in the API process, not in this worker. It sets `CANCELLED` atomically, publishes `saga_cancelled`, and runs the compensations of the steps that had completed: it releases the allocation if one was made, and publishes `delete_pod_command` only if `CreatePodStep` finished. Unlike `execution_cancelled`, it doesn't release the execution's slot in the Redis queue or schedule the next one, so the slot stays taken until a terminal event arrives for that execution.
+`POST /api/v1/sagas/{saga_id}/cancel` runs in the API process, not in this worker. It sets `CANCELLED` atomically, publishes `saga_cancelled`, and runs the compensations of the steps that had completed: it publishes `delete_pod_command` only if `CreatePodStep` finished. Unlike `execution_cancelled`, it doesn't release the execution's slot in the Redis queue or schedule the next one, so the slot stays taken until a terminal event arrives for that execution.
 
 ## Topics
 

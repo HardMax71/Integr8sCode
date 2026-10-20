@@ -43,8 +43,9 @@ async def update_user_settings(
     updates: UserSettingsUpdate,
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
-    """Update the authenticated user's settings; a field left out or sent as null keeps its value."""
-    changes = _settings_changes.validate_python(updates.model_dump(exclude_none=True))
+    """Update the authenticated user's settings."""
+    # The settings page sends null for the sections it didn't change, so null keeps the stored value
+    changes =_settings_changes.validate_python(updates.model_dump(exclude_none=True))
     domain = await settings_service.update_user_settings(current_user.user_id, changes)
     return UserSettings.model_validate(domain)
 

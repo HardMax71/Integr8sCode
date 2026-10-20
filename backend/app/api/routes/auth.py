@@ -3,6 +3,7 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import SecretStr
 
 from app.core.utils import get_client_ip
 from app.schemas_pydantic.common import ErrorResponse
@@ -44,7 +45,7 @@ async def login(
 
     result = await auth_service.login(
         form_data.username,
-        form_data.password,
+        SecretStr(form_data.password),
         get_client_ip(request),
         request.headers.get("user-agent"),
     )
@@ -52,7 +53,7 @@ async def login(
     # --8<-- [start:login_cookies]
     response.set_cookie(
         key="access_token",
-        value=result.access_token,
+        value=result.access_token.get_secret_value(),
         max_age=result.session_timeout_minutes * 60,
         httponly=True,
         secure=True,  # HTTPS only
@@ -62,7 +63,7 @@ async def login(
 
     response.set_cookie(
         key="csrf_token",
-        value=result.csrf_token,
+        value=result.csrf_token.get_secret_value(),
         max_age=result.session_timeout_minutes * 60,
         httponly=False,  # JavaScript needs to read this
         secure=True,
@@ -78,7 +79,7 @@ async def login(
         message="Login successful",
         username=result.username,
         role=result.role,
-        csrf_token=result.csrf_token,
+        csrf_token=result.csrf_token.get_secret_value(),
     )
 
 

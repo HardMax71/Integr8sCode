@@ -8,11 +8,9 @@ from app.schemas_pydantic.admin_user_overview import AdminUserOverview
 from app.schemas_pydantic.user import (
     DeleteUserResponse,
     MessageResponse,
-    PasswordResetRequest,
     RateLimitUpdateRequest,
     RateLimitUpdateResponse,
     UnlockResponse,
-    UserCreate,
     UserListResponse,
     UserRateLimitsResponse,
     UserResponse,
@@ -22,15 +20,15 @@ from app.schemas_pydantic.user import (
 pytestmark = [pytest.mark.e2e]
 
 
-def make_user_create(prefix: str, role: UserRole = UserRole.USER) -> UserCreate:
-    """Helper to create UserCreate with unique username/email."""
+def make_user_create(prefix: str, role: UserRole = UserRole.USER) -> dict[str, str]:
+    """A create-user body with a unique username and email, as a client sends it."""
     uid = uuid.uuid4().hex[:8]
-    return UserCreate(
-        username=f"{prefix}_{uid}",
-        email=f"{prefix}_{uid}@example.com",
-        password="password123",
-        role=role,
-    )
+    return {
+        "username": f"{prefix}_{uid}",
+        "email": f"{prefix}_{uid}@example.com",
+        "password": "password123",
+        "role": role,
+    }
 
 
 class TestListUsers:
@@ -87,7 +85,7 @@ class TestListUsers:
         prefix = f"page_{uuid.uuid4().hex[:6]}"
         names: set[str] = set()
         for _ in range(3):
-            created = await test_admin.post("/api/v1/admin/users/", json=make_user_create(prefix).model_dump())
+            created = await test_admin.post("/api/v1/admin/users/", json=make_user_create(prefix))
             names.add(created.json()["username"])
 
         first = UserListResponse.model_validate(
@@ -103,12 +101,14 @@ class TestListUsers:
     async def test_list_users_by_active_status(self, test_admin: AsyncClient) -> None:
         """is_active keeps only active or only disabled users."""
         request = make_user_create("inactive")
-        user_id = (await test_admin.post("/api/v1/admin/users/", json=request.model_dump())).json()["user_id"]
+        user_id = (await test_admin.post("/api/v1/admin/users/", json=request)).json()["user_id"]
         update = UserUpdate(is_active=False)
         await test_admin.put(f"/api/v1/admin/users/{user_id}", json=update.model_dump(exclude_none=True))
 
-        disabled = await test_admin.get("/api/v1/admin/users/", params={"search": request.username, "is_active": False})
-        active = await test_admin.get("/api/v1/admin/users/", params={"search": request.username, "is_active": True})
+        disabled = await test_admin.get(
+            "/api/v1/admin/users/", params={"search": request["username"], "is_active": False}
+        )
+        active = await test_admin.get("/api/v1/admin/users/", params={"search": request["username"], "is_active": True})
 
         assert [u.user_id for u in UserListResponse.model_validate(disabled.json()).users] == [user_id]
         assert UserListResponse.model_validate(active.json()).users == []
@@ -130,11 +130,11 @@ class TestListUsers:
     ) -> None:
         """The rate limit filters match the user's override."""
         request = make_user_create("ratelimited")
-        user_id = (await test_admin.post("/api/v1/admin/users/", json=request.model_dump())).json()["user_id"]
+        user_id = (await test_admin.post("/api/v1/admin/users/", json=request)).json()["user_id"]
         update = RateLimitUpdateRequest.model_validate({**limits, "rules": []})
         await test_admin.put(f"/api/v1/admin/rate-limits/{user_id}", json=update.model_dump())
 
-        response = await test_admin.get("/api/v1/admin/users/", params={"search": request.username, **params})
+        response = await test_admin.get("/api/v1/admin/users/", params={"search": request["username"], **params})
 
         assert response.status_code == 200
         result = UserListResponse.model_validate(response.json())
@@ -158,15 +158,15 @@ class TestCreateUser:
     async def test_create_user(self, test_admin: AsyncClient) -> None:
         """Admin can create a new user."""
         request = make_user_create("newuser")
-        response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        response = await test_admin.post("/api/v1/admin/users/", json=request)
 
         assert response.status_code == 200
         raw_data = response.json()
         user = UserResponse.model_validate(raw_data)
 
         assert user.user_id
-        assert user.username == request.username
-        assert user.email == request.email
+        assert user.username == request["username"]
+        assert user.email == request["email"]
         assert user.role == UserRole.USER
         assert user.is_active is True
 
@@ -177,7 +177,7 @@ class TestCreateUser:
     async def test_create_admin_user(self, test_admin: AsyncClient) -> None:
         """Admin can create another admin user."""
         request = make_user_create("newadmin", role=UserRole.ADMIN)
-        response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        response = await test_admin.post("/api/v1/admin/users/", json=request)
 
         assert response.status_code == 200
         user = UserResponse.model_validate(response.json())
@@ -186,32 +186,32 @@ class TestCreateUser:
     async def test_create_user_duplicate_username(self, test_admin: AsyncClient) -> None:
         """Cannot create user with duplicate username."""
         uid = uuid.uuid4().hex[:8]
-        first_user = UserCreate(
-            username=f"duplicate_{uid}",
-            email=f"first_{uid}@example.com",
-            password="password123",
-            role=UserRole.USER,
-        )
+        first_user = {
+            "username": f"duplicate_{uid}",
+            "email": f"first_{uid}@example.com",
+            "password": "password123",
+            "role": UserRole.USER,
+        }
 
         # Create first user and verify success
         first_response = await test_admin.post(
             "/api/v1/admin/users/",
-            json=first_user.model_dump(),
+            json=first_user,
         )
         assert first_response.status_code == 200
         created_user = UserResponse.model_validate(first_response.json())
-        assert created_user.username == first_user.username
+        assert created_user.username == first_user["username"]
 
         # Try to create second user with same username
-        duplicate_user = UserCreate(
-            username=f"duplicate_{uid}",
-            email=f"second_{uid}@example.com",
-            password="password123",
-            role=UserRole.USER,
-        )
+        duplicate_user = {
+            "username": f"duplicate_{uid}",
+            "email": f"second_{uid}@example.com",
+            "password": "password123",
+            "role": UserRole.USER,
+        }
         response = await test_admin.post(
             "/api/v1/admin/users/",
-            json=duplicate_user.model_dump(),
+            json=duplicate_user,
         )
 
         assert response.status_code == 409
@@ -251,7 +251,7 @@ class TestGetUser:
         """Admin can get a specific user."""
         # Create user first
         request = make_user_create("getuser")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         created_user = UserResponse.model_validate(create_response.json())
 
         # Get user
@@ -261,8 +261,8 @@ class TestGetUser:
         user = UserResponse.model_validate(response.json())
 
         assert user.user_id == created_user.user_id
-        assert user.username == request.username
-        assert user.email == request.email
+        assert user.username == request["username"]
+        assert user.email == request["email"]
 
     async def test_get_user_not_found(self, test_admin: AsyncClient) -> None:
         """Get nonexistent user returns 404."""
@@ -274,7 +274,7 @@ class TestGetUser:
         """Regular user cannot get user details."""
         # Create user as admin first
         request = make_user_create("target")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Try to get as regular user
@@ -289,7 +289,7 @@ class TestGetUserOverview:
         """Admin can get user overview."""
         # Create user first
         request = make_user_create("overview")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Get overview
@@ -312,7 +312,7 @@ class TestGetUserOverview:
         """Regular user cannot get user overview."""
         # Create user as admin
         request = make_user_create("target")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Try as regular user
@@ -327,7 +327,7 @@ class TestUpdateUser:
         """Admin can update user's username."""
         # Create user
         request = make_user_create("original")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user = UserResponse.model_validate(create_response.json())
 
         # Update username
@@ -347,10 +347,10 @@ class TestUpdateUser:
     async def test_update_user_to_taken_value_conflicts(self, test_admin: AsyncClient, field: str) -> None:
         """Renaming a user to another user's username or email is a 409, not a 500."""
         taken = UserResponse.model_validate(
-            (await test_admin.post("/api/v1/admin/users/", json=make_user_create("taken").model_dump())).json()
+            (await test_admin.post("/api/v1/admin/users/", json=make_user_create("taken"))).json()
         )
         target = UserResponse.model_validate(
-            (await test_admin.post("/api/v1/admin/users/", json=make_user_create("target").model_dump())).json()
+            (await test_admin.post("/api/v1/admin/users/", json=make_user_create("target"))).json()
         )
 
         response = await test_admin.put(f"/api/v1/admin/users/{target.user_id}", json={field: getattr(taken, field)})
@@ -362,7 +362,7 @@ class TestUpdateUser:
         """Admin can update user's role."""
         # Create user
         request = make_user_create("roletest")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Update role
@@ -380,7 +380,7 @@ class TestUpdateUser:
         """Admin can deactivate a user."""
         # Create user
         request = make_user_create("deactivate")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Deactivate
@@ -409,7 +409,7 @@ class TestUpdateUser:
         """Regular user cannot update other users."""
         # Create user as admin
         request = make_user_create("target")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Try to update as regular user (raw dict - testing invalid access)
@@ -427,7 +427,7 @@ class TestDeleteUser:
         """Admin can delete a user."""
         # Create user
         request = make_user_create("delete")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Delete
@@ -445,7 +445,7 @@ class TestDeleteUser:
         """Delete user with cascade option."""
         # Create user
         request = make_user_create("cascade")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Delete with cascade
@@ -481,7 +481,7 @@ class TestDeleteUser:
         """Regular user cannot delete users."""
         # Create user as admin
         request = make_user_create("target")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Try to delete as regular user
@@ -496,14 +496,14 @@ class TestResetPassword:
         """Admin can reset user's password."""
         # Create user
         request = make_user_create("pwreset")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Reset password
-        reset_request = PasswordResetRequest(new_password="newpassword456")
+        reset_request = {"new_password": "newpassword456"}
         response = await test_admin.post(
             f"/api/v1/admin/users/{user_id}/reset-password",
-            json=reset_request.model_dump(),
+            json=reset_request,
         )
 
         assert response.status_code == 200
@@ -515,7 +515,7 @@ class TestResetPassword:
         """Cannot reset to password shorter than 8 chars."""
         # Create user
         request = make_user_create("shortpw")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Try to reset with short password (raw dict - testing validation error)
@@ -530,7 +530,7 @@ class TestResetPassword:
         """Reset password for nonexistent user returns 404."""
         response = await test_admin.post(
             "/api/v1/admin/users/nonexistent-user-id/reset-password",
-            json=PasswordResetRequest(new_password="newpassword456").model_dump(),
+            json={"new_password": "newpassword456"},
         )
         assert response.status_code == 404
         assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "status": 404}
@@ -541,7 +541,7 @@ class TestResetPassword:
         """Regular user cannot reset passwords."""
         # Create user as admin
         request = make_user_create("target")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Try as regular user (raw dict - testing forbidden access)
@@ -559,7 +559,7 @@ class TestGetUserRateLimits:
         """Admin can get user's rate limits."""
         # Create user
         request = make_user_create("ratelimit")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Get rate limits
@@ -577,7 +577,7 @@ class TestGetUserRateLimits:
         """Regular user cannot get rate limits."""
         # Create user as admin
         request = make_user_create("target")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Try as regular user
@@ -592,7 +592,7 @@ class TestUpdateUserRateLimits:
         """Admin can update user's rate limits."""
         # Create user
         request = make_user_create("updatelimit")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Update rate limits
@@ -618,7 +618,7 @@ class TestUpdateUserRateLimits:
         """Admin can enable rate limit bypass for user."""
         # Create user
         request = make_user_create("bypass")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Enable bypass
@@ -642,7 +642,7 @@ class TestUpdateUserRateLimits:
         """Regular user cannot update rate limits."""
         # Create user as admin
         request = make_user_create("target")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Try as regular user (raw dict - testing forbidden access)
@@ -664,7 +664,7 @@ class TestResetUserRateLimits:
         """Admin can reset user's rate limits."""
         # Create user
         request = make_user_create("resetlimit")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Reset rate limits
@@ -681,7 +681,7 @@ class TestResetUserRateLimits:
         """Regular user cannot reset rate limits."""
         # Create user as admin
         request = make_user_create("target")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         # Try as regular user
@@ -695,7 +695,7 @@ class TestUnlockUser:
     async def test_unlock_user(self, test_admin: AsyncClient) -> None:
         """Admin can unlock a user account."""
         request = make_user_create("locked")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         response = await test_admin.post(f"/api/v1/admin/users/{user_id}/unlock")
@@ -716,7 +716,7 @@ class TestUnlockUser:
     ) -> None:
         """Regular user cannot unlock accounts."""
         request = make_user_create("target")
-        create_response = await test_admin.post("/api/v1/admin/users/", json=request.model_dump())
+        create_response = await test_admin.post("/api/v1/admin/users/", json=request)
         user_id = create_response.json()["user_id"]
 
         response = await test_user.post(f"/api/v1/admin/users/{user_id}/unlock")

@@ -9,7 +9,7 @@ from fastapi.security import OAuth2PasswordBearer
 from opentelemetry import trace
 from pwdlib import PasswordHash
 from pwdlib.hashers.bcrypt import BcryptHasher
-from pydantic import TypeAdapter, ValidationError
+from pydantic import SecretStr, TypeAdapter, ValidationError
 
 from app.domain.user import CSRFValidationError, InvalidCredentialsError
 from app.settings import Settings
@@ -36,11 +36,11 @@ class SecurityService:
         # --8<-- [start:password_hashing]
         self._password_hash = PasswordHash((BcryptHasher(rounds=self.settings.BCRYPT_ROUNDS),))
 
-    def verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        return self._password_hash.verify(plain_password, hashed_password)
+    def verify_password(self, plain_password: SecretStr, hashed_password: SecretStr) -> bool:
+        return self._password_hash.verify(plain_password.get_secret_value(), hashed_password.get_secret_value())
 
-    def get_password_hash(self, password: str) -> str:
-        return self._password_hash.hash(password)
+    def get_password_hash(self, password: SecretStr) -> SecretStr:
+        return SecretStr(self._password_hash.hash(password.get_secret_value()))
 
     # --8<-- [end:password_hashing]
 
@@ -49,7 +49,9 @@ class SecurityService:
         to_encode = data.copy()
         expire = datetime.now(timezone.utc) + expires_delta
         to_encode.update({"exp": expire})
-        encoded_jwt = jwt.encode(to_encode, self.settings.SECRET_KEY, algorithm=self.settings.ALGORITHM)
+        encoded_jwt = jwt.encode(
+            to_encode, self.settings.SECRET_KEY.get_secret_value(), algorithm=self.settings.ALGORITHM
+        )
         return encoded_jwt
 
     # --8<-- [end:create_access_token]
@@ -64,7 +66,7 @@ class SecurityService:
         try:
             payload = jwt.decode(
                 token,
-                self.settings.SECRET_KEY,
+                self.settings.SECRET_KEY.get_secret_value(),
                 algorithms=[self.settings.ALGORITHM],
                 options={"verify_exp": not allow_expired},
             )
@@ -95,7 +97,7 @@ class SecurityService:
         """
         try:
             claims = _claims_adapter.validate_python(
-                jwt.decode(token, self.settings.SECRET_KEY, algorithms=[self.settings.ALGORITHM])
+                jwt.decode(token, self.settings.SECRET_KEY.get_secret_value(), algorithms=[self.settings.ALGORITHM])
             )
         except jwt.PyJWTError, ValidationError:
             raise InvalidCredentialsError() from None
@@ -113,7 +115,7 @@ class SecurityService:
 
     def _sign_csrf(self, nonce: str, session_id: str) -> str:
         return hmac.new(
-            self.settings.SECRET_KEY.encode(),
+            self.settings.SECRET_KEY.get_secret_value().encode(),
             f"{nonce}:{session_id}".encode(),
             "sha256",
         ).hexdigest()

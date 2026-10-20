@@ -35,7 +35,7 @@ def main() -> None:
 
 async def run(settings: Settings, logger: structlog.stdlib.BoundLogger) -> None:
     # A tz-aware client, so MongoDB returns aware datetimes
-    client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True)
+    client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL.get_secret_value(), tz_aware=True)
     await init_beanie(database=client.get_default_database(default=settings.MONGO_DB), document_models=ALL_DOCUMENTS)
 
     container = create_worker_container(settings)

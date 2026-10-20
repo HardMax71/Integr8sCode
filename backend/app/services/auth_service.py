@@ -5,6 +5,7 @@ import structlog
 from fastapi import Request
 from opentelemetry import trace
 from opentelemetry.util.types import AttributeValue
+from pydantic import SecretStr
 
 from app.core.security import SecurityService
 from app.db import UserRepository
@@ -37,7 +38,7 @@ class AuthService:
     # verify_password against this hash so the response time is comparable
     # to the "user exists, wrong password" path. Without this, an attacker
     # could measure response times to enumerate valid usernames.
-    _dummy_hash = "$2b$12$hDE3I.Y1MHugA561T/NQgebE/IVQS.2YliUDGfqADq7v/MTUG6.Bi"
+    _dummy_hash = SecretStr("$2b$12$hDE3I.Y1MHugA561T/NQgebE/IVQS.2YliUDGfqADq7v/MTUG6.Bi")
 
     def __init__(
         self,
@@ -129,7 +130,7 @@ class AuthService:
     async def login(
         self,
         username: str,
-        password: str,
+        password: SecretStr,
         ip_address: str,
         user_agent: str | None,
     ) -> LoginResult:
@@ -192,8 +193,8 @@ class AuthService:
             return LoginResult(
                 username=user.username,
                 role=user.role,
-                access_token=access_token,
-                csrf_token=csrf_token,
+                access_token=SecretStr(access_token),
+                csrf_token=SecretStr(csrf_token),
                 session_timeout_minutes=session_timeout,
             )
 
@@ -201,7 +202,7 @@ class AuthService:
         self,
         username: str,
         email: str,
-        password: str,
+        password: SecretStr,
         ip_address: str,
         user_agent: str | None,
     ) -> UserDocument:

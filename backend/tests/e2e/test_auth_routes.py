@@ -7,7 +7,6 @@ from app.domain.enums import UserRole
 from app.schemas_pydantic.user import (
     LoginResponse,
     MessageResponse,
-    UserCreate,
     UserResponse,
 )
 
@@ -17,33 +16,33 @@ pytestmark = [pytest.mark.e2e]
 class TestAuthLogin:
     """Tests for POST /api/v1/auth/login."""
 
-    async def test_login_success(self, client: AsyncClient, new_user_request: UserCreate) -> None:
+    async def test_login_success(self, client: AsyncClient, new_user_request: dict[str, str]) -> None:
         """Login with valid credentials returns LoginResponse."""
-        await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
+        await client.post("/api/v1/auth/register", json=new_user_request)
 
         response = await client.post(
             "/api/v1/auth/login",
-            data={"username": new_user_request.username, "password": new_user_request.password},
+            data={"username": new_user_request["username"], "password": new_user_request["password"]},
         )
 
         assert response.status_code == 200
         result = LoginResponse.model_validate(response.json())
 
-        assert result.username == new_user_request.username
+        assert result.username == new_user_request["username"]
         assert result.role in [UserRole.USER, UserRole.ADMIN]
         assert result.csrf_token and len(result.csrf_token) > 0
         assert result.message == "Login successful"
         assert "access_token" in response.cookies
         assert "csrf_token" in response.cookies
 
-    async def test_login_invalid_password(self, client: AsyncClient, new_user_request: UserCreate) -> None:
+    async def test_login_invalid_password(self, client: AsyncClient, new_user_request: dict[str, str]) -> None:
         """Invalid password returns 401 with error detail."""
-        await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
+        await client.post("/api/v1/auth/register", json=new_user_request)
 
         # Login with wrong password
         response = await client.post(
             "/api/v1/auth/login",
-            data={"username": new_user_request.username, "password": "WrongPass123!"},
+            data={"username": new_user_request["username"], "password": "WrongPass123!"},
         )
 
         assert response.status_code == 401
@@ -66,22 +65,22 @@ class TestAuthLogin:
         assert response.status_code == 422
 
     async def test_login_deactivated_account(
-        self, client: AsyncClient, test_admin: AsyncClient, new_user_request: UserCreate
+        self, client: AsyncClient, test_admin: AsyncClient, new_user_request: dict[str, str]
     ) -> None:
         """Deactivated account returns 403 even with the right password."""
-        created = await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
+        created = await client.post("/api/v1/auth/register", json=new_user_request)
         user_id = created.json()["user_id"]
         deactivated = await test_admin.put(f"/api/v1/admin/users/{user_id}", json={"is_active": False})
         assert deactivated.status_code == 200
 
         response = await client.post(
             "/api/v1/auth/login",
-            data={"username": new_user_request.username, "password": new_user_request.password},
+            data={"username": new_user_request["username"], "password": new_user_request["password"]},
         )
 
         assert response.status_code == 403
         assert response.json() == {
-            "detail": f"Account '{new_user_request.username}' is deactivated",
+            "detail": f"Account '{new_user_request['username']}' is deactivated",
             "status": 403,
         }
 
@@ -89,48 +88,48 @@ class TestAuthLogin:
 class TestAuthRegister:
     """Tests for POST /api/v1/auth/register."""
 
-    async def test_register_success(self, client: AsyncClient, new_user_request: UserCreate) -> None:
+    async def test_register_success(self, client: AsyncClient, new_user_request: dict[str, str]) -> None:
         """Register new user returns UserResponse with all fields."""
-        response = await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
+        response = await client.post("/api/v1/auth/register", json=new_user_request)
 
         assert response.status_code == 200
         result = UserResponse.model_validate(response.json())
 
         # Validate UUID format
         uuid.UUID(result.user_id)
-        assert result.username == new_user_request.username
-        assert result.email == new_user_request.email
+        assert result.username == new_user_request["username"]
+        assert result.email == new_user_request["email"]
         assert result.role == UserRole.USER
         assert result.is_superuser is False
 
-    async def test_register_duplicate_username(self, client: AsyncClient, new_user_request: UserCreate) -> None:
+    async def test_register_duplicate_username(self, client: AsyncClient, new_user_request: dict[str, str]) -> None:
         """Duplicate username returns 409."""
-        await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
+        await client.post("/api/v1/auth/register", json=new_user_request)
 
         # Try same username with different email
-        second_request = UserCreate(
-            username=new_user_request.username,
-            email=f"other_{uuid.uuid4().hex[:8]}@test.com",
-            password="Pass123!",
-            role=UserRole.USER,
-        )
-        response = await client.post("/api/v1/auth/register", json=second_request.model_dump())
+        second_request = {
+            "username": new_user_request["username"],
+            "email": f"other_{uuid.uuid4().hex[:8]}@test.com",
+            "password": "Pass123!",
+            "role": UserRole.USER,
+        }
+        response = await client.post("/api/v1/auth/register", json=second_request)
 
         assert response.status_code == 409
         assert response.json()["detail"] == "Username already registered"
 
-    async def test_register_duplicate_email(self, client: AsyncClient, new_user_request: UserCreate) -> None:
+    async def test_register_duplicate_email(self, client: AsyncClient, new_user_request: dict[str, str]) -> None:
         """Duplicate email returns 409."""
-        await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
+        await client.post("/api/v1/auth/register", json=new_user_request)
 
         # Try same email with different username
-        second_request = UserCreate(
-            username=f"other_{uuid.uuid4().hex[:8]}",
-            email=new_user_request.email,
-            password="Pass123!",
-            role=UserRole.USER,
-        )
-        response = await client.post("/api/v1/auth/register", json=second_request.model_dump())
+        second_request = {
+            "username": f"other_{uuid.uuid4().hex[:8]}",
+            "email": new_user_request["email"],
+            "password": "Pass123!",
+            "role": UserRole.USER,
+        }
+        response = await client.post("/api/v1/auth/register", json=second_request)
 
         assert response.status_code == 409
         assert response.json()["detail"] == "Email already registered"
@@ -161,7 +160,10 @@ class TestAuthRegister:
         )
 
         assert response.status_code == 422
-        assert response.json() == {"status": 422, "detail": "password: String should have at least 8 characters"}
+        assert response.json() == {
+            "status": 422,
+            "detail": "password: Value should have at least 8 items after validation, not 5",
+        }
 
 
 class TestAuthMe:

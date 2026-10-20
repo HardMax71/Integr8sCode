@@ -4,6 +4,7 @@ import pytest
 import structlog
 from opentelemetry import trace
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from pydantic import SecretStr
 
 from app.core.security import SecurityService
 from app.db import UserRepository
@@ -40,7 +41,7 @@ async def test_login_on_locked_account_counts_a_blocked_attempt(
     service = _service(test_settings, tracer, lockout, user_repo)
 
     with pytest.raises(AccountLockedError):
-        await service.login("alice", "secret", ip_address="10.0.0.1", user_agent=None)
+        await service.login("alice", SecretStr("secret"), ip_address="10.0.0.1", user_agent=None)
 
     assert [span.name for span in span_exporter.get_finished_spans()] == ["auth.locked_login"]
     user_repo.get_user.assert_not_awaited()
@@ -57,7 +58,7 @@ async def test_failed_login_reports_an_unsuccessful_attempt(
     service = _service(test_settings, tracer, lockout, user_repo)
 
     with pytest.raises(InvalidCredentialsError):
-        await service.login("alice", "secret", ip_address="10.0.0.1", user_agent=None)
+        await service.login("alice", SecretStr("secret"), ip_address="10.0.0.1", user_agent=None)
 
     [span] = span_exporter.get_finished_spans()
     assert (span.name, span.attributes) == ("auth.login", {"auth.method": "login", "auth.success": False})

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import structlog
 from opentelemetry import trace
+from pydantic import SecretStr
 
 from app.core.security import SecurityService
 from app.db import UserRepository
@@ -202,7 +203,7 @@ class AdminUserService:
         admin_user_id: str,
         username: str,
         email: str,
-        password: str,
+        password: SecretStr,
         role: UserRole = UserRole.USER,
         is_active: bool = True,
     ) -> UserDocument:
@@ -231,7 +232,7 @@ class AdminUserService:
         return user
 
     async def update_user(
-        self, *, admin_user_id: str, user_id: str, changes: UserChanges, password: str | None
+        self, *, admin_user_id: str, user_id: str, changes: UserChanges, password: SecretStr | None
     ) -> UserDocument:
         self.logger.info(
             "Admin updating user",
@@ -264,7 +265,7 @@ class AdminUserService:
         self.logger.info("User deleted successfully", target_user_id=user_id)
         return result
 
-    async def reset_user_password(self, *, admin_user_id: str, user_id: str, new_password: str) -> None:
+    async def reset_user_password(self, *, admin_user_id: str, user_id: str, new_password: SecretStr) -> None:
         self.logger.info("Admin resetting user password", admin_user_id=admin_user_id, target_user_id=user_id)
         self._tracer.start_span("auth.password_reset", attributes={"auth.method": "admin"}).end()
         hashed = self._security.get_password_hash(new_password)

@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import TypedDict
 
+from pydantic import SecretStr
+
 from app.core.utils import StringEnum
 from app.domain.enums import UserRole
 
@@ -46,8 +48,8 @@ class LoginResult:
 
     username: str
     role: UserRole
-    access_token: str
-    csrf_token: str
+    access_token: SecretStr
+    csrf_token: SecretStr
     session_timeout_minutes: int
 
 
@@ -58,4 +60,4 @@ class UserChanges(TypedDict, total=False):
     email: str
     role: UserRole
     is_active: bool
-    hashed_password: str
+    hashed_password: SecretStr

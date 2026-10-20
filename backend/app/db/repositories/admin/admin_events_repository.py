@@ -214,7 +214,9 @@ class AdminEventsRepository:
 
     async def archive_event(self, event: DomainEvent, deleted_by: str) -> bool:
         deleted_at = datetime.now(timezone.utc)
-        archive_doc = EventArchiveDocument(**event.model_dump(), deleted_at=deleted_at, deleted_by=deleted_by)
+        archive_doc: EventArchiveDocument = EventArchiveDocument.model_validate(
+            event.model_dump() | {"deleted_at": deleted_at, "deleted_by": deleted_by}
+        )
         deletion = {EventArchiveDocument.deleted_at: deleted_at, EventArchiveDocument.deleted_by: deleted_by}
         await EventArchiveDocument.find_one(EventArchiveDocument.event_id == event.event_id).upsert(
             Set(deletion),  # type: ignore[no-untyped-call]

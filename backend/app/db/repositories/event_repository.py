@@ -40,9 +40,9 @@ class EventRepository:
 
     async def store_event(self, event: DomainEvent) -> str:
         """Idempotent event store — silently ignores duplicates by event_id."""
-        data = event.model_dump(exclude_none=True)
-        data.setdefault("stored_at", datetime.now(timezone.utc))
-        doc = EventDocument(**data)
+        doc: EventDocument = EventDocument.model_validate(
+            event.model_dump(exclude_none=True) | {"stored_at": datetime.now(timezone.utc)}
+        )
         trace.get_current_span().set_attributes(
             {
                 "event.type": event.event_type,

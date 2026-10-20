@@ -3,6 +3,7 @@ from typing import Annotated
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends
+from pydantic import TypeAdapter
 
 from app.api.dependencies import admin_user
 from app.db.docs import UserDocument
@@ -14,6 +15,8 @@ from app.services.admin import AdminSettingsService
 router = APIRouter(
     prefix="/admin/settings", tags=["admin", "settings"], route_class=DishkaRoute, dependencies=[Depends(admin_user)]
 )
+
+_system_settings = TypeAdapter(SystemSettings)
 
 
 @router.get(
@@ -45,7 +48,7 @@ async def update_system_settings(
     service: FromDishka[AdminSettingsService],
 ) -> SystemSettingsSchema:
     """Replace system-wide settings."""
-    domain_settings = SystemSettings(**settings.model_dump())
+    domain_settings = _system_settings.validate_python(settings.model_dump())
     result = await service.update_system_settings(domain_settings, admin.user_id)
     return SystemSettingsSchema.model_validate(result)
 

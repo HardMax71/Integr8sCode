@@ -3,10 +3,11 @@ from typing import Annotated
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends
+from pydantic import TypeAdapter
 
 from app.api.dependencies import admin_user
 from app.db.docs import UserDocument
-from app.domain.rate_limit import RateLimitConfig, RateLimitRule, UserRateLimitUpdate
+from app.domain.rate_limit import RateLimitConfig, UserRateLimitUpdate
 from app.schemas_pydantic.user import (
     MessageResponse,
     RateLimitRuleResponse,
@@ -22,6 +23,8 @@ router = APIRouter(
     route_class=DishkaRoute,
     dependencies=[Depends(admin_user)],
 )
+
+_rate_limit_update = TypeAdapter(UserRateLimitUpdate)
 
 
 @router.get("/defaults", response_model=list[RateLimitRuleResponse])
@@ -50,9 +53,7 @@ async def update_user_rate_limits(
     request: RateLimitUpdateRequest,
 ) -> RateLimitUpdateResponse:
     """Update rate limit rules for a user."""
-    data = request.model_dump(include=set(UserRateLimitUpdate.__dataclass_fields__))
-    data["rules"] = [RateLimitRule(**r) for r in data.get("rules", [])]
-    update = UserRateLimitUpdate(**data)
+    update = _rate_limit_update.validate_python(request.model_dump())
     result = await admin_user_service.update_user_rate_limits(
         admin_user_id=admin.user_id, user_id=user_id, update=update
     )

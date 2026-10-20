@@ -136,9 +136,11 @@ type EventFilter = list[EventType] | None
 def first[T](items: Sequence[T]) -> T | None: ...
 
 # Allowed imports
-from typing import Any, Annotated, Literal, NoReturn, NamedTuple, TypedDict, NotRequired, Protocol, TYPE_CHECKING
+from typing import Any, Annotated, Literal, NoReturn, NamedTuple, TypedDict, NotRequired, Protocol
 from collections.abc import Callable, Mapping, Sequence, Iterable, Iterator, Awaitable, AsyncIterator, AsyncGenerator
 ```
+
+No `if TYPE_CHECKING:` imports and no `from __future__ import annotations`: Python 3.14 evaluates annotations lazily. An import that would need the guard means the type sits in the wrong layer, so move it to the layer that already imports both sides.
 
 `StringEnum` subclasses are already `str`, so no `.value` cast is needed anywhere. Use `NoReturn` as the return type for functions that always raise.
 

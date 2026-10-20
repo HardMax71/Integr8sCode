@@ -56,7 +56,7 @@ async def start_jobs(container: AsyncContainer) -> AsyncIOScheduler:
     await k8s_worker.ensure_image_pre_puller_daemonset()
 
     monitor = await container.get(PodMonitor)
-    scheduler = await container.get(ExecutionScheduler)
+    execution_scheduler = await container.get(ExecutionScheduler)
     dlq_manager = await container.get(DLQManager)
     idempotency = await container.get(IdempotencyManager)
 
@@ -64,7 +64,7 @@ async def start_jobs(container: AsyncContainer) -> AsyncIOScheduler:
     jobs = (
         ("pod_monitor_watch", monitor.watch_cycle, 5, 60),
         # A slot freed by its Redis deadline sends no event, so the queue is checked on a timer too
-        ("execution_schedule_pending", scheduler.schedule_pending, 10, 30),
+        ("execution_schedule_pending", execution_scheduler.schedule_pending, 10, 30),
         ("dlq_monitor_retries", dlq_manager.process_monitoring_cycle, 10, 60),
         ("idempotency_report_keys", idempotency.report_active_keys, 30, 60),
     )

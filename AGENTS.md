@@ -9,7 +9,7 @@ Platform for running scripts online in isolated Kubernetes pods. Users write Pyt
 | Frontend | Svelte 5 (runes), SvelteKit 3 (adapter-static SPA) on Vite 8, TanStack Query 6, TanStack Table 9, bits-ui 2, superforms 3 with formsnap, mode-watcher, TypeScript 6 strict, TailwindCSS 4, Node 26 |
 | Backend | FastAPI, Dishka DI, Beanie ODM (MongoDB), Python 3.14 (backend/.python-version), async throughout, httpx2 for HTTP |
 | Events | Kafka (KRaft, no ZooKeeper) + FastStream (Pydantic JSON) |
-| Worker | one process (`app/worker.py`): k8s worker, pod monitor, result processor, saga orchestrator, DLQ retries |
+| Worker | one process (`app/worker.py`): execution scheduler, k8s worker, pod monitor, result processor, DLQ retries |
 | Infra | MongoDB 9, Redis 8; optional Grafana, Jaeger, Victoria Metrics, Loki, OTel Collector (`--observability`) and Kafdrop (`--debug`) |
 | Runtimes | Python 3.11 to 3.14, Node 22/24/26, Ruby 3.3/3.4/4.0, Bash 5.3, Go 1.26/1.27 (app/runtime_registry.py) |
 
@@ -46,7 +46,7 @@ frontend/
     ├── routes/              # SvelteKit routes: +page.svelte per page, (auth)/ and admin/ guarded by +layout.ts
     ├── components/          # Reusable UI: admin/, editor/, plus shared top-level components
     ├── lib/api/             # Generated API client, never edited by hand (see Frontend: API Client)
-    ├── lib/admin/           # Admin utilities: events/, rate-limits/, sagas/
+    ├── lib/admin/           # Admin utilities: events/, rate-limits/
     ├── lib/editor/          # Execution state, the open script (draft), CodeMirror languages
     ├── lib/notifications/   # Notification SSE stream
     ├── lib/query-client.ts  # the one TanStack Query client, provided by the root layout
@@ -224,7 +224,7 @@ Rules:
 - Use `raise SpecificError(...) from original_exc` to preserve exception chains
 - Never catch `Exception` broadly; catch specific exception types (the two allowed cases follow)
 
-A catch-all is allowed in two cases only. The first records or logs, then re-raises: `UnifiedProducer.produce` in `app/events/core/producer.py` marks the event as failed to publish, `IdempotencyMiddleware` and `DeadLetterMiddleware` in `app/events/middlewares.py` release the idempotency key and save the event to the DLQ, and `ExecutionService` marks the execution as errored before raising `InfrastructureError`. The second is a loop or batch boundary that must survive one bad item: the saga orchestrator's queue loop (`try_schedule_from_queue`), saga step execution and its compensation loop, the pod monitor's watch cycle (`PodMonitor.watch_cycle`) and per-event processing, k8s worker pod creation (publishes a pod-creation-failed event instead), notification delivery and the scheduled-notification batch, DLQ batch retry and per-event replay. A new catch-all needs the same justification and must log or record the error; never swallow it silently.
+A catch-all is allowed in two cases only. The first records or logs, then re-raises: `UnifiedProducer.produce` in `app/events/core/producer.py` marks the event as failed to publish, `IdempotencyMiddleware` and `DeadLetterMiddleware` in `app/events/middlewares.py` release the idempotency key and save the event to the DLQ, `ExecutionService` marks the execution as errored before raising `InfrastructureError`, and `KubernetesWorker.create_pod` marks its `pod.create` span failed. The second is a loop or batch boundary that must survive one bad item: the execution scheduler's queue loop (`schedule_pending`, a pod that can't be created fails its execution and the loop goes on), the pod monitor's watch cycle (`PodMonitor.watch_cycle`) and per-event processing, notification delivery and the scheduled-notification batch, DLQ batch retry and per-event replay. A new catch-all needs the same justification and must log or record the error; never swallow it silently.
 
 ```python
 # Repository: returns None for reads; raises only on write constraints
@@ -352,7 +352,7 @@ class SavedScriptChanges(TypedDict, total=False):
 - Pure Python, no Pydantic validation at construction
 - No dataclass repeats the fields of a document: the document is the entity
 - `event_id` and other UUID fields always use `default_factory`; never add None checks
-- Nested dataclass fields: `context_data: SagaContextData = field(default_factory=SagaContextData)`
+- Nested dataclass fields: `filter: ReplayFilter = field(default_factory=ReplayFilter)`
 - `domain/` imports nothing from `db/docs/`, since the documents import domain values
 
 ## Backend: Pydantic Schemas
@@ -469,7 +469,7 @@ class ExecutionService:
 - Publish events via `UnifiedProducer`: `await self.producer.produce(event_to_produce=event, key=execution_id)`
 - Services orchestrate domain logic; no direct DB or HTTP calls
 - Services build new documents with the document's constructor and hand them to the repository; they never import `app.schemas_pydantic`
-- Always check `None` from repos and raise a domain-specific `NotFoundError` subclass (e.g. `ExecutionNotFoundError`, `SagaNotFoundError`); never return `None` to a route
+- Always check `None` from repos and raise a domain-specific `NotFoundError` subclass (e.g. `ExecutionNotFoundError`, `SavedScriptNotFoundError`); never return `None` to a route
 
 ## Backend: Runtime Registry
 
@@ -523,7 +523,7 @@ class ExecutionRequestedEvent(BaseEvent):
 - Treat events as immutable: build a new event instead of mutating one. `BaseEvent` is not frozen, so nothing enforces this
 
 ### Kafka Topics
-One topic per event type, and the topic name is the event type value itself, with no prefix (`execution_requested`, `create_pod_command`). `EventType` is a `str`, so no `.value` is needed.
+One topic per event type, and the topic name is the event type value itself, with no prefix (`execution_requested`, `pod_created`). `EventType` is a `str`, so no `.value` is needed.
 
 ```python
 # Producer (app/events/core/producer.py): stores the event in MongoDB, then publishes
@@ -535,21 +535,21 @@ await self.producer.produce(event_to_produce=event, key=execution_id)
 Subscribers live in `app/events/handlers.py`, one `<worker>_router()` factory per consumer that returns a `KafkaRouter`. The router carries the ack policy and middlewares; the handler is a module-level function that takes the body and the service and does nothing else, and the factory registers it by calling the subscriber decorator directly.
 
 ```python
-async def start_saga(body: ExecutionRequestedEvent, saga: FromDishka[SagaOrchestrator]) -> None:
-    await saga.handle_execution_requested(body)
+async def schedule_execution(body: ExecutionRequestedEvent, scheduler: FromDishka[ExecutionScheduler]) -> None:
+    await scheduler.handle_execution_requested(body)
 
 
-def saga_router() -> KafkaRouter:
+def scheduler_router() -> KafkaRouter:
     router = KafkaRouter(
         ack_policy=AckPolicy.ACK,
         middlewares=(DeadLetterMiddleware, idempotent(KeyStrategy.EVENT_BASED, ttl_seconds=3600)),
     )
-    router.subscriber(EventType.EXECUTION_REQUESTED, group_id="saga-orchestrator")(start_saga)
+    router.subscriber(EventType.EXECUTION_REQUESTED, group_id="saga-orchestrator")(schedule_execution)
     return router
 ```
 
 - Pass the `EventType` member as the topic, never a string literal
-- String literal `group_id` per consumer group
+- String literal `group_id` per consumer group. The worker's group stays `saga-orchestrator`, the name of the saga orchestrator the scheduler replaced, so its committed offsets carry over
 - One topic per subscriber, no filtering inside handlers. The one exception is the API's `sse-bridge-pool` subscriber, which takes the 17 execution, result and pod event types in one handler and forwards them to Redis for SSE
 - Consumers that must not run a handler twice put `idempotent(strategy, ttl_seconds=...)` from `app/events/middlewares.py` on their router
 - Consumers whose failures should be retried put `DeadLetterMiddleware` first on their router. It saves the failed event to the DLQ with the consumer group, and the worker's DLQ job republishes it with headers that `RetryTargetMiddleware` (on every broker) uses to skip it in the other groups. The SSE bridge has none, since a late SSE push is worse than a missed one
@@ -561,19 +561,19 @@ Everything outside the API runs in one process, `python -m app.worker` (`backend
 1. `Settings(override_path="config.worker.toml")`
 2. `init_beanie()` on a tz-aware `AsyncMongoClient`, before the container exists
 3. `create_worker_container(settings)`
-4. Get `KafkaBroker` from the container and `broker.include_routers(k8s_worker_router(), result_processor_router(), saga_router())`
+4. Get `KafkaBroker` from the container and `broker.include_routers(scheduler_router())`
 5. `setup_dishka(container, broker=broker, auto_inject=True)`
 6. `start_jobs(container)` prepares the cluster and starts the APScheduler jobs, then `FastStream(broker, on_shutdown=[scheduler.shutdown], after_shutdown=[container.close]).run()`
 
 | Part | Purpose |
 |------|---------|
-| k8s_worker | Consumes create/delete pod commands, creates executor pods and ConfigMaps, applies the executor NetworkPolicy on startup |
-| pod_monitor | Watches executor pods (watch cycle every 5s) and publishes pod and execution events; no subscribers |
-| result_processor | Consumes completed, failed and timeout events, stores results, publishes result_stored or result_failed; moves the stored status to scheduled or running on pod_scheduled and pod_running |
-| saga_orchestrator | Runs execution sagas, schedules the queue every 10s, checks saga timeouts every 30s |
+| execution_scheduler | Consumes `execution_requested` and `execution_cancelled`, queues executions in Redis, starts them while slots are free, cancels them; checks the queue every 10s |
+| k8s_worker | Creates executor pods and ConfigMaps and deletes cancelled pods when the scheduler calls it; applies the executor namespace, NetworkPolicy and ResourceQuota on startup |
+| pod_monitor | Watches executor pods (watch cycle every 5s), publishes pod events, hands finished executions to the result processor, deletes the pod and tells the scheduler |
+| result_processor | Stores the status and result, then publishes the terminal event and result_stored or result_failed; publishes nothing for an execution that already ended |
 | dlq_processor | APScheduler only (no Kafka consumer), retries due DLQ rows every 10s for the consumer group that failed |
 
-Each consumer keeps its own `group_id`, so sharing a process doesn't change what Kafka delivers to it. New background work goes into this process: a router in `app/events/handlers.py` included next to the others, or one more APScheduler job. Run one worker replica: the pod watch and the jobs would run once per replica. Replays run in the API, and a TTL index on `completed_at` drops finished replay sessions after 48 hours.
+Inside the worker the parts call each other directly; Kafka only brings the requests in and carries what happened out. New background work goes into this process: a router in `app/events/handlers.py` included next to the scheduler's, or one more APScheduler job. Run one worker replica: the pod watch and the jobs would run once per replica. Replays run in the API, and a TTL index on `completed_at` drops finished replay sessions after 48 hours.
 
 The API process consumes too: `sse-bridge-pool` and `notification-service` are registered in `app/core/dishka_lifespan.py`.
 
@@ -680,20 +680,20 @@ Server state goes through TanStack Query with the options the `@tanstack/svelte-
 
 ```typescript
 import { createMutation, createQuery, keepPreviousData, useQueryClient } from '@tanstack/svelte-query';
-import { listSagasApiV1SagasGetOptions, cancelSagaApiV1SagasSagaIdCancelPostMutation, listSagasApiV1SagasGetQueryKey } from '#lib/api/index.ts';
+import { listExecutionsApiV1AdminExecutionsGetOptions, updatePriorityApiV1AdminExecutionsExecutionIdPriorityPutMutation, listExecutionsApiV1AdminExecutionsGetQueryKey } from '#lib/api/index.ts';
 
 // reads: the callback is reactive, so new filters or a new page are a new key and a new fetch
 const list = createQuery(() => ({
-    ...listSagasApiV1SagasGetOptions({ query: { state, skip, limit } }),
+    ...listExecutionsApiV1AdminExecutionsGetOptions({ query: { status, skip, limit } }),
     placeholderData: keepPreviousData,
     refetchInterval: 5_000,               // polling; pauses in a hidden tab, stops on unmount
 }));
 
 // writes: invalidate what the write changed
 const queryClient = useQueryClient();
-const cancel = createMutation(() => ({
-    ...cancelSagaApiV1SagasSagaIdCancelPostMutation(),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: listSagasApiV1SagasGetQueryKey() }),
+const updatePriority = createMutation(() => ({
+    ...updatePriorityApiV1AdminExecutionsExecutionIdPriorityPutMutation(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: listExecutionsApiV1AdminExecutionsGetQueryKey() }),
 }));
 ```
 

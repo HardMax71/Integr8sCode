@@ -7,9 +7,10 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from app.db.docs import ExecutionDocument
 from app.domain.admin import SystemSettings
-from app.domain.enums import ExecutionErrorType, ExecutionStatus
+from app.domain.enums import EventType, ExecutionErrorType, ExecutionStatus
 from app.domain.events import (
     EventMetadata,
+    ExecutionCancelledEvent,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
     ExecutionTimeoutEvent,
@@ -17,7 +18,6 @@ from app.domain.events import (
     PodScheduledEvent,
     ResourceUsageDomain,
 )
-from app.domain.execution import ExecutionNotFoundError
 from app.runtime_registry import POD_RUNTIME_CONFIGS, parse_quantity
 from app.services.result_processor import ResultProcessor
 from app.services.runtime_settings import RuntimeSettingsLoader
@@ -50,45 +50,20 @@ def _make_processor(
     )
 
 
-class TestHandlerTypeGuards:
-    """Handlers must reject wrong event types with TypeError."""
-
-    async def test_completed_rejects_wrong_type(self, tracer: trace.Tracer) -> None:
-        processor = _make_processor(tracer)
-        wrong = ExecutionFailedEvent(
-            execution_id="e1", exit_code=1, error_type=ExecutionErrorType.SCRIPT_ERROR, metadata=_METADATA
-        )
-        with pytest.raises(TypeError, match="Expected ExecutionCompletedEvent"):
-            await processor.handle_execution_completed(wrong)
-
-    async def test_failed_rejects_wrong_type(self, tracer: trace.Tracer) -> None:
-        processor = _make_processor(tracer)
-        wrong = ExecutionCompletedEvent(
-            execution_id="e1", exit_code=0, resource_usage=ResourceUsageDomain(), metadata=_METADATA
-        )
-        with pytest.raises(TypeError, match="Expected ExecutionFailedEvent"):
-            await processor.handle_execution_failed(wrong)
-
-    async def test_timeout_rejects_wrong_type(self, tracer: trace.Tracer) -> None:
-        processor = _make_processor(tracer)
-        wrong = ExecutionCompletedEvent(
-            execution_id="e1", exit_code=0, resource_usage=ResourceUsageDomain(), metadata=_METADATA
-        )
-        with pytest.raises(TypeError, match="Expected ExecutionTimeoutEvent"):
-            await processor.handle_execution_timeout(wrong)
-
-
 class TestHandleExecutionCompleted:
-    async def test_raises_when_execution_not_found(self, tracer: trace.Tracer) -> None:
+    async def test_skips_a_deleted_execution(self, tracer: trace.Tracer) -> None:
         repo = AsyncMock()
         repo.get_execution.return_value = None
-        processor = _make_processor(tracer, exec_repo=repo)
+        producer = AsyncMock()
+        processor = _make_processor(tracer, exec_repo=repo, producer=producer)
 
         event = ExecutionCompletedEvent(
             execution_id="missing", exit_code=0, resource_usage=ResourceUsageDomain(), metadata=_METADATA
         )
-        with pytest.raises(ExecutionNotFoundError):
-            await processor.handle_execution_completed(event)
+        await processor.handle_execution_completed(event)
+
+        repo.write_terminal_result.assert_not_awaited()
+        producer.produce.assert_not_awaited()
 
     async def test_stores_result_and_publishes(self, tracer: trace.Tracer, span_exporter: InMemorySpanExporter) -> None:
         repo = AsyncMock()
@@ -114,7 +89,10 @@ class TestHandleExecutionCompleted:
         assert result_arg.execution_id == "e1"
         assert result_arg.status == ExecutionStatus.COMPLETED
         assert result_arg.exit_code == 0
-        producer.produce.assert_awaited_once()
+        assert [c.kwargs["event_to_produce"].event_type for c in producer.produce.await_args_list] == [
+            EventType.EXECUTION_COMPLETED,
+            EventType.RESULT_STORED,
+        ]
         [span] = span_exporter.get_finished_spans()
         assert (span.name, span.attributes) == (
             "execution.result",
@@ -183,7 +161,10 @@ class TestHandleExecutionFailed:
         assert result_arg.execution_id == "e2"
         assert result_arg.status == ExecutionStatus.FAILED
         assert result_arg.exit_code == 1
-        producer.produce.assert_awaited_once()
+        assert [c.kwargs["event_to_produce"].event_type for c in producer.produce.await_args_list] == [
+            EventType.EXECUTION_FAILED,
+            EventType.RESULT_STORED,
+        ]
         [span] = span_exporter.get_finished_spans()
         assert span.attributes == {
             "execution.status": "failed",
@@ -212,7 +193,10 @@ class TestHandleExecutionTimeout:
         assert result_arg.execution_id == "e3"
         assert result_arg.status == ExecutionStatus.TIMEOUT
         assert result_arg.exit_code == -1
-        producer.produce.assert_awaited_once()
+        assert [c.kwargs["event_to_produce"].event_type for c in producer.produce.await_args_list] == [
+            EventType.EXECUTION_TIMEOUT,
+            EventType.RESULT_STORED,
+        ]
         [span] = span_exporter.get_finished_spans()
         assert span.attributes == {
             "execution.status": "timeout",
@@ -220,6 +204,56 @@ class TestHandleExecutionTimeout:
             "execution.error_type": "timeout",
             "execution.runtime_seconds": 30,
         }
+
+
+class TestResultForAFinishedExecution:
+    """A cancelled execution's pod fails when it's deleted, and that late result must not reach anyone."""
+
+    async def test_publishes_nothing_when_the_execution_already_ended(self, tracer: trace.Tracer) -> None:
+        repo = AsyncMock()
+        repo.get_execution.return_value = ExecutionDocument(
+            script="x", execution_id="e4", lang="python", lang_version="3.11"
+        )
+        repo.write_terminal_result.return_value = False
+        producer = AsyncMock()
+        processor = _make_processor(tracer, exec_repo=repo, producer=producer)
+
+        event = ExecutionFailedEvent(
+            execution_id="e4", exit_code=143, error_type=ExecutionErrorType.SCRIPT_ERROR, metadata=_METADATA
+        )
+        await processor.handle_execution_failed(event)
+
+        repo.write_terminal_result.assert_awaited_once()
+        producer.produce.assert_not_awaited()
+
+
+class TestHandleExecutionCancelled:
+    async def test_stores_cancelled_and_publishes_result_stored(
+        self, tracer: trace.Tracer, span_exporter: InMemorySpanExporter
+    ) -> None:
+        repo = AsyncMock()
+        repo.get_execution.return_value = ExecutionDocument(
+            script="x", execution_id="e5", lang="python", lang_version="3.11"
+        )
+        repo.write_terminal_result.return_value = True
+        producer = AsyncMock()
+        processor = _make_processor(tracer, exec_repo=repo, producer=producer)
+
+        await processor.handle_execution_cancelled(
+            ExecutionCancelledEvent(execution_id="e5", cancelled_by="u1", metadata=_METADATA)
+        )
+
+        result_arg = repo.write_terminal_result.call_args[0][0]
+        assert (result_arg.execution_id, result_arg.status, result_arg.exit_code) == (
+            "e5",
+            ExecutionStatus.CANCELLED,
+            None,
+        )
+        assert [c.kwargs["event_to_produce"].event_type for c in producer.produce.await_args_list] == [
+            EventType.RESULT_STORED
+        ]
+        [span] = span_exporter.get_finished_spans()
+        assert span.attributes == {"execution.status": "cancelled", "execution.lang_and_version": "python-3.11"}
 
 
 class TestPodProgress:

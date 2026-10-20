@@ -32,17 +32,15 @@ describe('AdminLayout', () => {
             expect(screen.getByText('Event Browser')).toBeInTheDocument();
         });
         expect(screen.getByText('Executions')).toBeInTheDocument();
-        expect(screen.getByText('Sagas')).toBeInTheDocument();
         expect(screen.getByText('Users')).toBeInTheDocument();
         expect(screen.getByText('Settings')).toBeInTheDocument();
 
         const adminLinks = screen.getAllByRole('link').filter((l) => l.getAttribute('href')?.startsWith('/admin/'));
-        expect(adminLinks.length).toBe(5);
+        expect(adminLinks.length).toBe(4);
 
         const hrefs = adminLinks.map((l) => l.getAttribute('href'));
         expect(hrefs).toContain('/admin/events');
         expect(hrefs).toContain('/admin/executions');
-        expect(hrefs).toContain('/admin/sagas');
         expect(hrefs).toContain('/admin/users');
         expect(hrefs).toContain('/admin/settings');
     });
@@ -50,7 +48,6 @@ describe('AdminLayout', () => {
     it.each([
         ['/admin/events', 'Event Browser'],
         ['/admin/executions', 'Executions'],
-        ['/admin/sagas', 'Sagas'],
         ['/admin/users', 'Users'],
         ['/admin/settings', 'Settings'],
     ])('highlights active link for path "%s"', async (path, label) => {

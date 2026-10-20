@@ -4,7 +4,7 @@ When a Kafka handler raises, its event goes to the dead letter queue, and the wo
 
 ## What happens to a failed event
 
-Every subscriber except the SSE bridge uses `AckPolicy.ACK`, which commits the offset after the handler returns, whether it succeeded or raised. The k8s worker, result processor, saga orchestrator and notification routers also carry `DeadLetterMiddleware`:
+Every subscriber except the SSE bridge uses `AckPolicy.ACK`, which commits the offset after the handler returns, whether it succeeded or raised. The execution scheduler and notification routers also carry `DeadLetterMiddleware`:
 
 ```python
 --8<-- "backend/app/events/middlewares.py:DeadLetterMiddleware"
@@ -37,7 +37,7 @@ Exponential delays get 10% jitter. A message whose `retry_count` has reached the
 
 ## Storage
 
-A row is one event in one consumer group. The unique index is on `event.event_id` plus `consumer_group`, so when the saga orchestrator and the result processor both fail on the same `execution_completed`, each gets its own row and its own retry. A TTL index deletes rows 7 days after `created_at`.
+A row is one event in one consumer group. The unique index is on `event.event_id` plus `consumer_group`, so when two groups fail on the same event, each gets its own row and its own retry. A TTL index deletes rows 7 days after `created_at`.
 
 A database created before consumer groups were added still has the old unique index `idx_dlq_event_id` on `event.event_id` alone, and Beanie never drops indexes. Until someone runs `db.dlq_messages.dropIndex("idx_dlq_event_id")` once, a second group that fails on the same event can't save its row.
 

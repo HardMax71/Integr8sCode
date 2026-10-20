@@ -1,13 +1,15 @@
 # Pod monitor
 
-The pod monitor watches executor pods and turns what Kubernetes reports into events. It's the only component that reads a pod's output, and it publishes the events that end an execution.
+The pod monitor watches executor pods and turns what Kubernetes reports into events. It's the only component that reads a pod's output. Executor pods have no network, so the output can't come any other way.
 
 ```mermaid
 graph LR
     K8s[Kubernetes API] -->|LIST, then WATCH| Monitor[Pod monitor]
     Monitor -->|read logs| K8s
-    Monitor -->|pod and execution events| Kafka[(Kafka)]
+    Monitor -->|pod events| Kafka[(Kafka)]
+    Monitor -->|completed / failed / timeout| Result[Result processor]
     Monitor -->|delete finished pod| K8s
+    Monitor -->|finish| Sched[Execution scheduler]
 ```
 
 ## Watching
@@ -31,11 +33,11 @@ It remembers the last phase seen per pod and drops an update with the same phase
 
 For terminal events the mapper reads the container's logs, where the entrypoint writes stdout and stderr as length-prefixed frames, and the termination message, which carries the exit code, wall time, CPU jiffies and peak memory. If the logs can't be read, a pod whose containers all exited 0 publishes nothing at all. Any other failed pod, a timed-out one included, still publishes `execution_failed` with the error taken from the pod status.
 
-Every event goes through the producer, which stores it in the MongoDB `events` collection before sending it to Kafka.
+`pod_scheduled`, `pod_running` and `pod_terminated` go straight to the producer, which stores each one in the MongoDB `events` collection before sending it to Kafka; the first two also move the stored status forward through the [result processor](result_processor.md). The three terminal events go to the result processor, which writes the result and only then publishes them.
 
 ## Cleanup
 
-After publishing `execution_completed`, `execution_failed` or `execution_timeout`, the monitor deletes the pod with no grace period. The ConfigMap goes with it through its ownerReference.
+After a terminal event, the monitor deletes the pod with no grace period, and the ConfigMap goes with it through its ownerReference. Then it tells the [execution scheduler](execution_scheduler.md) the execution finished, so its slot frees and the next queued execution starts.
 
 ## Key files
 

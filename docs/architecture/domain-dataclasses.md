@@ -17,7 +17,6 @@ The opposite holds inside Pydantic models, and the code relies on that. When a d
 | `app/domain/user/user_models.py` | `UserChanges`, `UserDeleteResult`, `LoginResult` |
 | `app/domain/user/settings_models.py` | `DomainNotificationSettings`, `DomainEditorSettings`, `UserSettingsChanges`, `DomainUserSettingsChangedEvent` |
 | `app/domain/execution/models.py` | `ExecutionResultDomain`, `CancelResult`, `ResourceLimitsDomain` |
-| `app/domain/saga/models.py` | `SagaContextData`, `SagaFilter`, `SagaConfig`, `SagaChanges` |
 | `app/domain/replay/models.py` | `ReplayFilter`, `ReplayConfig`, `ReplayError`, `ReplaySessionChanges` |
 | `app/domain/events/event_models.py` | `EventFilter`, `EventListResult`, `EventStatistics` |
 | `app/domain/events/typed.py` | `EventMetadata`, `ResourceUsageDomain` (next to the Pydantic events) |
@@ -32,20 +31,18 @@ The opposite holds inside Pydantic models, and the code relies on that. When a d
 
 ## Writing one
 
-`SagaContextData` in `app/domain/saga/models.py`, embedded in `SagaDocument.context_data`, shows the conventions for a value object:
+`ReplayConfig` in `app/domain/replay/models.py`, embedded in `ReplaySessionDocument.config`, shows the conventions for a value object (trimmed):
 
 ```python
 @dataclass
-class SagaContextData:
-    """Typed saga execution context. Populated incrementally by saga steps."""
+class ReplayConfig:
+    replay_type: ReplayType
+    target: ReplayTarget = ReplayTarget.KAFKA
+    filter: ReplayFilter = field(default_factory=ReplayFilter)
 
-    execution_id: str = ""
-    language: str = ""
-    language_version: str | None = None
-    script: str = ""
-    timeout_seconds: int | None = None
-    pod_creation_triggered: bool = False
-    user_id: str = field(default_factory=lambda: str(uuid4()))
+    speed_multiplier: float = 1.0
+    batch_size: int = 100
+    max_events: int | None = None
 ```
 
 Mutable defaults and generated values use `field(default_factory=...)`. Timestamps are timezone-aware, from `datetime.now(timezone.utc)`. Generated ids use `default_factory=lambda: str(uuid4())`, so code never checks them for None. Enums are `StringEnum` subclasses.

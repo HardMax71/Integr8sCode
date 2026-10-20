@@ -12,7 +12,6 @@ from app.db.docs import (
     EventDocument,
     ExecutionDocument,
     NotificationDocument,
-    SagaDocument,
     SavedScriptDocument,
     UserDocument,
     UserSettingsDocument,
@@ -117,7 +116,6 @@ class UserRepository:
         notif_result = await NotificationDocument.find(NotificationDocument.user_id == user_id).delete()
         settings_result = await UserSettingsDocument.find(UserSettingsDocument.user_id == user_id).delete()
         events_result = await EventDocument.find(EventDocument.metadata.user_id == user_id).delete()
-        sagas_result = await SagaDocument.find(SagaDocument.context_data.user_id == user_id).delete()
 
         return UserDeleteResult(
             user_deleted=True,
@@ -126,7 +124,6 @@ class UserRepository:
             notifications=notif_result.deleted_count if notif_result else 0,
             user_settings=settings_result.deleted_count if settings_result else 0,
             events=events_result.deleted_count if events_result else 0,
-            sagas=sagas_result.deleted_count if sagas_result else 0,
         )
 
     async def reset_user_password(self, user_id: str, hashed_password: SecretStr) -> bool:

@@ -2,7 +2,7 @@
 
 import { faker, type Faker } from '@faker-js/faker';
 
-import type { AdminExecutionListResponse, AdminExecutionResponse, AdminUserOverview, AllocateResourcesCommandEvent, AuthFailedEvent, BodyLoginApiV1AuthLoginPost, BrowseEventsApiV1AdminEventsBrowsePostData, BrowseEventsApiV1AdminEventsBrowsePostErrors, BrowseEventsApiV1AdminEventsBrowsePostResponses, CancelExecutionApiV1ExecutionsExecutionIdCancelPostData, CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors, CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponses, CancelExecutionRequest, CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostData, CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostErrors, CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostResponses, CancelResponse, CancelSagaApiV1SagasSagaIdCancelPostData, CancelSagaApiV1SagasSagaIdCancelPostErrors, CancelSagaApiV1SagasSagaIdCancelPostResponses, CancelStatus, CleanupOldSessionsApiV1ReplayCleanupPostData, CleanupOldSessionsApiV1ReplayCleanupPostErrors, CleanupOldSessionsApiV1ReplayCleanupPostResponses, CleanupResponse, ContainerStatusInfo, CreateExecutionApiV1ExecutePostData, CreateExecutionApiV1ExecutePostErrors, CreateExecutionApiV1ExecutePostResponses, CreatePodCommandEvent, CreateReplaySessionApiV1ReplaySessionsPostData, CreateReplaySessionApiV1ReplaySessionsPostErrors, CreateReplaySessionApiV1ReplaySessionsPostResponses, CreateSavedScriptApiV1ScriptsPostData, CreateSavedScriptApiV1ScriptsPostErrors, CreateSavedScriptApiV1ScriptsPostResponses, CreateUserApiV1AdminUsersPostData, CreateUserApiV1AdminUsersPostErrors, CreateUserApiV1AdminUsersPostResponses, DeleteEventApiV1AdminEventsEventIdDeleteData, DeleteEventApiV1AdminEventsEventIdDeleteErrors, DeleteEventApiV1AdminEventsEventIdDeleteResponses, DeleteExecutionApiV1ExecutionsExecutionIdDeleteData, DeleteExecutionApiV1ExecutionsExecutionIdDeleteErrors, DeleteExecutionApiV1ExecutionsExecutionIdDeleteResponses, DeleteNotificationApiV1NotificationsNotificationIdDeleteData, DeleteNotificationApiV1NotificationsNotificationIdDeleteErrors, DeleteNotificationApiV1NotificationsNotificationIdDeleteResponses, DeleteNotificationResponse, DeletePodCommandEvent, DeleteResponse, DeleteSavedScriptApiV1ScriptsScriptIdDeleteData, DeleteSavedScriptApiV1ScriptsScriptIdDeleteErrors, DeleteUserApiV1AdminUsersUserIdDeleteData, DeleteUserApiV1AdminUsersUserIdDeleteErrors, DeleteUserApiV1AdminUsersUserIdDeleteResponses, DeleteUserResponse, DerivedCounts, DlqMessageDiscardedEvent, DlqMessageReceivedEvent, DlqMessageRetriedEvent, EditorSettingsInput, EditorSettingsOutput, EndpointGroup, EndpointUsageStats, Environment, ErrorResponse, EventBrowseRequest, EventBrowseResponse, EventDeleteResponse, EventDetailResponse, EventFilter, EventMetadata, EventReplayRequest, EventReplayResponse, EventReplayStatusResponse, EventReplayStatusResponseWritable, EventStatistics, EventStatsResponse, EventSummary, EventType, EventTypeCount, ExampleScripts, ExecutionAcceptedEvent, ExecutionCancelledEvent, ExecutionCompletedEvent, ExecutionErrorType, ExecutionEventsApiV1EventsExecutionsExecutionIdGetData, ExecutionEventsApiV1EventsExecutionsExecutionIdGetErrors, ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses, ExecutionFailedEvent, ExecutionListResponse, ExecutionQueuedEvent, ExecutionRequest, ExecutionRequestedEvent, ExecutionResponse, ExecutionResult, ExecutionRunningEvent, ExecutionStartedEvent, ExecutionStatus, ExecutionTimeoutEvent, ExportEventsApiV1AdminEventsExportExportFormatGetData, ExportEventsApiV1AdminEventsExportExportFormatGetErrors, ExportEventsApiV1AdminEventsExportExportFormatGetResponses, ExportFormat, GetCurrentUserProfileApiV1AuthMeGetErrors, GetCurrentUserProfileApiV1AuthMeGetResponses, GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetErrors, GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetResponses, GetEventDetailApiV1AdminEventsEventIdGetData, GetEventDetailApiV1AdminEventsEventIdGetErrors, GetEventDetailApiV1AdminEventsEventIdGetResponses, GetEventStatsApiV1AdminEventsStatsGetData, GetEventStatsApiV1AdminEventsStatsGetErrors, GetEventStatsApiV1AdminEventsStatsGetResponses, GetExampleScriptsApiV1ExampleScriptsGetErrors, GetExampleScriptsApiV1ExampleScriptsGetResponses, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetData, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetErrors, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses, GetExecutionSagasApiV1SagasExecutionExecutionIdGetData, GetExecutionSagasApiV1SagasExecutionExecutionIdGetErrors, GetExecutionSagasApiV1SagasExecutionExecutionIdGetResponses, GetK8sResourceLimitsApiV1K8sLimitsGetErrors, GetK8sResourceLimitsApiV1K8sLimitsGetResponses, GetNotificationsApiV1NotificationsGetData, GetNotificationsApiV1NotificationsGetErrors, GetNotificationsApiV1NotificationsGetResponses, GetQueueStatusApiV1AdminExecutionsQueueGetErrors, GetQueueStatusApiV1AdminExecutionsQueueGetResponses, GetReplaySessionApiV1ReplaySessionsSessionIdGetData, GetReplaySessionApiV1ReplaySessionsSessionIdGetErrors, GetReplaySessionApiV1ReplaySessionsSessionIdGetResponses, GetResultApiV1ExecutionsExecutionIdResultGetData, GetResultApiV1ExecutionsExecutionIdResultGetErrors, GetResultApiV1ExecutionsExecutionIdResultGetResponses, GetSagaStatusApiV1SagasSagaIdGetData, GetSagaStatusApiV1SagasSagaIdGetErrors, GetSagaStatusApiV1SagasSagaIdGetResponses, GetSavedScriptApiV1ScriptsScriptIdGetData, GetSavedScriptApiV1ScriptsScriptIdGetErrors, GetSavedScriptApiV1ScriptsScriptIdGetResponses, GetSettingsHistoryApiV1UserSettingsHistoryGetData, GetSettingsHistoryApiV1UserSettingsHistoryGetErrors, GetSettingsHistoryApiV1UserSettingsHistoryGetResponses, GetSubscriptionsApiV1NotificationsSubscriptionsGetErrors, GetSubscriptionsApiV1NotificationsSubscriptionsGetResponses, GetSystemSettingsApiV1AdminSettingsGetErrors, GetSystemSettingsApiV1AdminSettingsGetResponses, GetUnreadCountApiV1NotificationsUnreadCountGetErrors, GetUnreadCountApiV1NotificationsUnreadCountGetResponses, GetUserApiV1AdminUsersUserIdGetData, GetUserApiV1AdminUsersUserIdGetErrors, GetUserApiV1AdminUsersUserIdGetResponses, GetUserExecutionsApiV1UserExecutionsGetData, GetUserExecutionsApiV1UserExecutionsGetErrors, GetUserExecutionsApiV1UserExecutionsGetResponses, GetUserOverviewApiV1AdminUsersUserIdOverviewGetData, GetUserOverviewApiV1AdminUsersUserIdOverviewGetErrors, GetUserOverviewApiV1AdminUsersUserIdOverviewGetResponses, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetData, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetErrors, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetResponses, GetUserSettingsApiV1UserSettingsGetErrors, GetUserSettingsApiV1UserSettingsGetResponses, HourlyEventCount, LanguageInfo, LanguageLimits, ListExecutionsApiV1AdminExecutionsGetData, ListExecutionsApiV1AdminExecutionsGetErrors, ListExecutionsApiV1AdminExecutionsGetResponses, ListReplaySessionsApiV1ReplaySessionsGetData, ListReplaySessionsApiV1ReplaySessionsGetErrors, ListReplaySessionsApiV1ReplaySessionsGetResponses, ListSagasApiV1SagasGetData, ListSagasApiV1SagasGetErrors, ListSagasApiV1SagasGetResponses, ListSavedScriptsApiV1ScriptsGetErrors, ListSavedScriptsApiV1ScriptsGetResponses, ListUsersApiV1AdminUsersGetData, ListUsersApiV1AdminUsersGetErrors, ListUsersApiV1AdminUsersGetResponses, LivenessApiV1HealthLiveGetErrors, LivenessApiV1HealthLiveGetResponses, LivenessResponse, LoginApiV1AuthLoginPostData, LoginApiV1AuthLoginPostErrors, LoginApiV1AuthLoginPostResponses, LoginMethod, LoginResponse, LogLevel, LogoutApiV1AuthLogoutPostErrors, LogoutApiV1AuthLogoutPostResponses, MarkAllReadApiV1NotificationsMarkAllReadPostErrors, MarkNotificationReadApiV1NotificationsNotificationIdReadPutData, MarkNotificationReadApiV1NotificationsNotificationIdReadPutErrors, MessageResponse, NotificationAllReadEvent, NotificationChannel, NotificationClickedEvent, NotificationCreatedEvent, NotificationDeliveredEvent, NotificationFailedEvent, NotificationListResponse, NotificationPreferencesUpdatedEvent, NotificationReadEvent, NotificationResponse, NotificationSentEvent, NotificationSettingsInput, NotificationSettingsOutput, NotificationSeverity, NotificationStatus, NotificationStreamApiV1EventsNotificationsStreamGetErrors, NotificationStreamApiV1EventsNotificationsStreamGetResponses, NotificationSubscription, PasswordResetRequest, PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostData, PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostErrors, PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostResponses, PodCreatedEvent, PodDeletedEvent, PodFailedEvent, PodRunningEvent, PodScheduledEvent, PodSucceededEvent, PodTerminatedEvent, PriorityUpdateRequest, QueuePriority, QueueStatusResponse, QuotaExceededEvent, RateLimitAlgorithm, RateLimitExceededEvent, RateLimitRuleRequest, RateLimitRuleResponse, RateLimitSummary, RateLimitUpdateRequest, RateLimitUpdateResponse, RegisterApiV1AuthRegisterPostData, RegisterApiV1AuthRegisterPostErrors, RegisterApiV1AuthRegisterPostResponses, ReleaseResourcesCommandEvent, ReplayConfigSchema, ReplayError, ReplayEventsApiV1AdminEventsReplayPostData, ReplayEventsApiV1AdminEventsReplayPostErrors, ReplayEventsApiV1AdminEventsReplayPostResponses, ReplayFilter, ReplayFilterSchema, ReplayRequest, ReplayResponse, ReplaySession, ReplayStatus, ReplayTarget, ReplayType, ResetSystemSettingsApiV1AdminSettingsResetPostErrors, ResetSystemSettingsApiV1AdminSettingsResetPostResponses, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostData, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostErrors, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostResponses, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostData, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostErrors, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostResponses, ResourceLimitExceededEvent, ResourceLimits, ResourceUsage, ResourceUsageDomain, RestoreSettingsApiV1UserSettingsRestorePostData, RestoreSettingsApiV1UserSettingsRestorePostErrors, RestoreSettingsApiV1UserSettingsRestorePostResponses, RestoreSettingsRequest, ResultFailedEvent, ResultStoredEvent, ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostData, ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostErrors, ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostResponses, RetryExecutionApiV1ExecutionsExecutionIdRetryPostData, RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors, RetryExecutionApiV1ExecutionsExecutionIdRetryPostResponses, SagaCancellationResponse, SagaCancelledEvent, SagaCompensatedEvent, SagaCompensatingEvent, SagaCompletedEvent, SagaFailedEvent, SagaListResponse, SagaStartedEvent, SagaState, SagaStatusResponse, SavedScriptCreateRequest, SavedScriptListResponse, SavedScriptResponse, SavedScriptUpdate, ScriptDeletedEvent, ScriptSavedEvent, ScriptSharedEvent, SecurityViolationEvent, ServiceEventCount, ServiceRecoveredEvent, ServiceUnhealthyEvent, SessionConfigSummary, SessionSummary, SessionSummaryWritable, SettingsHistoryEntry, SettingsHistoryResponse, SseControlEvent, SseExecutionEventSchema, StartReplaySessionApiV1ReplaySessionsSessionIdStartPostData, StartReplaySessionApiV1ReplaySessionsSessionIdStartPostErrors, StartReplaySessionApiV1ReplaySessionsSessionIdStartPostResponses, StorageType, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetData, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses, SubscriptionsResponse, SubscriptionUpdate, SystemErrorEvent, SystemSettingsSchemaInput, SystemSettingsSchemaOutput, Theme, ThemeUpdateRequest, UnlockResponse, UnlockUserApiV1AdminUsersUserIdUnlockPostData, UnlockUserApiV1AdminUsersUserIdUnlockPostErrors, UnlockUserApiV1AdminUsersUserIdUnlockPostResponses, UnreadCountResponse, UpdateCustomSettingApiV1UserSettingsCustomKeyPutData, UpdateCustomSettingApiV1UserSettingsCustomKeyPutErrors, UpdateCustomSettingApiV1UserSettingsCustomKeyPutResponses, UpdateEditorSettingsApiV1UserSettingsEditorPutData, UpdateEditorSettingsApiV1UserSettingsEditorPutErrors, UpdateEditorSettingsApiV1UserSettingsEditorPutResponses, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutData, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutErrors, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutResponses, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutData, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutErrors, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutResponses, UpdateSavedScriptApiV1ScriptsScriptIdPutData, UpdateSavedScriptApiV1ScriptsScriptIdPutErrors, UpdateSavedScriptApiV1ScriptsScriptIdPutResponses, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutData, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutErrors, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponses, UpdateSystemSettingsApiV1AdminSettingsPutData, UpdateSystemSettingsApiV1AdminSettingsPutErrors, UpdateSystemSettingsApiV1AdminSettingsPutResponses, UpdateThemeApiV1UserSettingsThemePutData, UpdateThemeApiV1UserSettingsThemePutErrors, UpdateThemeApiV1UserSettingsThemePutResponses, UpdateUserApiV1AdminUsersUserIdPutData, UpdateUserApiV1AdminUsersUserIdPutErrors, UpdateUserApiV1AdminUsersUserIdPutResponses, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutData, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutErrors, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutResponses, UpdateUserSettingsApiV1UserSettingsPutData, UpdateUserSettingsApiV1UserSettingsPutErrors, UpdateUserSettingsApiV1UserSettingsPutResponses, UserCreate, UserCreateWritable, UserDeletedEvent, UserEventCount, UserListResponse, UserLoggedInEvent, UserLoggedOutEvent, UserLoginEvent, UserRateLimitConfigResponse, UserRateLimitsResponse, UserRegisteredEvent, UserResponse, UserRole, UserSettings, UserSettingsUpdate, UserSettingsUpdatedEvent, UserUpdate, UserUpdatedEvent, UserUpdateWritable } from '../types.gen';
+import type { AdminExecutionListResponse, AdminExecutionResponse, AdminUserOverview, AuthFailedEvent, BodyLoginApiV1AuthLoginPost, BrowseEventsApiV1AdminEventsBrowsePostData, BrowseEventsApiV1AdminEventsBrowsePostErrors, BrowseEventsApiV1AdminEventsBrowsePostResponses, CancelExecutionApiV1ExecutionsExecutionIdCancelPostData, CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors, CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponses, CancelExecutionRequest, CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostData, CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostErrors, CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostResponses, CancelResponse, CancelStatus, CleanupOldSessionsApiV1ReplayCleanupPostData, CleanupOldSessionsApiV1ReplayCleanupPostErrors, CleanupOldSessionsApiV1ReplayCleanupPostResponses, CleanupResponse, ContainerStatusInfo, CreateExecutionApiV1ExecutePostData, CreateExecutionApiV1ExecutePostErrors, CreateExecutionApiV1ExecutePostResponses, CreateReplaySessionApiV1ReplaySessionsPostData, CreateReplaySessionApiV1ReplaySessionsPostErrors, CreateReplaySessionApiV1ReplaySessionsPostResponses, CreateSavedScriptApiV1ScriptsPostData, CreateSavedScriptApiV1ScriptsPostErrors, CreateSavedScriptApiV1ScriptsPostResponses, CreateUserApiV1AdminUsersPostData, CreateUserApiV1AdminUsersPostErrors, CreateUserApiV1AdminUsersPostResponses, DeleteEventApiV1AdminEventsEventIdDeleteData, DeleteEventApiV1AdminEventsEventIdDeleteErrors, DeleteEventApiV1AdminEventsEventIdDeleteResponses, DeleteExecutionApiV1ExecutionsExecutionIdDeleteData, DeleteExecutionApiV1ExecutionsExecutionIdDeleteErrors, DeleteExecutionApiV1ExecutionsExecutionIdDeleteResponses, DeleteNotificationApiV1NotificationsNotificationIdDeleteData, DeleteNotificationApiV1NotificationsNotificationIdDeleteErrors, DeleteNotificationApiV1NotificationsNotificationIdDeleteResponses, DeleteNotificationResponse, DeleteResponse, DeleteSavedScriptApiV1ScriptsScriptIdDeleteData, DeleteSavedScriptApiV1ScriptsScriptIdDeleteErrors, DeleteUserApiV1AdminUsersUserIdDeleteData, DeleteUserApiV1AdminUsersUserIdDeleteErrors, DeleteUserApiV1AdminUsersUserIdDeleteResponses, DeleteUserResponse, DerivedCounts, DlqMessageDiscardedEvent, DlqMessageReceivedEvent, DlqMessageRetriedEvent, EditorSettingsInput, EditorSettingsOutput, EndpointGroup, EndpointUsageStats, Environment, ErrorResponse, EventBrowseRequest, EventBrowseResponse, EventDeleteResponse, EventDetailResponse, EventFilter, EventMetadata, EventReplayRequest, EventReplayResponse, EventReplayStatusResponse, EventReplayStatusResponseWritable, EventStatistics, EventStatsResponse, EventSummary, EventType, EventTypeCount, ExampleScripts, ExecutionAcceptedEvent, ExecutionCancelledEvent, ExecutionCompletedEvent, ExecutionErrorType, ExecutionEventsApiV1EventsExecutionsExecutionIdGetData, ExecutionEventsApiV1EventsExecutionsExecutionIdGetErrors, ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses, ExecutionFailedEvent, ExecutionListResponse, ExecutionQueuedEvent, ExecutionRequest, ExecutionRequestedEvent, ExecutionResponse, ExecutionResult, ExecutionRunningEvent, ExecutionStartedEvent, ExecutionStatus, ExecutionTimeoutEvent, ExportEventsApiV1AdminEventsExportExportFormatGetData, ExportEventsApiV1AdminEventsExportExportFormatGetErrors, ExportEventsApiV1AdminEventsExportExportFormatGetResponses, ExportFormat, GetCurrentUserProfileApiV1AuthMeGetErrors, GetCurrentUserProfileApiV1AuthMeGetResponses, GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetErrors, GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetResponses, GetEventDetailApiV1AdminEventsEventIdGetData, GetEventDetailApiV1AdminEventsEventIdGetErrors, GetEventDetailApiV1AdminEventsEventIdGetResponses, GetEventStatsApiV1AdminEventsStatsGetData, GetEventStatsApiV1AdminEventsStatsGetErrors, GetEventStatsApiV1AdminEventsStatsGetResponses, GetExampleScriptsApiV1ExampleScriptsGetErrors, GetExampleScriptsApiV1ExampleScriptsGetResponses, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetData, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetErrors, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses, GetK8sResourceLimitsApiV1K8sLimitsGetErrors, GetK8sResourceLimitsApiV1K8sLimitsGetResponses, GetNotificationsApiV1NotificationsGetData, GetNotificationsApiV1NotificationsGetErrors, GetNotificationsApiV1NotificationsGetResponses, GetQueueStatusApiV1AdminExecutionsQueueGetErrors, GetQueueStatusApiV1AdminExecutionsQueueGetResponses, GetReplaySessionApiV1ReplaySessionsSessionIdGetData, GetReplaySessionApiV1ReplaySessionsSessionIdGetErrors, GetReplaySessionApiV1ReplaySessionsSessionIdGetResponses, GetResultApiV1ExecutionsExecutionIdResultGetData, GetResultApiV1ExecutionsExecutionIdResultGetErrors, GetResultApiV1ExecutionsExecutionIdResultGetResponses, GetSavedScriptApiV1ScriptsScriptIdGetData, GetSavedScriptApiV1ScriptsScriptIdGetErrors, GetSavedScriptApiV1ScriptsScriptIdGetResponses, GetSettingsHistoryApiV1UserSettingsHistoryGetData, GetSettingsHistoryApiV1UserSettingsHistoryGetErrors, GetSettingsHistoryApiV1UserSettingsHistoryGetResponses, GetSubscriptionsApiV1NotificationsSubscriptionsGetErrors, GetSubscriptionsApiV1NotificationsSubscriptionsGetResponses, GetSystemSettingsApiV1AdminSettingsGetErrors, GetSystemSettingsApiV1AdminSettingsGetResponses, GetUnreadCountApiV1NotificationsUnreadCountGetErrors, GetUnreadCountApiV1NotificationsUnreadCountGetResponses, GetUserApiV1AdminUsersUserIdGetData, GetUserApiV1AdminUsersUserIdGetErrors, GetUserApiV1AdminUsersUserIdGetResponses, GetUserExecutionsApiV1UserExecutionsGetData, GetUserExecutionsApiV1UserExecutionsGetErrors, GetUserExecutionsApiV1UserExecutionsGetResponses, GetUserOverviewApiV1AdminUsersUserIdOverviewGetData, GetUserOverviewApiV1AdminUsersUserIdOverviewGetErrors, GetUserOverviewApiV1AdminUsersUserIdOverviewGetResponses, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetData, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetErrors, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetResponses, GetUserSettingsApiV1UserSettingsGetErrors, GetUserSettingsApiV1UserSettingsGetResponses, HourlyEventCount, LanguageInfo, LanguageLimits, ListExecutionsApiV1AdminExecutionsGetData, ListExecutionsApiV1AdminExecutionsGetErrors, ListExecutionsApiV1AdminExecutionsGetResponses, ListReplaySessionsApiV1ReplaySessionsGetData, ListReplaySessionsApiV1ReplaySessionsGetErrors, ListReplaySessionsApiV1ReplaySessionsGetResponses, ListSavedScriptsApiV1ScriptsGetErrors, ListSavedScriptsApiV1ScriptsGetResponses, ListUsersApiV1AdminUsersGetData, ListUsersApiV1AdminUsersGetErrors, ListUsersApiV1AdminUsersGetResponses, LivenessApiV1HealthLiveGetErrors, LivenessApiV1HealthLiveGetResponses, LivenessResponse, LoginApiV1AuthLoginPostData, LoginApiV1AuthLoginPostErrors, LoginApiV1AuthLoginPostResponses, LoginMethod, LoginResponse, LogLevel, LogoutApiV1AuthLogoutPostErrors, LogoutApiV1AuthLogoutPostResponses, MarkAllReadApiV1NotificationsMarkAllReadPostErrors, MarkNotificationReadApiV1NotificationsNotificationIdReadPutData, MarkNotificationReadApiV1NotificationsNotificationIdReadPutErrors, MessageResponse, NotificationAllReadEvent, NotificationChannel, NotificationClickedEvent, NotificationCreatedEvent, NotificationDeliveredEvent, NotificationFailedEvent, NotificationListResponse, NotificationPreferencesUpdatedEvent, NotificationReadEvent, NotificationResponse, NotificationSentEvent, NotificationSettingsInput, NotificationSettingsOutput, NotificationSeverity, NotificationStatus, NotificationStreamApiV1EventsNotificationsStreamGetErrors, NotificationStreamApiV1EventsNotificationsStreamGetResponses, NotificationSubscription, PasswordResetRequest, PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostData, PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostErrors, PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostResponses, PodCreatedEvent, PodDeletedEvent, PodFailedEvent, PodRunningEvent, PodScheduledEvent, PodSucceededEvent, PodTerminatedEvent, PriorityUpdateRequest, QueuePriority, QueueStatusResponse, QuotaExceededEvent, RateLimitAlgorithm, RateLimitExceededEvent, RateLimitRuleRequest, RateLimitRuleResponse, RateLimitSummary, RateLimitUpdateRequest, RateLimitUpdateResponse, RegisterApiV1AuthRegisterPostData, RegisterApiV1AuthRegisterPostErrors, RegisterApiV1AuthRegisterPostResponses, ReplayConfigSchema, ReplayError, ReplayEventsApiV1AdminEventsReplayPostData, ReplayEventsApiV1AdminEventsReplayPostErrors, ReplayEventsApiV1AdminEventsReplayPostResponses, ReplayFilter, ReplayFilterSchema, ReplayRequest, ReplayResponse, ReplaySession, ReplayStatus, ReplayTarget, ReplayType, ResetSystemSettingsApiV1AdminSettingsResetPostErrors, ResetSystemSettingsApiV1AdminSettingsResetPostResponses, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostData, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostErrors, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostResponses, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostData, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostErrors, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostResponses, ResourceLimitExceededEvent, ResourceLimits, ResourceUsage, ResourceUsageDomain, RestoreSettingsApiV1UserSettingsRestorePostData, RestoreSettingsApiV1UserSettingsRestorePostErrors, RestoreSettingsApiV1UserSettingsRestorePostResponses, RestoreSettingsRequest, ResultFailedEvent, ResultStoredEvent, ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostData, ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostErrors, ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostResponses, RetryExecutionApiV1ExecutionsExecutionIdRetryPostData, RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors, RetryExecutionApiV1ExecutionsExecutionIdRetryPostResponses, SavedScriptCreateRequest, SavedScriptListResponse, SavedScriptResponse, SavedScriptUpdate, ScriptDeletedEvent, ScriptSavedEvent, ScriptSharedEvent, SecurityViolationEvent, ServiceEventCount, ServiceRecoveredEvent, ServiceUnhealthyEvent, SessionConfigSummary, SessionSummary, SessionSummaryWritable, SettingsHistoryEntry, SettingsHistoryResponse, SseControlEvent, SseExecutionEventSchema, StartReplaySessionApiV1ReplaySessionsSessionIdStartPostData, StartReplaySessionApiV1ReplaySessionsSessionIdStartPostErrors, StartReplaySessionApiV1ReplaySessionsSessionIdStartPostResponses, StorageType, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetData, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses, SubscriptionsResponse, SubscriptionUpdate, SystemErrorEvent, SystemSettingsSchemaInput, SystemSettingsSchemaOutput, Theme, ThemeUpdateRequest, UnlockResponse, UnlockUserApiV1AdminUsersUserIdUnlockPostData, UnlockUserApiV1AdminUsersUserIdUnlockPostErrors, UnlockUserApiV1AdminUsersUserIdUnlockPostResponses, UnreadCountResponse, UpdateCustomSettingApiV1UserSettingsCustomKeyPutData, UpdateCustomSettingApiV1UserSettingsCustomKeyPutErrors, UpdateCustomSettingApiV1UserSettingsCustomKeyPutResponses, UpdateEditorSettingsApiV1UserSettingsEditorPutData, UpdateEditorSettingsApiV1UserSettingsEditorPutErrors, UpdateEditorSettingsApiV1UserSettingsEditorPutResponses, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutData, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutErrors, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutResponses, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutData, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutErrors, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutResponses, UpdateSavedScriptApiV1ScriptsScriptIdPutData, UpdateSavedScriptApiV1ScriptsScriptIdPutErrors, UpdateSavedScriptApiV1ScriptsScriptIdPutResponses, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutData, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutErrors, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponses, UpdateSystemSettingsApiV1AdminSettingsPutData, UpdateSystemSettingsApiV1AdminSettingsPutErrors, UpdateSystemSettingsApiV1AdminSettingsPutResponses, UpdateThemeApiV1UserSettingsThemePutData, UpdateThemeApiV1UserSettingsThemePutErrors, UpdateThemeApiV1UserSettingsThemePutResponses, UpdateUserApiV1AdminUsersUserIdPutData, UpdateUserApiV1AdminUsersUserIdPutErrors, UpdateUserApiV1AdminUsersUserIdPutResponses, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutData, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutErrors, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutResponses, UpdateUserSettingsApiV1UserSettingsPutData, UpdateUserSettingsApiV1UserSettingsPutErrors, UpdateUserSettingsApiV1UserSettingsPutResponses, UserCreate, UserCreateWritable, UserDeletedEvent, UserEventCount, UserListResponse, UserLoggedInEvent, UserLoggedOutEvent, UserLoginEvent, UserRateLimitConfigResponse, UserRateLimitsResponse, UserRegisteredEvent, UserResponse, UserRole, UserSettings, UserSettingsUpdate, UserSettingsUpdatedEvent, UserUpdate, UserUpdatedEvent, UserUpdateWritable } from '../types.gen';
 
 export type Options = {
     faker?: Faker;
@@ -97,8 +97,7 @@ export const fakeDeleteUserResponse = (options?: Options): DeleteUserResponse =>
         saved_scripts: resolveCondition(options?.useDefault ?? false, f) ? 0 : f.number.int(),
         notifications: resolveCondition(options?.useDefault ?? false, f) ? 0 : f.number.int(),
         user_settings: resolveCondition(options?.useDefault ?? false, f) ? 0 : f.number.int(),
-        events: resolveCondition(options?.useDefault ?? false, f) ? 0 : f.number.int(),
-        sagas: resolveCondition(options?.useDefault ?? false, f) ? 0 : f.number.int()
+        events: resolveCondition(options?.useDefault ?? false, f) ? 0 : f.number.int()
     };
 };
 
@@ -192,21 +191,6 @@ export const fakeEventMetadata = (options?: Options): EventMetadata => {
     };
 };
 
-export const fakeAllocateResourcesCommandEvent = (options?: Options): AllocateResourcesCommandEvent => {
-    const f = options?.faker ?? faker;
-    return {
-        event_id: f.string.sample(),
-        event_type: 'allocate_resources_command',
-        event_version: resolveCondition(options?.useDefault ?? false, f) ? '1.0' : f.string.sample(),
-        timestamp: f.date.recent().toISOString(),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { aggregate_id: f.datatype.boolean() ? f.string.sample() : null },
-        metadata: fakeEventMetadata(options),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { execution_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { cpu_request: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { memory_request: f.string.sample() }
-    };
-};
-
 export const fakeAuthFailedEvent = (options?: Options): AuthFailedEvent => {
     const f = options?.faker ?? faker;
     return {
@@ -219,23 +203,6 @@ export const fakeAuthFailedEvent = (options?: Options): AuthFailedEvent => {
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { username: f.datatype.boolean() ? f.internet.username() : null },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { reason: f.string.sample() },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { ip_address: f.datatype.boolean() ? f.internet.ip() : null }
-    };
-};
-
-export const fakeDeletePodCommandEvent = (options?: Options): DeletePodCommandEvent => {
-    const f = options?.faker ?? faker;
-    return {
-        event_id: f.string.sample(),
-        event_type: 'delete_pod_command',
-        event_version: resolveCondition(options?.useDefault ?? false, f) ? '1.0' : f.string.sample(),
-        timestamp: f.date.recent().toISOString(),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { aggregate_id: f.datatype.boolean() ? f.string.sample() : null },
-        metadata: fakeEventMetadata(options),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { saga_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { execution_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { reason: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { pod_name: f.datatype.boolean() ? f.string.sample() : null },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { namespace: f.datatype.boolean() ? f.string.sample() : null }
     };
 };
 
@@ -298,16 +265,6 @@ export const fakeEventType = (options?: Options): EventType => {
         'service_recovered',
         'result_stored',
         'result_failed',
-        'saga_started',
-        'saga_completed',
-        'saga_failed',
-        'saga_cancelled',
-        'saga_compensating',
-        'saga_compensated',
-        'create_pod_command',
-        'delete_pod_command',
-        'allocate_resources_command',
-        'release_resources_command',
         'dlq_message_received',
         'dlq_message_retried',
         'dlq_message_discarded'
@@ -976,32 +933,6 @@ export const fakeAdminExecutionListResponse = (options?: Options): AdminExecutio
     };
 };
 
-export const fakeCreatePodCommandEvent = (options?: Options): CreatePodCommandEvent => {
-    const f = options?.faker ?? faker;
-    return {
-        event_id: f.string.sample(),
-        event_type: 'create_pod_command',
-        event_version: resolveCondition(options?.useDefault ?? false, f) ? '1.0' : f.string.sample(),
-        timestamp: f.date.recent().toISOString(),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { aggregate_id: f.datatype.boolean() ? f.string.sample() : null },
-        metadata: fakeEventMetadata(options),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { saga_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { execution_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { script: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { language: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { language_version: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { runtime_image: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { runtime_command: f.helpers.multiple(() => f.string.sample()) },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { runtime_filename: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { timeout_seconds: f.number.int() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { cpu_limit: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { memory_limit: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { cpu_request: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { memory_request: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { priority: fakeQueuePriority(options) }
-    };
-};
-
 export const fakeExecutionAcceptedEvent = (options?: Options): ExecutionAcceptedEvent => {
     const f = options?.faker ?? faker;
     return {
@@ -1153,21 +1084,6 @@ export const fakeRateLimitUpdateRequest = (options?: Options): RateLimitUpdateRe
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { global_multiplier: resolveCondition(options?.useDefault ?? false, f) ? 1 : f.number.float({ min: 0 }) },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { rules: resolveCondition(options?.useDefault ?? false, f) ? [] : f.helpers.multiple(() => fakeRateLimitRuleRequest(options)) },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { notes: resolveCondition(options?.useDefault ?? false, f) ? '' : f.string.sample() }
-    };
-};
-
-export const fakeReleaseResourcesCommandEvent = (options?: Options): ReleaseResourcesCommandEvent => {
-    const f = options?.faker ?? faker;
-    return {
-        event_id: f.string.sample(),
-        event_type: 'release_resources_command',
-        event_version: resolveCondition(options?.useDefault ?? false, f) ? '1.0' : f.string.sample(),
-        timestamp: f.date.recent().toISOString(),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { aggregate_id: f.datatype.boolean() ? f.string.sample() : null },
-        metadata: fakeEventMetadata(options),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { execution_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { cpu_request: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { memory_request: f.string.sample() }
     };
 };
 
@@ -1492,158 +1408,6 @@ export const fakeSseExecutionEventSchema = (options?: Options): SseExecutionEven
         event_id: f.datatype.boolean() ? f.string.sample() : null,
         status: f.datatype.boolean() ? fakeExecutionStatus(options) : null,
         result: f.datatype.boolean() ? fakeExecutionResult(options) : null
-    };
-};
-
-export const fakeSagaCancellationResponse = (options?: Options): SagaCancellationResponse => {
-    const f = options?.faker ?? faker;
-    return {
-        success: f.datatype.boolean(),
-        message: f.string.sample(),
-        saga_id: f.string.sample()
-    };
-};
-
-export const fakeSagaCancelledEvent = (options?: Options): SagaCancelledEvent => {
-    const f = options?.faker ?? faker;
-    return {
-        event_id: f.string.sample(),
-        event_type: 'saga_cancelled',
-        event_version: resolveCondition(options?.useDefault ?? false, f) ? '1.0' : f.string.sample(),
-        timestamp: f.date.recent().toISOString(),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { aggregate_id: f.datatype.boolean() ? f.string.sample() : null },
-        metadata: fakeEventMetadata(options),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { saga_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { saga_name: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { execution_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { reason: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { completed_steps: f.helpers.multiple(() => f.string.sample()) },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { compensated_steps: f.helpers.multiple(() => f.string.sample()) },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { cancelled_at: f.datatype.boolean() ? f.date.recent().toISOString() : null },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { cancelled_by: f.datatype.boolean() ? f.string.sample() : null }
-    };
-};
-
-export const fakeSagaCompensatedEvent = (options?: Options): SagaCompensatedEvent => {
-    const f = options?.faker ?? faker;
-    return {
-        event_id: f.string.sample(),
-        event_type: 'saga_compensated',
-        event_version: resolveCondition(options?.useDefault ?? false, f) ? '1.0' : f.string.sample(),
-        timestamp: f.date.recent().toISOString(),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { aggregate_id: f.datatype.boolean() ? f.string.sample() : null },
-        metadata: fakeEventMetadata(options),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { saga_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { saga_name: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { execution_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { compensated_steps: f.helpers.multiple(() => f.string.sample()) }
-    };
-};
-
-export const fakeSagaCompensatingEvent = (options?: Options): SagaCompensatingEvent => {
-    const f = options?.faker ?? faker;
-    return {
-        event_id: f.string.sample(),
-        event_type: 'saga_compensating',
-        event_version: resolveCondition(options?.useDefault ?? false, f) ? '1.0' : f.string.sample(),
-        timestamp: f.date.recent().toISOString(),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { aggregate_id: f.datatype.boolean() ? f.string.sample() : null },
-        metadata: fakeEventMetadata(options),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { saga_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { saga_name: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { execution_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { compensating_step: f.string.sample() }
-    };
-};
-
-export const fakeSagaCompletedEvent = (options?: Options): SagaCompletedEvent => {
-    const f = options?.faker ?? faker;
-    return {
-        event_id: f.string.sample(),
-        event_type: 'saga_completed',
-        event_version: resolveCondition(options?.useDefault ?? false, f) ? '1.0' : f.string.sample(),
-        timestamp: f.date.recent().toISOString(),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { aggregate_id: f.datatype.boolean() ? f.string.sample() : null },
-        metadata: fakeEventMetadata(options),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { saga_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { saga_name: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { execution_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { completed_steps: f.helpers.multiple(() => f.string.sample()) }
-    };
-};
-
-export const fakeSagaFailedEvent = (options?: Options): SagaFailedEvent => {
-    const f = options?.faker ?? faker;
-    return {
-        event_id: f.string.sample(),
-        event_type: 'saga_failed',
-        event_version: resolveCondition(options?.useDefault ?? false, f) ? '1.0' : f.string.sample(),
-        timestamp: f.date.recent().toISOString(),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { aggregate_id: f.datatype.boolean() ? f.string.sample() : null },
-        metadata: fakeEventMetadata(options),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { saga_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { saga_name: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { execution_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { failed_step: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { error: f.string.sample() }
-    };
-};
-
-export const fakeSagaStartedEvent = (options?: Options): SagaStartedEvent => {
-    const f = options?.faker ?? faker;
-    return {
-        event_id: f.string.sample(),
-        event_type: 'saga_started',
-        event_version: resolveCondition(options?.useDefault ?? false, f) ? '1.0' : f.string.sample(),
-        timestamp: f.date.recent().toISOString(),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { aggregate_id: f.datatype.boolean() ? f.string.sample() : null },
-        metadata: fakeEventMetadata(options),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { saga_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { saga_name: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { execution_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { initial_event_id: f.string.sample() }
-    };
-};
-
-export const fakeSagaState = (options?: Options): SagaState => {
-    const f = options?.faker ?? faker;
-    return f.helpers.arrayElement([
-        'created',
-        'running',
-        'compensating',
-        'completed',
-        'failed',
-        'timeout',
-        'cancelled'
-    ]);
-};
-
-export const fakeSagaStatusResponse = (options?: Options): SagaStatusResponse => {
-    const f = options?.faker ?? faker;
-    return {
-        saga_id: f.string.sample(),
-        saga_name: f.string.sample(),
-        execution_id: f.string.sample(),
-        state: fakeSagaState(options),
-        current_step: f.datatype.boolean() ? f.string.sample() : null,
-        completed_steps: f.helpers.multiple(() => f.string.sample()),
-        compensated_steps: f.helpers.multiple(() => f.string.sample()),
-        error_message: f.datatype.boolean() ? f.string.sample() : null,
-        created_at: f.date.recent().toISOString(),
-        updated_at: f.date.recent().toISOString(),
-        completed_at: f.datatype.boolean() ? f.date.recent().toISOString() : null,
-        retry_count: f.number.int()
-    };
-};
-
-export const fakeSagaListResponse = (options?: Options): SagaListResponse => {
-    const f = options?.faker ?? faker;
-    return {
-        sagas: f.helpers.multiple(() => fakeSagaStatusResponse(options)),
-        total: f.number.int(),
-        skip: f.number.int(),
-        limit: f.number.int(),
-        has_more: f.datatype.boolean()
     };
 };
 
@@ -2289,16 +2053,6 @@ export const fakeAdminUserOverview = (options?: Options): AdminUserOverview => {
             fakeNotificationAllReadEvent(options),
             fakeNotificationClickedEvent(options),
             fakeNotificationPreferencesUpdatedEvent(options),
-            fakeSagaStartedEvent(options),
-            fakeSagaCompletedEvent(options),
-            fakeSagaFailedEvent(options),
-            fakeSagaCancelledEvent(options),
-            fakeSagaCompensatingEvent(options),
-            fakeSagaCompensatedEvent(options),
-            fakeCreatePodCommandEvent(options),
-            fakeDeletePodCommandEvent(options),
-            fakeAllocateResourcesCommandEvent(options),
-            fakeReleaseResourcesCommandEvent(options),
             fakeScriptSavedEvent(options),
             fakeScriptDeletedEvent(options),
             fakeScriptSharedEvent(options),
@@ -2354,16 +2108,6 @@ export const fakeEventBrowseResponse = (options?: Options): EventBrowseResponse 
             fakeNotificationAllReadEvent(options),
             fakeNotificationClickedEvent(options),
             fakeNotificationPreferencesUpdatedEvent(options),
-            fakeSagaStartedEvent(options),
-            fakeSagaCompletedEvent(options),
-            fakeSagaFailedEvent(options),
-            fakeSagaCancelledEvent(options),
-            fakeSagaCompensatingEvent(options),
-            fakeSagaCompensatedEvent(options),
-            fakeCreatePodCommandEvent(options),
-            fakeDeletePodCommandEvent(options),
-            fakeAllocateResourcesCommandEvent(options),
-            fakeReleaseResourcesCommandEvent(options),
             fakeScriptSavedEvent(options),
             fakeScriptDeletedEvent(options),
             fakeScriptSharedEvent(options),
@@ -2422,16 +2166,6 @@ export const fakeEventDetailResponse = (options?: Options): EventDetailResponse 
             fakeNotificationAllReadEvent(options),
             fakeNotificationClickedEvent(options),
             fakeNotificationPreferencesUpdatedEvent(options),
-            fakeSagaStartedEvent(options),
-            fakeSagaCompletedEvent(options),
-            fakeSagaFailedEvent(options),
-            fakeSagaCancelledEvent(options),
-            fakeSagaCompensatingEvent(options),
-            fakeSagaCompensatedEvent(options),
-            fakeCreatePodCommandEvent(options),
-            fakeDeletePodCommandEvent(options),
-            fakeAllocateResourcesCommandEvent(options),
-            fakeReleaseResourcesCommandEvent(options),
             fakeScriptSavedEvent(options),
             fakeScriptDeletedEvent(options),
             fakeScriptSharedEvent(options),
@@ -2676,16 +2410,6 @@ export const fakeGetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponse20
         fakeNotificationAllReadEvent(options),
         fakeNotificationClickedEvent(options),
         fakeNotificationPreferencesUpdatedEvent(options),
-        fakeSagaStartedEvent(options),
-        fakeSagaCompletedEvent(options),
-        fakeSagaFailedEvent(options),
-        fakeSagaCancelledEvent(options),
-        fakeSagaCompensatingEvent(options),
-        fakeSagaCompensatedEvent(options),
-        fakeCreatePodCommandEvent(options),
-        fakeDeletePodCommandEvent(options),
-        fakeAllocateResourcesCommandEvent(options),
-        fakeReleaseResourcesCommandEvent(options),
         fakeScriptSavedEvent(options),
         fakeScriptDeletedEvent(options),
         fakeScriptSharedEvent(options),
@@ -3408,76 +3132,3 @@ export const fakeDeleteNotificationApiV1NotificationsNotificationIdDeleteRequest
 export const fakeDeleteNotificationApiV1NotificationsNotificationIdDeleteResponse200 = (options?: Options): DeleteNotificationApiV1NotificationsNotificationIdDeleteResponses[200] => fakeDeleteNotificationResponse(options);
 
 export const fakeDeleteNotificationApiV1NotificationsNotificationIdDeleteResponsedefault = (options?: Options): DeleteNotificationApiV1NotificationsNotificationIdDeleteErrors['default'] => fakeErrorResponse(options);
-
-export const fakeGetSagaStatusApiV1SagasSagaIdGetRequest = (options?: Options): Omit<GetSagaStatusApiV1SagasSagaIdGetData, 'url'> => {
-    const f = options?.faker ?? faker;
-    return {
-        path: {
-            saga_id: f.string.sample()
-        }
-    };
-};
-
-export const fakeGetSagaStatusApiV1SagasSagaIdGetResponse200 = (options?: Options): GetSagaStatusApiV1SagasSagaIdGetResponses[200] => fakeSagaStatusResponse(options);
-
-export const fakeGetSagaStatusApiV1SagasSagaIdGetResponse403 = (options?: Options): GetSagaStatusApiV1SagasSagaIdGetErrors[403] => fakeErrorResponse(options);
-
-export const fakeGetSagaStatusApiV1SagasSagaIdGetResponse404 = (options?: Options): GetSagaStatusApiV1SagasSagaIdGetErrors[404] => fakeErrorResponse(options);
-
-export const fakeGetSagaStatusApiV1SagasSagaIdGetResponsedefault = (options?: Options): GetSagaStatusApiV1SagasSagaIdGetErrors['default'] => fakeErrorResponse(options);
-
-export const fakeGetExecutionSagasApiV1SagasExecutionExecutionIdGetRequest = (options?: Options): Omit<GetExecutionSagasApiV1SagasExecutionExecutionIdGetData, 'url'> => {
-    const f = options?.faker ?? faker;
-    return {
-        path: {
-            execution_id: f.string.sample()
-        },
-        query: {
-            ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { state: f.datatype.boolean() ? fakeSagaState(options) : null },
-            ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { limit: resolveCondition(options?.useDefault ?? false, f) ? 100 : f.number.int({ min: 1, max: 1000 }) },
-            ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { skip: resolveCondition(options?.useDefault ?? false, f) ? 0 : f.number.int({ min: 0 }) }
-        }
-    };
-};
-
-export const fakeGetExecutionSagasApiV1SagasExecutionExecutionIdGetResponse200 = (options?: Options): GetExecutionSagasApiV1SagasExecutionExecutionIdGetResponses[200] => fakeSagaListResponse(options);
-
-export const fakeGetExecutionSagasApiV1SagasExecutionExecutionIdGetResponse403 = (options?: Options): GetExecutionSagasApiV1SagasExecutionExecutionIdGetErrors[403] => fakeErrorResponse(options);
-
-export const fakeGetExecutionSagasApiV1SagasExecutionExecutionIdGetResponsedefault = (options?: Options): GetExecutionSagasApiV1SagasExecutionExecutionIdGetErrors['default'] => fakeErrorResponse(options);
-
-export const fakeListSagasApiV1SagasGetRequest = (options?: Options): Omit<ListSagasApiV1SagasGetData, 'url'> => {
-    const f = options?.faker ?? faker;
-    return {
-        query: {
-            ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { state: f.datatype.boolean() ? fakeSagaState(options) : null },
-            ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { execution_id: f.datatype.boolean() ? f.string.sample() : null },
-            ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { search: f.datatype.boolean() ? f.string.alpha({ length: { min: 0, max: 200 } }) : null },
-            ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { limit: resolveCondition(options?.useDefault ?? false, f) ? 100 : f.number.int({ min: 1, max: 1000 }) },
-            ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { skip: resolveCondition(options?.useDefault ?? false, f) ? 0 : f.number.int({ min: 0 }) }
-        }
-    };
-};
-
-export const fakeListSagasApiV1SagasGetResponse200 = (options?: Options): ListSagasApiV1SagasGetResponses[200] => fakeSagaListResponse(options);
-
-export const fakeListSagasApiV1SagasGetResponsedefault = (options?: Options): ListSagasApiV1SagasGetErrors['default'] => fakeErrorResponse(options);
-
-export const fakeCancelSagaApiV1SagasSagaIdCancelPostRequest = (options?: Options): Omit<CancelSagaApiV1SagasSagaIdCancelPostData, 'url'> => {
-    const f = options?.faker ?? faker;
-    return {
-        path: {
-            saga_id: f.string.sample()
-        }
-    };
-};
-
-export const fakeCancelSagaApiV1SagasSagaIdCancelPostResponse200 = (options?: Options): CancelSagaApiV1SagasSagaIdCancelPostResponses[200] => fakeSagaCancellationResponse(options);
-
-export const fakeCancelSagaApiV1SagasSagaIdCancelPostResponse400 = (options?: Options): CancelSagaApiV1SagasSagaIdCancelPostErrors[400] => fakeErrorResponse(options);
-
-export const fakeCancelSagaApiV1SagasSagaIdCancelPostResponse403 = (options?: Options): CancelSagaApiV1SagasSagaIdCancelPostErrors[403] => fakeErrorResponse(options);
-
-export const fakeCancelSagaApiV1SagasSagaIdCancelPostResponse404 = (options?: Options): CancelSagaApiV1SagasSagaIdCancelPostErrors[404] => fakeErrorResponse(options);
-
-export const fakeCancelSagaApiV1SagasSagaIdCancelPostResponsedefault = (options?: Options): CancelSagaApiV1SagasSagaIdCancelPostErrors['default'] => fakeErrorResponse(options);

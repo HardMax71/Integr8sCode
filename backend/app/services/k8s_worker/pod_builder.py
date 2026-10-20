@@ -1,6 +1,6 @@
 from kubernetes_asyncio import client as k8s_client
 
-from app.domain.events import CreatePodCommandEvent
+from app.domain.events import ExecutionRequestedEvent
 from app.runtime_registry import POD_RUNTIME_CONFIGS, PodRuntimeConfig, at_least
 from app.settings import Settings
 
@@ -9,29 +9,28 @@ class PodBuilder:
     def __init__(self, settings: Settings):
         self._settings = settings
 
-    def build_pod_manifest(self, command: CreatePodCommandEvent) -> k8s_client.V1Pod:
-        execution_id = command.execution_id
+    def build_pod_manifest(self, event: ExecutionRequestedEvent) -> k8s_client.V1Pod:
+        execution_id = event.execution_id
         pod_name = f"executor-{execution_id}"
-        pod_config = POD_RUNTIME_CONFIGS.get(command.language, PodRuntimeConfig())
+        pod_config = POD_RUNTIME_CONFIGS.get(event.language, PodRuntimeConfig())
 
-        container = self._build_container(command, pod_config)
-        pod_spec = self._build_pod_spec(container, command, pod_config)
+        container = self._build_container(event, pod_config)
+        pod_spec = self._build_pod_spec(container, event, pod_config)
 
         metadata = self._build_pod_metadata(
             name=pod_name,
             execution_id=execution_id,
-            user_id=command.metadata.user_id,
-            language=command.language,
-            saga_id=command.saga_id,
+            user_id=event.metadata.user_id,
+            language=event.language,
         )
 
         return k8s_client.V1Pod(api_version="v1", kind="Pod", metadata=metadata, spec=pod_spec)
 
     def build_config_map(
-        self, command: CreatePodCommandEvent, script_content: str, entrypoint_content: str
+        self, event: ExecutionRequestedEvent, script_content: str, entrypoint_content: str
     ) -> k8s_client.V1ConfigMap:
         """Build ConfigMap for script and entrypoint"""
-        execution_id = command.execution_id
+        execution_id = event.execution_id
 
         return k8s_client.V1ConfigMap(
             api_version="v1",
@@ -43,27 +42,26 @@ class PodBuilder:
                     "app": "integr8s",
                     "component": "execution-script",
                     "execution-id": execution_id,
-                    "saga-id": command.saga_id,
                 },
             ),
-            data={command.runtime_filename: script_content, "entrypoint.sh": entrypoint_content},
+            data={event.runtime_filename: script_content, "entrypoint.sh": entrypoint_content},
         )
 
-    def _build_container(self, command: CreatePodCommandEvent, pod_config: PodRuntimeConfig) -> k8s_client.V1Container:
-        execution_id = command.execution_id
+    def _build_container(self, event: ExecutionRequestedEvent, pod_config: PodRuntimeConfig) -> k8s_client.V1Container:
+        execution_id = event.execution_id
 
         # Timeout is enforced by activeDeadlineSeconds on the pod spec
-        container_command = ["/bin/sh", "/entry/entrypoint.sh"] + command.runtime_command
+        container_command = ["/bin/sh", "/entry/entrypoint.sh"] + event.runtime_command
 
-        # Get resources - prefer command values, fallback to settings
-        cpu_request = command.cpu_request or self._settings.K8S_POD_CPU_REQUEST
-        memory_request = command.memory_request or self._settings.K8S_POD_MEMORY_REQUEST
-        cpu_limit = at_least(command.cpu_limit or self._settings.K8S_POD_CPU_LIMIT, pod_config.min_cpu)
-        memory_limit = at_least(command.memory_limit or self._settings.K8S_POD_MEMORY_LIMIT, pod_config.min_memory)
+        # Get resources - prefer the event's values, fallback to settings
+        cpu_request = event.cpu_request or self._settings.K8S_POD_CPU_REQUEST
+        memory_request = event.memory_request or self._settings.K8S_POD_MEMORY_REQUEST
+        cpu_limit = at_least(event.cpu_limit or self._settings.K8S_POD_CPU_LIMIT, pod_config.min_cpu)
+        memory_limit = at_least(event.memory_limit or self._settings.K8S_POD_MEMORY_LIMIT, pod_config.min_memory)
 
         container = k8s_client.V1Container(
             name="executor",
-            image=command.runtime_image,
+            image=event.runtime_image,
             command=container_command,
             volume_mounts=[
                 k8s_client.V1VolumeMount(name="script-volume", mount_path="/scripts", read_only=True),
@@ -99,11 +97,11 @@ class PodBuilder:
         return container
 
     def _build_pod_spec(
-        self, container: k8s_client.V1Container, command: CreatePodCommandEvent, pod_config: PodRuntimeConfig
+        self, container: k8s_client.V1Container, event: ExecutionRequestedEvent, pod_config: PodRuntimeConfig
     ) -> k8s_client.V1PodSpec:
         """Build pod specification"""
-        execution_id = command.execution_id
-        timeout = pod_config.timeout_for(command.timeout_seconds or 300)
+        execution_id = event.execution_id
+        timeout = pod_config.timeout_for(event.timeout_seconds or 300)
 
         spec = k8s_client.V1PodSpec(
             containers=[container],
@@ -116,7 +114,7 @@ class PodBuilder:
                     name="script-volume",
                     config_map=k8s_client.V1ConfigMapVolumeSource(
                         name=f"script-{execution_id}",
-                        items=[k8s_client.V1KeyToPath(key=command.runtime_filename, path=command.runtime_filename)],
+                        items=[k8s_client.V1KeyToPath(key=event.runtime_filename, path=event.runtime_filename)],
                     ),
                 ),
                 k8s_client.V1Volume(
@@ -158,26 +156,20 @@ class PodBuilder:
         execution_id: str,
         user_id: str,
         language: str,
-        saga_id: str | None = None,
     ) -> k8s_client.V1ObjectMeta:
-        """Build pod metadata with saga tracking"""
-        labels = {"app": "integr8s", "component": "executor", "execution-id": execution_id, "language": language}
-
-        labels["user-id"] = user_id[:63]  # K8s label value limit
-
-        # Add saga_id if provided (truncate to K8s label limit)
-        if saga_id:
-            labels["saga-id"] = saga_id[:63]
-
+        """Build pod metadata"""
+        labels = {
+            "app": "integr8s",
+            "component": "executor",
+            "execution-id": execution_id,
+            "language": language,
+            "user-id": user_id[:63],  # K8s label value limit
+        }
         annotations = {
             "integr8s.io/execution-id": execution_id,
             "integr8s.io/created-by": "kubernetes-worker",
             "integr8s.io/language": language,
         }
-
-        if saga_id:
-            annotations["integr8s.io/saga-id"] = saga_id
-
         return k8s_client.V1ObjectMeta(
             name=name, namespace=self._settings.K8S_NAMESPACE, labels=labels, annotations=annotations
         )

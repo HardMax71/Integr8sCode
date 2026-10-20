@@ -1,28 +1,27 @@
 # K8s worker
 
-The k8s worker turns saga commands into Kubernetes objects. It consumes `create_pod_command` and `delete_pod_command` with group id `k8s-worker`, and each handler runs behind a Redis idempotency key, so a redelivered command doesn't create a second pod.
+The k8s worker turns an execution into Kubernetes objects. The [execution scheduler](execution_scheduler.md) calls it once a queued execution gets a slot, and again to delete the pod of a cancelled one. It consumes nothing from Kafka.
 
 ```mermaid
 graph LR
-    Kafka[(Kafka)] -->|create_pod_command| Worker[K8s worker]
-    Kafka -->|delete_pod_command| Worker
+    Sched[Execution scheduler] -->|create_pod / delete_pod| Worker[K8s worker]
     Worker -->|ConfigMap + Pod| K8s[Kubernetes API]
-    Worker -->|pod_created or execution_failed| Kafka
+    Worker -->|pod_created| Kafka[(Kafka)]
 ```
 
 ## Creating a pod
 
-For `create_pod_command` the worker creates a ConfigMap `script-{execution_id}` holding the user's script and `entrypoint.sh`, then a pod `executor-{execution_id}`. Once the pod exists, it patches the ConfigMap with an ownerReference to the pod, so Kubernetes deletes the ConfigMap together with the pod. If the Kubernetes API rejects that patch, the worker only logs a warning and the ConfigMap outlives the pod. Then it publishes `pod_created`. If anything else in that sequence fails, it publishes `execution_failed` with error type `system_error` and exit code -1 instead.
+For a new execution the worker creates a ConfigMap `script-{execution_id}` holding the user's script and `entrypoint.sh`, then a pod `executor-{execution_id}`. Once the pod exists, it patches the ConfigMap with an ownerReference to the pod, so Kubernetes deletes the ConfigMap together with the pod. If the Kubernetes API rejects that patch, the worker only logs a warning and the ConfigMap outlives the pod. Then it publishes `pod_created`. If anything else in that sequence fails, the error goes back to the scheduler, which stores the execution as `failed` with error type `system_error` and exit code -1. A pod that already exists (409) counts as created, so a retried request doesn't make a second one.
 
-The image and command come from the command event, which the API filled in from the runtime registry (`app/runtime_registry.py`). The registry can also give a language its own pod settings: extra env vars, a bigger `/tmp`, and minimum CPU, memory and timeout. The pod builder takes the larger of the configured value and the language minimum. Only Go uses this today:
+The image and command come from the `execution_requested` event, which the API filled in from the runtime registry (`app/runtime_registry.py`). The registry can also give a language its own pod settings: extra env vars, a bigger `/tmp`, and minimum CPU, memory and timeout. The pod builder takes the larger of the configured value and the language minimum. Only Go uses this today:
 
 ```python
 --8<-- "backend/app/runtime_registry.py:LANGUAGE_SPECS"
 ```
 
-CPU and memory limits and the timeout arrive in the command, taken from the admin system settings when the execution was requested. Requests come from `K8S_POD_CPU_REQUEST` and `K8S_POD_MEMORY_REQUEST`. The timeout becomes the pod's `activeDeadlineSeconds`.
+CPU and memory limits and the timeout arrive in the event, taken from the admin system settings when the execution was requested. Requests come from `K8S_POD_CPU_REQUEST` and `K8S_POD_MEMORY_REQUEST`. The timeout becomes the pod's `activeDeadlineSeconds`.
 
-For `delete_pod_command`, which only the API's saga cancel route sends today, the worker deletes the pod with a 30 second grace period and lets the ownerReference take the ConfigMap with it.
+For a cancelled execution the worker deletes the pod with no grace period and lets the ownerReference take the ConfigMap with it. A queued execution has no pod yet, so a 404 there is expected.
 
 ## Pod security
 
@@ -40,17 +39,17 @@ The worker refuses to start if `K8S_NAMESPACE` is `default`.
 
 ## Startup
 
-Before it consumes anything, the worker applies two things to the executor namespace. The first is the `executor-deny-all` NetworkPolicy, which selects pods labeled `component=executor` and allows no ingress and no egress, DNS included. The second is the Pod Security Admission labels for the `restricted` profile (enforce, warn and audit). The worker is the only thing that writes this policy, and it takes effect only if the cluster's network plugin enforces NetworkPolicy.
+Before the worker consumes anything, it applies two things to the executor namespace. The first is the `executor-deny-all` NetworkPolicy, which selects pods labeled `component=executor` and allows no ingress and no egress, DNS included. The second is the Pod Security Admission labels for the `restricted` profile (enforce, warn and audit). The worker is the only thing that writes this policy, and it takes effect only if the cluster's network plugin enforces NetworkPolicy.
 
 It also applies the `runtime-image-pre-puller` DaemonSet, which pulls every image in the runtime registry on each node. The worker doesn't wait for those pulls, so an execution that arrives before they finish still waits for its image.
 
-Every executor pod counts against the `executor-quota` ResourceQuota that the worker applies to its namespace on start (`K8S_NAMESPACE_CPU_QUOTA` and `K8S_NAMESPACE_MEMORY_QUOTA`, 32 CPU and 4Gi of requests). A pod over the quota is refused with `403 Forbidden`, and the worker publishes `pod_creation_failed`.
+Every executor pod counts against the `executor-quota` ResourceQuota that the worker applies to its namespace on start (`K8S_NAMESPACE_CPU_QUOTA` and `K8S_NAMESPACE_MEMORY_QUOTA`, 32 CPU and 4Gi of requests). A pod over the quota is refused with `403 Forbidden`, and the execution is stored as `failed`.
 
 ## Key files
 
 | File | Purpose |
 |------|---------|
 | [`worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/worker.py) | Entry point, startup setup |
-| [`worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/k8s_worker/worker.py) | Command handlers, namespace policy, pre-puller |
+| [`worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/k8s_worker/worker.py) | Pod creation and deletion, namespace policy, pre-puller |
 | [`pod_builder.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/k8s_worker/pod_builder.py) | ConfigMap and pod spec |
 | [`runtime_registry.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/runtime_registry.py) | Languages, images, per-language pod settings |

@@ -6,14 +6,14 @@ Kafka delivers at least once, so a consumer can see the same event twice. Handle
 
 | Caller | Events | Key strategy | TTL |
 |--------|--------|--------------|-----|
-| Saga orchestrator | `execution_requested`, `execution_completed`, `execution_failed`, `execution_timeout`, `execution_cancelled` | `EVENT_BASED` | 1 hour |
-| K8s worker | `create_pod_command`, `delete_pod_command` | `CONTENT_HASH` | 1 hour |
-| Result processor | `execution_completed`, `execution_failed`, `execution_timeout` | `CONTENT_HASH` | 2 hours |
+| Execution scheduler | `execution_requested`, `execution_cancelled` | `EVENT_BASED` | 1 hour |
 | API, `POST /api/v1/execute` with `Idempotency-Key` | none, see below | `CUSTOM` | 24 hours |
 
 The other subscribers, `sse-bridge-pool` and `notification-service`, don't use it. The subscriptions live in `backend/app/events/handlers.py`, one `KafkaRouter` per consumer, and the guard is a middleware on the router, so it covers every subscriber on it.
 
-Keys aren't scoped by consumer group. The saga orchestrator and the result processor both guard `execution_completed`, `execution_failed` and `execution_timeout`, and they only stay out of each other's way because one keys on the event id and the other on a content hash. Two routers with the same strategy on the same event would skip each other's deliveries.
+Keys aren't scoped by consumer group, so two routers with the same strategy on the same event would skip each other's deliveries. Only one router uses the manager today.
+
+Inside the worker, a finished pod doesn't need a key: the result processor's write only applies to an execution that is still active, so a pod reported twice stores its result once and publishes it once.
 
 ## Keys
 
@@ -23,7 +23,7 @@ The manager builds a key from the event in one of three ways:
 --8<-- "backend/app/services/idempotency/idempotency_manager.py:generate_key"
 ```
 
-`EVENT_BASED` is `{event_type}:{event_id}` and is the default when a caller passes no strategy. `CONTENT_HASH` is a SHA-256 of the event JSON with `event_id`, `timestamp` and `metadata` removed, so an event published twice under two different ids still counts as one. `CUSTOM` is `{event_type}:{custom_key}` with a key the caller picks. Every key gets the `idempotency:` prefix.
+`EVENT_BASED` is `{event_type}:{event_id}` and is the default when a caller passes no strategy. `CONTENT_HASH` is a SHA-256 of the event JSON with `event_id`, `timestamp` and `metadata` removed, so an event published twice under two different ids still counts as one; no router uses it today. `CUSTOM` is `{event_type}:{custom_key}` with a key the caller picks. Every key gets the `idempotency:` prefix.
 
 ## How a check works
 

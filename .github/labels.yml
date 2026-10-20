@@ -15,7 +15,7 @@
   description: "Kafka consumers and middlewares, producer, idempotency, DLQ, replay"
 - name: "area: execution"
   color: "#c5def5"
-  description: "Queue, sagas, k8s worker, pod monitor, result processor, executor pods, runtimes"
+  description: "Queue, scheduler, k8s worker, pod monitor, result processor, executor pods, runtimes"
 - name: "area: frontend"
   color: "#c5def5"
   description: "Svelte UI and the generated API client"

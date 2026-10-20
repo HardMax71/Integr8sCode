@@ -4,7 +4,7 @@ import pytest
 from kubernetes_asyncio import client as k8s_client
 
 from app.domain.enums import QueuePriority
-from app.domain.events import CreatePodCommandEvent, EventMetadata
+from app.domain.events import EventMetadata, ExecutionRequestedEvent
 from app.runtime_registry import LANGUAGE_SPECS, POD_RUNTIME_CONFIGS, RUNTIME_REGISTRY
 from app.services.k8s_worker import PodBuilder
 from app.settings import Settings
@@ -20,11 +20,10 @@ class TestPodBuilder:
         return PodBuilder(settings=test_settings)
 
     @pytest.fixture
-    def create_pod_command(self) -> CreatePodCommandEvent:
-        """Create sample pod command event."""
-        return CreatePodCommandEvent(
+    def requested(self) -> ExecutionRequestedEvent:
+        """Create a sample execution request."""
+        return ExecutionRequestedEvent(
             execution_id=str(uuid4()),
-            saga_id=str(uuid4()),
             script="print('hello world')",
             language="python",
             language_version="3.11",
@@ -40,9 +39,9 @@ class TestPodBuilder:
             metadata=EventMetadata(user_id=str(uuid4()), service_name="test-service", service_version="1.0.0"),
         )
 
-    def test_build_pod_manifest(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
+    def test_build_pod_manifest(self, pod_builder: PodBuilder, requested: ExecutionRequestedEvent) -> None:
         """Test building pod manifest."""
-        pod = pod_builder.build_pod_manifest(create_pod_command)
+        pod = pod_builder.build_pod_manifest(requested)
 
         # Verify basic pod structure
         assert isinstance(pod, k8s_client.V1Pod)
@@ -50,20 +49,19 @@ class TestPodBuilder:
         assert pod.kind == "Pod"
 
         # Verify metadata
-        assert pod.metadata.name == f"executor-{create_pod_command.execution_id}"
+        assert pod.metadata.name == f"executor-{requested.execution_id}"
         assert pod.metadata.namespace == "integr8scode"
         assert pod.metadata.labels["app"] == "integr8s"
         assert pod.metadata.labels["component"] == "executor"
-        assert pod.metadata.labels["execution-id"] == create_pod_command.execution_id
+        assert pod.metadata.labels["execution-id"] == requested.execution_id
         assert pod.metadata.labels["language"] == "python"
 
         # Verify annotations
-        assert pod.metadata.annotations["integr8s.io/execution-id"] == create_pod_command.execution_id
-        assert pod.metadata.annotations["integr8s.io/saga-id"] == create_pod_command.saga_id
+        assert pod.metadata.annotations["integr8s.io/execution-id"] == requested.execution_id
 
-    def test_build_pod_spec_security(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
+    def test_build_pod_spec_security(self, pod_builder: PodBuilder, requested: ExecutionRequestedEvent) -> None:
         """Test pod security settings."""
-        pod = pod_builder.build_pod_manifest(create_pod_command)
+        pod = pod_builder.build_pod_manifest(requested)
         spec = pod.spec
 
         # Verify pod-level security
@@ -80,11 +78,9 @@ class TestPodBuilder:
         assert spec.host_pid is False
         assert spec.host_ipc is False
 
-    def test_container_security_context(
-        self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_container_security_context(self, pod_builder: PodBuilder, requested: ExecutionRequestedEvent) -> None:
         """Test container security context."""
-        pod = pod_builder.build_pod_manifest(create_pod_command)
+        pod = pod_builder.build_pod_manifest(requested)
         container = pod.spec.containers[0]
 
         # Verify container security
@@ -100,12 +96,12 @@ class TestPodBuilder:
         assert container.stdin is False
         assert container.tty is False
 
-    def test_container_resources(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
+    def test_container_resources(self, pod_builder: PodBuilder, requested: ExecutionRequestedEvent) -> None:
         """Test container resource limits."""
-        pod = pod_builder.build_pod_manifest(create_pod_command)
+        pod = pod_builder.build_pod_manifest(requested)
         container = pod.spec.containers[0]
 
-        # Verify resources from command
+        # Verify resources from the request
         assert container.resources.requests["cpu"] == "200m"
         assert container.resources.requests["memory"] == "256Mi"
         assert container.resources.limits["cpu"] == "1000m"
@@ -113,9 +109,8 @@ class TestPodBuilder:
 
     def test_container_resources_defaults(self, pod_builder: PodBuilder, test_settings: Settings) -> None:
         """Test container resource defaults."""
-        command = CreatePodCommandEvent(
+        event = ExecutionRequestedEvent(
             execution_id=str(uuid4()),
-            saga_id=str(uuid4()),
             script="print('hello')",
             language="python",
             language_version="3.11",
@@ -136,7 +131,7 @@ class TestPodBuilder:
             ),
         )
 
-        pod = pod_builder.build_pod_manifest(command)
+        pod = pod_builder.build_pod_manifest(event)
         container = pod.spec.containers[0]
 
         # Verify default resources from settings
@@ -145,9 +140,9 @@ class TestPodBuilder:
         assert container.resources.limits["cpu"] == test_settings.K8S_POD_CPU_LIMIT
         assert container.resources.limits["memory"] == test_settings.K8S_POD_MEMORY_LIMIT
 
-    def test_pod_volumes(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
+    def test_pod_volumes(self, pod_builder: PodBuilder, requested: ExecutionRequestedEvent) -> None:
         """Test pod volume configuration."""
-        pod = pod_builder.build_pod_manifest(create_pod_command)
+        pod = pod_builder.build_pod_manifest(requested)
         volumes = {v.name: v for v in pod.spec.volumes}
 
         # Verify all required volumes
@@ -158,11 +153,11 @@ class TestPodBuilder:
 
         # Verify ConfigMap volumes
         script_vol = volumes["script-volume"]
-        assert script_vol.config_map.name == f"script-{create_pod_command.execution_id}"
+        assert script_vol.config_map.name == f"script-{requested.execution_id}"
         assert script_vol.config_map.items[0].key == "script.py"
 
         entrypoint_vol = volumes["entrypoint-volume"]
-        assert entrypoint_vol.config_map.name == f"script-{create_pod_command.execution_id}"
+        assert entrypoint_vol.config_map.name == f"script-{requested.execution_id}"
         assert entrypoint_vol.config_map.items[0].key == "entrypoint.sh"
 
         # Verify EmptyDir volumes with size limits
@@ -172,9 +167,9 @@ class TestPodBuilder:
         tmp_vol = volumes["tmp-volume"]
         assert tmp_vol.empty_dir.size_limit == "10Mi"
 
-    def test_container_volume_mounts(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
+    def test_container_volume_mounts(self, pod_builder: PodBuilder, requested: ExecutionRequestedEvent) -> None:
         """Test container volume mounts."""
-        pod = pod_builder.build_pod_manifest(create_pod_command)
+        pod = pod_builder.build_pod_manifest(requested)
         container = pod.spec.containers[0]
         mounts = {m.name: m for m in container.volume_mounts}
 
@@ -191,12 +186,12 @@ class TestPodBuilder:
         assert mounts["tmp-volume"].mount_path == "/tmp"
         assert mounts["tmp-volume"].read_only is None  # Writable
 
-    def test_build_config_map(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
+    def test_build_config_map(self, pod_builder: PodBuilder, requested: ExecutionRequestedEvent) -> None:
         """Test ConfigMap creation."""
         script_content = "print('hello world')"
         entrypoint_content = "#!/bin/sh\nexec $@"
 
-        config_map = pod_builder.build_config_map(create_pod_command, script_content, entrypoint_content)
+        config_map = pod_builder.build_config_map(requested, script_content, entrypoint_content)
 
         # Verify ConfigMap structure
         assert isinstance(config_map, k8s_client.V1ConfigMap)
@@ -204,20 +199,17 @@ class TestPodBuilder:
         assert config_map.kind == "ConfigMap"
 
         # Verify metadata
-        assert config_map.metadata.name == f"script-{create_pod_command.execution_id}"
+        assert config_map.metadata.name == f"script-{requested.execution_id}"
         assert config_map.metadata.namespace == "integr8scode"
-        assert config_map.metadata.labels["execution-id"] == create_pod_command.execution_id
-        assert config_map.metadata.labels["saga-id"] == create_pod_command.saga_id
+        assert config_map.metadata.labels["execution-id"] == requested.execution_id
 
         # Verify data
         assert config_map.data["script.py"] == script_content
         assert config_map.data["entrypoint.sh"] == entrypoint_content
 
-    def test_pod_timeout_configuration(
-        self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_pod_timeout_configuration(self, pod_builder: PodBuilder, requested: ExecutionRequestedEvent) -> None:
         """Test pod timeout configuration."""
-        pod = pod_builder.build_pod_manifest(create_pod_command)
+        pod = pod_builder.build_pod_manifest(requested)
 
         # Verify active deadline is set
         assert pod.spec.active_deadline_seconds == 300
@@ -227,9 +219,8 @@ class TestPodBuilder:
         pod_builder: PodBuilder,
     ) -> None:
         """Test default pod timeout."""
-        command = CreatePodCommandEvent(
+        event = ExecutionRequestedEvent(
             execution_id=str(uuid4()),
-            saga_id=str(uuid4()),
             script="print('hello')",
             language="python",
             language_version="3.11",
@@ -246,28 +237,28 @@ class TestPodBuilder:
             metadata=EventMetadata(user_id=str(uuid4()), service_name="t", service_version="1"),
         )
 
-        pod = pod_builder.build_pod_manifest(command)
+        pod = pod_builder.build_pod_manifest(event)
 
         # Default timeout should be 300 seconds
         assert pod.spec.active_deadline_seconds == 300
 
-    def test_container_command(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
+    def test_container_command(self, pod_builder: PodBuilder, requested: ExecutionRequestedEvent) -> None:
         """Test container command construction."""
-        pod = pod_builder.build_pod_manifest(create_pod_command)
+        pod = pod_builder.build_pod_manifest(requested)
         container = pod.spec.containers[0]
 
         # Verify command
         expected_command = ["/bin/sh", "/entry/entrypoint.sh", "python", "/scripts/script.py"]
         assert container.command == expected_command
 
-    def test_container_environment(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
+    def test_container_environment(self, pod_builder: PodBuilder, requested: ExecutionRequestedEvent) -> None:
         """Test container environment variables."""
-        pod = pod_builder.build_pod_manifest(create_pod_command)
+        pod = pod_builder.build_pod_manifest(requested)
         container = pod.spec.containers[0]
 
         env_vars = {e.name: e.value for e in container.env}
 
-        assert env_vars["EXECUTION_ID"] == create_pod_command.execution_id
+        assert env_vars["EXECUTION_ID"] == requested.execution_id
         assert env_vars["OUTPUT_PATH"] == "/output"
 
     def test_pod_labels_truncation(
@@ -277,9 +268,8 @@ class TestPodBuilder:
         """Test label value truncation for K8s limits."""
         long_id = "a" * 100  # Exceeds K8s 63 char limit
 
-        command = CreatePodCommandEvent(
+        event = ExecutionRequestedEvent(
             execution_id=long_id,
-            saga_id=long_id,
             script="print('test')",
             language="python",
             language_version="3.11",
@@ -299,31 +289,27 @@ class TestPodBuilder:
             ),
         )
 
-        pod = pod_builder.build_pod_manifest(command)
+        pod = pod_builder.build_pod_manifest(event)
 
         # Verify labels are truncated to 63 chars
         assert len(pod.metadata.labels["user-id"]) == 63
-        assert len(pod.metadata.labels["saga-id"]) == 63
 
         # But annotations should have full values
-        assert pod.metadata.annotations["integr8s.io/saga-id"] == long_id
+        assert pod.metadata.annotations["integr8s.io/execution-id"] == long_id
 
-    def test_pod_restart_policy(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
+    def test_pod_restart_policy(self, pod_builder: PodBuilder, requested: ExecutionRequestedEvent) -> None:
         """Test pod restart policy."""
-        pod = pod_builder.build_pod_manifest(create_pod_command)
+        pod = pod_builder.build_pod_manifest(requested)
 
         # Should never restart (one-shot execution)
         assert pod.spec.restart_policy == "Never"
 
 
-def _runtime_command(
-    language: str, *, cpu_limit: str, memory_limit: str, timeout_seconds: int
-) -> CreatePodCommandEvent:
+def _request(language: str, *, cpu_limit: str, memory_limit: str, timeout_seconds: int) -> ExecutionRequestedEvent:
     version = LANGUAGE_SPECS[language]["versions"][0]
     runtime = RUNTIME_REGISTRY[language][version]
-    return CreatePodCommandEvent(
+    return ExecutionRequestedEvent(
         execution_id=str(uuid4()),
-        saga_id=str(uuid4()),
         script="x",
         language=language,
         language_version=version,
@@ -346,17 +332,17 @@ def builder(test_settings: Settings) -> PodBuilder:
 
 @pytest.mark.parametrize("language", [lang for lang, spec in LANGUAGE_SPECS.items() if "pod" not in spec])
 def test_languages_without_pod_settings_keep_the_configured_pod(builder: PodBuilder, language: str) -> None:
-    command = _runtime_command(language, cpu_limit="100m", memory_limit="64Mi", timeout_seconds=5)
+    event = _request(language, cpu_limit="100m", memory_limit="64Mi", timeout_seconds=5)
 
-    pod = builder.build_pod_manifest(command)
+    pod = builder.build_pod_manifest(event)
     container = pod.spec.containers[0]
     volumes = {v.name: v for v in pod.spec.volumes}
 
-    assert container.command == ["/bin/sh", "/entry/entrypoint.sh", *command.runtime_command]
+    assert container.command == ["/bin/sh", "/entry/entrypoint.sh", *event.runtime_command]
     assert container.resources.limits == {"cpu": "100m", "memory": "64Mi"}
     assert container.resources.requests == {"cpu": "200m", "memory": "128Mi"}
     assert {e.name: e.value for e in container.env} == {
-        "EXECUTION_ID": command.execution_id,
+        "EXECUTION_ID": event.execution_id,
         "OUTPUT_PATH": "/output",
     }
     assert volumes["tmp-volume"].empty_dir.size_limit == "10Mi"
@@ -365,9 +351,9 @@ def test_languages_without_pod_settings_keep_the_configured_pod(builder: PodBuil
 
 
 def test_go_pod_gets_its_cache_env_and_raised_minimums(builder: PodBuilder) -> None:
-    command = _runtime_command("go", cpu_limit="500m", memory_limit="128Mi", timeout_seconds=5)
+    event = _request("go", cpu_limit="500m", memory_limit="128Mi", timeout_seconds=5)
 
-    pod = builder.build_pod_manifest(command)
+    pod = builder.build_pod_manifest(event)
     container = pod.spec.containers[0]
     volumes = {v.name: v for v in pod.spec.volumes}
     go = POD_RUNTIME_CONFIGS["go"]
@@ -381,7 +367,7 @@ def test_go_pod_gets_its_cache_env_and_raised_minimums(builder: PodBuilder) -> N
         "/scripts/main.go",
     ]
     assert {e.name: e.value for e in container.env} == {
-        "EXECUTION_ID": command.execution_id,
+        "EXECUTION_ID": event.execution_id,
         "OUTPUT_PATH": "/output",
         **go.env,
     }
@@ -394,26 +380,26 @@ def test_go_pod_gets_its_cache_env_and_raised_minimums(builder: PodBuilder) -> N
 
 
 def test_go_pod_keeps_configured_limits_above_the_minimums(builder: PodBuilder) -> None:
-    command = _runtime_command("go", cpu_limit="2", memory_limit="1Gi", timeout_seconds=120)
+    event = _request("go", cpu_limit="2", memory_limit="1Gi", timeout_seconds=120)
 
-    pod = builder.build_pod_manifest(command)
+    pod = builder.build_pod_manifest(event)
 
     assert pod.spec.containers[0].resources.limits == {"cpu": "2", "memory": "1Gi"}
     assert pod.spec.active_deadline_seconds == 120
 
 
 def test_unparseable_limit_is_rejected_when_a_minimum_applies(builder: PodBuilder) -> None:
-    command = _runtime_command("go", cpu_limit="lots", memory_limit="512Mi", timeout_seconds=60)
+    event = _request("go", cpu_limit="lots", memory_limit="512Mi", timeout_seconds=60)
 
     with pytest.raises(ValueError, match="Unsupported resource quantity: 'lots'"):
-        builder.build_pod_manifest(command)
+        builder.build_pod_manifest(event)
 
 
 def test_unknown_language_falls_back_to_default_pod_settings(builder: PodBuilder) -> None:
-    command = _runtime_command("python", cpu_limit="100m", memory_limit="64Mi", timeout_seconds=5)
-    command = command.model_copy(update={"language": "cobol"})
+    event = _request("python", cpu_limit="100m", memory_limit="64Mi", timeout_seconds=5)
+    event = event.model_copy(update={"language": "cobol"})
 
-    pod = builder.build_pod_manifest(command)
+    pod = builder.build_pod_manifest(event)
     volumes = {v.name: v for v in pod.spec.volumes}
 
     assert "cobol" not in POD_RUNTIME_CONFIGS

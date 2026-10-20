@@ -26,7 +26,7 @@ The registry offers only versions that upstream still supports, and lists them n
 --8<-- "backend/app/runtime_registry.py:RuntimeConfig"
 ```
 
-The file is always `main.{file_ext}`, and the command is the interpreter plus `/scripts/main.{file_ext}`, so Python 3.12 gets `python:3.12-slim` and `["python", "/scripts/main.py"]`. `ExecutionService` copies image, command and file name into the `ExecutionRequestedEvent`, and they travel through the saga to the k8s worker.
+The file is always `main.{file_ext}`, and the command is the interpreter plus `/scripts/main.{file_ext}`, so Python 3.12 gets `python:3.12-slim` and `["python", "/scripts/main.py"]`. `ExecutionService` copies image, command and file name into the `ExecutionRequestedEvent`, and the k8s worker builds the pod from that event.
 
 The worker puts the script into a ConfigMap, mounts it read-only at `/scripts`, and starts the container as `/bin/sh /entry/entrypoint.sh <command>`. The entrypoint runs the command as plain arguments, with no shell in between. On startup the worker also runs a pre-puller DaemonSet that pulls every image in the registry.
 

@@ -10,14 +10,14 @@ pytestmark = [pytest.mark.e2e]
 
 
 async def test_worker_creates_configmap_and_pod(test_user: AsyncClient) -> None:
-    """Verify k8s-worker creates ConfigMap + Pod by running through the full pipeline."""
+    """Verify the worker creates ConfigMap + Pod by running through the full pipeline."""
     request = ExecutionRequest(script="print('k8s-test')")
 
     resp = await test_user.post("/api/v1/execute", json=request.model_dump())
     assert resp.status_code == 200
     execution_id = resp.json()["execution_id"]
 
-    # Saga dispatched CREATE_POD_COMMAND → k8s-worker created ConfigMap + Pod
+    # The worker took the execution from the queue and created its ConfigMap and pod
     await wait_for_event(execution_id, EventType.POD_CREATED)
 
     # Full pipeline completed: pod ran, result stored

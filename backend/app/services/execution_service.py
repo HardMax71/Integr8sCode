@@ -575,7 +575,7 @@ class ExecutionService:
         """Publish cancellation event for a deleted execution.
 
         Uses ExecutionCancelledEvent because no dedicated deletion event type
-        exists yet. The saga orchestrator treats both the same way.
+        exists yet. The execution scheduler treats both the same way.
         """
         metadata = self._create_event_metadata(user_id=user_id)
 

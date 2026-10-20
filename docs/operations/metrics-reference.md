@@ -82,7 +82,7 @@ All of these come from spans (see [Metrics made from spans](#metrics-made-from-s
 | `idempotency_processing_duration_seconds` | histogram | idempotency_event_type, idempotency_status | `idempotency.processing_seconds` on span `idempotency.processed`: reserving the key to marking it completed or failed |
 | `idempotency_keys_active` | gauge | none | span `idempotency.keys` from the worker's job every 30 s, which counts `idempotency:*` in Redis with `SCAN` |
 
-Every Kafka publish also shows up in `messaging_publish_messages_message_total`; a publish that fails is marked on the stored event and not counted here. A handler that raises has no counter of its own: it's a `messaging_process_duration_seconds` sample with an `error_type` label, in the FastStream families below. `IdempotencyManager` runs in backend for `Idempotency-Key` requests and in the worker's k8s worker, result processor and saga orchestrator consumers.
+Every Kafka publish also shows up in `messaging_publish_messages_message_total`; a publish that fails is marked on the stored event and not counted here. A handler that raises has no counter of its own: it's a `messaging_process_duration_seconds` sample with an `error_type` label, in the FastStream families below. `IdempotencyManager` runs in backend for `Idempotency-Key` requests and in the worker's execution scheduler consumer.
 
 ### Server-sent events (backend)
 
@@ -181,7 +181,7 @@ Each login runs in an `auth.login` span; the other events leave a span named in 
 
 ### Dead letter queue
 
-`DLQManager` puts each step on a span. `handle_message` runs wherever a router's `DeadLetterMiddleware` catches a failure: the backend for notifications, and the k8s worker, result processor and saga orchestrator groups in the worker. Scheduled retries and the size report run from the worker's APScheduler job every 10 seconds.
+`DLQManager` puts each step on a span. `handle_message` runs wherever a router's `DeadLetterMiddleware` catches a failure: the backend for notifications, and the execution scheduler's group in the worker. Scheduled retries and the size report run from the worker's APScheduler job every 10 seconds.
 
 | Metric | Type | Labels | Recorded from |
 |--------|------|--------|---------------|

@@ -8,13 +8,7 @@ from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio.client.rest import ApiException
 from opentelemetry import trace
 
-from app.domain.enums import ExecutionErrorType
-from app.domain.events import (
-    CreatePodCommandEvent,
-    DeletePodCommandEvent,
-    ExecutionFailedEvent,
-    PodCreatedEvent,
-)
+from app.domain.events import ExecutionRequestedEvent, PodCreatedEvent
 from app.events import UnifiedProducer
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.settings import Settings
@@ -23,16 +17,9 @@ from .pod_builder import PodBuilder
 
 
 class KubernetesWorker:
-    """
-    Worker service that creates Kubernetes pods from execution events.
+    """Creates and deletes executor pods, and prepares the executor namespace at startup.
 
-    This service:
-    1. Handles CreatePodCommand events from saga orchestrator
-    2. Creates ConfigMaps with script content
-    3. Creates Pods to execute the scripts
-    4. Publishes PodCreated events
-
-    Lifecycle is managed by DI - consumer is injected already started.
+    The execution scheduler calls it once a queued execution gets a slot, and again to delete a cancelled one.
     """
 
     def __init__(
@@ -67,65 +54,46 @@ class KubernetesWorker:
 
         self.logger.info("KubernetesWorker initialized", namespace=self._settings.K8S_NAMESPACE)
 
-    async def handle_create_pod_command(self, command: CreatePodCommandEvent) -> None:
-        """Handle create pod command from saga orchestrator"""
-        execution_id = command.execution_id
+    async def delete_pod(self, execution_id: str) -> None:
+        """Delete an execution's pod at once; K8s garbage-collects its ConfigMap through the ownerReference.
 
-        # Check if already processing
-        if execution_id in self._active_creations:
-            self.logger.warning("Already creating pod for execution", execution_id=execution_id)
-            return
-
-        await self._create_pod_for_execution(command)
-
-    async def handle_delete_pod_command(self, command: DeletePodCommandEvent) -> None:
-        """Handle delete pod command from saga orchestrator (compensation).
-
-        Deleting the pod is sufficient — the ConfigMap has an ownerReference pointing
-        to the pod, so K8s garbage-collects it automatically.
+        A queued execution has no pod yet, so a 404 is expected.
         """
-        execution_id = command.execution_id
-        self.logger.info("Deleting pod for execution", execution_id=execution_id, reason=command.reason)
-
+        pod_name = f"executor-{execution_id}"
         try:
-            pod_name = f"executor-{execution_id}"
             await self.v1.delete_namespaced_pod(
                 name=pod_name,
                 namespace=self._settings.K8S_NAMESPACE,
-                grace_period_seconds=30,
+                grace_period_seconds=0,
             )
             self.logger.info("Deleted pod, K8s garbage-collects its ConfigMap", pod_name=pod_name)
-
         except ApiException as e:
-            self.logger.warning("Failed to delete pod", execution_id=execution_id, status=e.status, reason=e.reason)
+            if e.status != 404:
+                self.logger.warning("Failed to delete pod", execution_id=execution_id, status=e.status, reason=e.reason)
 
-    async def _create_pod_for_execution(self, command: CreatePodCommandEvent) -> None:
-        """Create pod for execution"""
-        execution_id = command.execution_id
+    async def create_pod(self, event: ExecutionRequestedEvent) -> None:
+        """Create the ConfigMap and pod for an execution, then publish pod_created."""
+        execution_id = event.execution_id
         self._active_creations.add(execution_id)
 
-        with self._tracer.start_as_current_span("pod.create", attributes={"pod.language": command.language}) as span:
+        with self._tracer.start_as_current_span("pod.create", attributes={"pod.language": event.language}) as span:
             start_time = time.time()
             try:
-                script_content = command.script
                 entrypoint_content = await self._get_entrypoint_script()
 
-                # Create ConfigMap
                 config_map = self.pod_builder.build_config_map(
-                    command=command, script_content=script_content, entrypoint_content=entrypoint_content
+                    event=event, script_content=event.script, entrypoint_content=entrypoint_content
                 )
-
                 await self._create_config_map(config_map)
 
-                pod = self.pod_builder.build_pod_manifest(command=command)
+                pod = self.pod_builder.build_pod_manifest(event=event)
                 created_pod = await self._create_pod(pod)
 
                 # Set ownerReference so K8s garbage-collects the ConfigMap when the pod is deleted
                 if created_pod and created_pod.metadata and created_pod.metadata.uid:
                     await self._set_configmap_owner(config_map, created_pod)
 
-                # Publish PodCreated event
-                await self._publish_pod_created(command, pod)
+                await self._publish_pod_created(event, pod)
 
                 span.set_attribute("pod.creation_result", "success")
                 self.logger.info(
@@ -134,12 +102,9 @@ class KubernetesWorker:
                     execution_id=execution_id,
                     duration_seconds=round(time.time() - start_time, 2),
                 )
-
-            except Exception as e:
-                self.logger.error("Failed to create pod for execution", execution_id=execution_id, exc_info=True)
+            except Exception:
                 span.set_attribute("pod.creation_result", "failed")
-                await self._publish_pod_creation_failed(command, str(e))
-
+                raise
             finally:
                 self._active_creations.discard(execution_id)
                 span.set_attribute("pod.active_creations", len(self._active_creations))
@@ -224,29 +189,16 @@ exec "$@"
         except ApiException as e:
             self.logger.warning("Failed to set ownerReference on ConfigMap", reason=e.reason)
 
-    async def _publish_pod_created(self, command: CreatePodCommandEvent, pod: k8s_client.V1Pod) -> None:
+    async def _publish_pod_created(self, event: ExecutionRequestedEvent, pod: k8s_client.V1Pod) -> None:
         """Publish pod created event"""
-        event = PodCreatedEvent(
-            execution_id=command.execution_id,
-            aggregate_id=command.aggregate_id,
+        pod_created = PodCreatedEvent(
+            execution_id=event.execution_id,
+            aggregate_id=event.aggregate_id,
             pod_name=pod.metadata.name,
             namespace=pod.metadata.namespace,
-            metadata=command.metadata,
+            metadata=event.metadata,
         )
-        await self.producer.produce(event_to_produce=event, key=command.execution_id)
-
-    async def _publish_pod_creation_failed(self, command: CreatePodCommandEvent, error: str) -> None:
-        """Publish pod creation failed event"""
-        event = ExecutionFailedEvent(
-            execution_id=command.execution_id,
-            aggregate_id=command.aggregate_id,
-            error_type=ExecutionErrorType.SYSTEM_ERROR,
-            exit_code=-1,
-            stderr=f"Failed to create pod: {error}",
-            resource_usage=None,
-            metadata=command.metadata,
-        )
-        await self.producer.produce(event_to_produce=event, key=command.execution_id)
+        await self.producer.produce(event_to_produce=pod_created, key=event.execution_id)
 
     async def ensure_namespace_security(self) -> None:
         """Create the executor namespace and apply its security controls at startup.

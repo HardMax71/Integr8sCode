@@ -41,7 +41,7 @@ body:
       options:
         - Frontend (UI)
         - API (routes, auth, rate limits, settings)
-        - Running scripts (queue, sagas, pods, results)
+        - Running scripts (queue, pods, results)
         - Kafka events (consumers, DLQ, replay)
         - Live updates and notifications
         - Metrics, dashboards and logs

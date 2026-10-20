@@ -28,7 +28,6 @@ Each domain package defines its own subclasses in an `exceptions.py` and exports
 DomainError
 ├── NotFoundError
 │   ├── ExecutionNotFoundError        execution
-│   ├── SagaNotFoundError             saga
 │   ├── NotificationNotFoundError     notification
 │   ├── SavedScriptNotFoundError      saved_script
 │   ├── ReplaySessionNotFoundError    replay
@@ -40,20 +39,17 @@ DomainError
 ├── ThrottledError
 │   └── NotificationThrottledError    notification
 ├── ConflictError
-│   └── SagaConcurrencyError          saga
 ├── UnauthorizedError
 │   ├── AuthenticationRequiredError   user
 │   └── InvalidCredentialsError       user
 ├── ForbiddenError
 │   ├── ExecutionAccessDeniedError    execution
-│   ├── SagaAccessDeniedError         saga
 │   ├── AdminAccessRequiredError      user
 │   ├── AccountDeactivatedError       user
 │   └── CSRFValidationError           user
 ├── InvalidStateError
 │   ├── ExecutionNotRetryableError    execution
 │   ├── ExecutionTerminalError        execution
-│   ├── SagaInvalidStateError         saga
 │   └── SelfDeletionError             user
 ├── InfrastructureError
 │   └── ReplayOperationError          replay
@@ -64,10 +60,10 @@ The right column is the package under `app/domain/`, so `EventNotFoundError` liv
 
 `CSRFValidationError` never reaches the global handler: `CSRFMiddleware` catches it and answers 403 itself.
 
-Subclasses that carry context take it in the constructor and keep it as attributes, so logs and tests can read `exc.saga_id` or `exc.limit` without parsing the message:
+Subclasses that carry context take it in the constructor and keep it as attributes, so logs and tests can read `exc.execution_id` or `exc.limit` without parsing the message:
 
 ```python
---8<-- "backend/app/domain/saga/exceptions.py:SagaAccessDeniedError"
+--8<-- "backend/app/domain/execution/exceptions.py:ExecutionAccessDeniedError"
 ```
 
 ```python
@@ -86,7 +82,7 @@ The body is `ErrorResponse(status, detail)` from `app/schemas_pydantic/common.py
 
 ## Where exceptions are raised
 
-Repositories return `None` for a missing entity. They raise only when a write breaks a constraint: `UserRepository.create_user` raises `ConflictError` on a duplicate key, and `SagaRepository` raises `SagaConcurrencyError` on a revision mismatch and `SagaInvalidStateError` when cancelling a saga that is no longer active.
+Repositories return `None` for a missing entity. They raise only when a write breaks a constraint: `UserRepository.create_user` raises `ConflictError` on a duplicate key.
 
 Services check for `None`, log, and raise the specific error. Trimmed from `SavedScriptService.get_saved_script`:
 
@@ -100,18 +96,18 @@ return script
 
 The route just calls the service and returns the schema. It has no `None` check and no `HTTPException`.
 
-Kafka handlers in the worker raise the same exceptions, for example `ExecutionNotFoundError` in the result processor. No HTTP mapping applies there: the error goes up to FastStream, whose telemetry middleware records it under `error_type` on `messaging_process_duration_seconds`.
+Kafka handlers raise the same exceptions. No HTTP mapping applies there: the error goes up to FastStream, whose telemetry middleware records it under `error_type` on `messaging_process_duration_seconds`.
 
 ## Testing
 
-Tests assert on the type and its fields instead of status codes. This one follows `tests/e2e/services/saga/test_saga_service.py`, which gets the service from the Dishka `scope` fixture and builds the caller with `make_test_user`:
+Tests assert on the type and its fields instead of status codes. This one is from `tests/e2e/services/saved_script/test_saved_script_service.py`, which gets the service from its Dishka fixture:
 
 ```python
-async def test_get_saga_not_found(scope: AsyncContainer) -> None:
-    svc: SagaService = await scope.get(SagaService)
-    with pytest.raises(SagaNotFoundError) as exc_info:
-        await svc.get_saga_with_access_check("nonexistent-saga-id", make_test_user())
-    assert exc_info.value.identifier == "nonexistent-saga-id"
+async def test_get_saved_script_not_found(self, saved_script_service: SavedScriptService) -> None:
+    user_id = _unique_user_id()
+
+    with pytest.raises(SavedScriptNotFoundError):
+        await saved_script_service.get_saved_script("nonexistent-script-id", user_id)
 ```
 
 ## Adding one

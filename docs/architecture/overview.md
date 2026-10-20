@@ -32,7 +32,7 @@ Integr8sCode runs user scripts in Python, Node.js, Ruby, Bash or Go, each in its
 
 The browser loads the SPA from the frontend container, an nginx that serves HTTPS on port 5001 and proxies `/api` to the backend over HTTPS, checking the backend's own certificate. The backend runs FastAPI under Gunicorn with Uvicorn workers and serves both REST and SSE. Kafka runs in KRaft mode and creates topics on first use, so there is no topic setup step. Events travel as JSON that FastStream serializes from the Pydantic models.
 
-The worker is one more container from the same backend image, running `python -m app.worker`. Inside it, the k8s worker creates pods through the Kubernetes API, the pod monitor watches them, the result processor writes results to MongoDB, and the saga orchestrator schedules executions with a Redis-backed queue and tracks sagas in MongoDB. A DLQ job retries failed events every 10 seconds.
+The worker is one more container from the same backend image, running `python -m app.worker`. Inside it, the execution scheduler starts executions from a Redis-backed queue, the k8s worker creates their pods through the Kubernetes API, the pod monitor watches the pods, and the result processor writes results to MongoDB. A DLQ job retries failed events every 10 seconds.
 
 The observability profile adds an OpenTelemetry Collector that ships traces to Jaeger, metrics to VictoriaMetrics and logs to Loki, with Grafana on top of all three. Kafdrop is under the debug profile. No container runs once and exits. nginx and the backend each make their own TLS certificate when they first start, and the backend seeds the users before it serves. The worker reads k3s's own kubeconfig and creates the `integr8scode` namespace with its NetworkPolicy and ResourceQuota.
 
@@ -69,7 +69,7 @@ graph TD
 ??? note "Legend"
     - Middlewares, outermost first: CORS, CacheControl, SecurityHeaders, RequestSizeLimit, CSRF, RateLimit, Metrics
     - Routes + DI: REST and SSE endpoints, with services injected by Dishka
-    - Services: auth, execution, events, SSE, idempotency, notifications, user settings, rate limits, saved scripts, replay, sagas, admin
+    - Services: auth, execution, events, SSE, idempotency, notifications, user settings, rate limits, saved scripts, replay, admin
     - Kafka layer: `UnifiedProducer` on the way out, FastStream subscribers on the way in
     - Observability: the OTel Collector, which forwards to VictoriaMetrics, Jaeger and Loki
 
@@ -85,7 +85,7 @@ sequenceDiagram
     actor Client
     participant API
     participant Kafka
-    participant Saga as Saga Orchestrator
+    participant Sched as Execution Scheduler
     participant K8s as K8s Worker
     participant Monitor as Pod Monitor
     participant Result as Result Processor
@@ -94,17 +94,17 @@ sequenceDiagram
     API->>Kafka: execution_requested
     API-->>Client: 200 {execution_id, status}
     Client->>API: GET /api/v1/events/executions/{id} (SSE)
-    Kafka->>Saga: execution_requested
-    Saga->>Kafka: create_pod_command
-    Kafka->>K8s: create_pod_command
+    Kafka->>Sched: execution_requested
+    Sched->>K8s: create_pod
     K8s->>Kafka: pod_created
-    Monitor->>Kafka: pod_scheduled, pod_running, execution_completed
-    Kafka->>Result: execution_completed
-    Result->>Kafka: result_stored
+    Monitor->>Kafka: pod_scheduled, pod_running
+    Monitor->>Result: execution_completed
+    Result->>Kafka: execution_completed, result_stored
+    Monitor->>Sched: finish
     Kafka->>API: events for this execution (sse-bridge-pool)
     API-->>Client: SSE frames, closes after result_stored
 
-    link Saga: Docs @ ../../components/workers/saga_orchestrator/
+    link Sched: Docs @ ../../components/workers/execution_scheduler/
     link K8s: Docs @ ../../components/workers/k8s_worker/
     link Monitor: Docs @ ../../components/workers/pod_monitor/
     link Result: Docs @ ../../components/workers/result_processor/
@@ -112,9 +112,9 @@ sequenceDiagram
 
 The rate limit middleware has already run by the time the route sees the request. If the client sent an `Idempotency-Key` header it used before, the [idempotency](idempotency.md) layer returns the earlier execution instead of creating a new one, or 409 while that first request is still in flight. Otherwise the execution service checks the language and version against the [runtime registry](runtime-registry.md) and rejects an unknown pair with 422. Then it stores the execution in MongoDB, publishes `execution_requested` and answers with the execution ID and its status.
 
-The saga orchestrator puts the request into the [execution queue](execution-queue.md) and, once a slot is free, runs the saga steps, the last of which publishes `create_pod_command`. The k8s worker creates a ConfigMap with the script and a hardened pod, then publishes `pod_created`, or `execution_failed` if the Kubernetes API refused. The pod monitor watches the pod and publishes `pod_scheduled`, `pod_running` and finally one of `execution_completed`, `execution_failed` or `execution_timeout`. Then it deletes the pod, which frees its share of the ResourceQuota, and Kubernetes garbage-collects the ConfigMap through its owner reference.
+The execution scheduler in the worker puts the request into the [execution queue](execution-queue.md) and, once a slot is free, has the k8s worker create a ConfigMap with the script and a hardened pod. The k8s worker publishes `pod_created`; if the Kubernetes API refused, the execution is stored as `failed` instead. The pod monitor watches the pod and publishes `pod_scheduled` and `pod_running`. When the pod ends, the monitor reads its output and hands `execution_completed`, `execution_failed` or `execution_timeout` to the result processor. Then it deletes the pod, which frees its share of the ResourceQuota, and Kubernetes garbage-collects the ConfigMap through its owner reference.
 
-The result processor writes the final state and output to MongoDB and publishes `result_stored`, or `result_failed` if it couldn't. The saga orchestrator also listens for the terminal events: it marks the saga done, releases the queue slot and schedules the next execution.
+The result processor writes the final state and output to MongoDB, then publishes the terminal event and `result_stored`, or `result_failed` if it couldn't. Last, the monitor tells the scheduler the execution finished, so its queue slot frees and the next execution starts. A cancel goes the same way in reverse: the scheduler takes `execution_cancelled`, stores the execution as `cancelled` and deletes its pod.
 
 ## SSE
 
@@ -147,9 +147,9 @@ The stream opens with the execution's current status read from MongoDB, since ev
 
 Notifications use the same bus on `sse:notif:{user_id}` through `GET /api/v1/events/notifications/stream`. That stream stays open until the client goes away and sends a ping every 30 seconds.
 
-## Kafka, sagas and replay
+## Kafka and replay
 
-Kafka carries all asynchronous work, with [one topic per event type](kafka-topic-architecture.md). [Sagas](../components/workers/saga_orchestrator.md) run the execution steps and publish compensating commands when a step fails. The [replay system](../components/event-replay.md) lets admins re-publish stored events. A failed handler's event goes to the [dead letter queue](../components/dead-letter-queue.md) and is retried for the consumer group that failed.
+Kafka carries all asynchronous work, with [one topic per event type](kafka-topic-architecture.md). The [replay system](../components/event-replay.md) lets admins re-publish stored events. A failed handler's event goes to the [dead letter queue](../components/dead-letter-queue.md) and is retried for the consumer group that failed.
 
 ## Notifications
 

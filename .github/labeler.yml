@@ -29,7 +29,7 @@
           - backend/app/services/execution_service.py
           - backend/app/services/execution_queue.py
           - backend/app/services/runtime_settings.py
-          - backend/app/services/saga/**
+          - backend/app/services/execution_scheduler.py
           - backend/app/services/k8s_worker/**
           - backend/app/services/pod_monitor/**
           - backend/app/services/result_processor/**

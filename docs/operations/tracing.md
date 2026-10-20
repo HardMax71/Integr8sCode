@@ -22,7 +22,7 @@ config.toml sends traces to `http://otel-collector:4317` with a sampling rate of
 
 The broker is created with FastStream's `KafkaTelemetryMiddleware`. On publish it opens a producer span and writes the trace context into the message headers. On consume it reads the headers and opens a consumer span as a child. There's no custom consumer code involved.
 
-A message published with no active span starts a new trace. That happens in three places: pod monitor events, which come from the Kubernetes watch; DLQ retries, which the DLQ processor publishes from an APScheduler job; and queued sagas that the scheduler job starts. A queued saga started while the orchestrator handles another event, such as another execution's completion, joins that event's trace instead.
+A message published with no active span starts a new trace. That happens in three places: pod monitor events, which come from the Kubernetes watch; DLQ retries, which the DLQ processor publishes from an APScheduler job; and queued executions that the 10 second scheduler job starts. A queued execution started while the scheduler handles a request joins that request's trace instead.
 
 ## Spans and attributes
 
@@ -33,7 +33,7 @@ Beyond the automatic HTTP, Mongo, outbound HTTPX and Kafka spans:
 | `POST /api/v1/execute`                  | language, language version, script length, `user.id`, `client.address` on the server span |
 | `EventRepository.store_event`           | `event.type`, `event.id`, `execution.id` on the current span         |
 | `UnifiedProducer.produce`               | a `publish_event` span with `event.type` and `aggregate.id`          |
-| `SagaOrchestrator`                      | a `saga.step` span per step with saga name, id, step and execution id |
+| `ExecutionScheduler`                    | a `queue.schedule_pending` span per pass, and a `pod.create` span per pod the k8s worker creates |
 | Webhook and Slack notifications         | `notification.id`, `notification.channel` (and webhook host) on the current span |
 
 ## An execution, end to end
@@ -43,7 +43,7 @@ sequenceDiagram
     participant Client
     participant API as Backend
     participant Kafka
-    participant Saga as Worker: saga orchestrator
+    participant Sched as Worker: execution scheduler
     participant K8s as Worker: k8s worker
 
     Client->>API: POST /api/v1/execute
@@ -51,14 +51,14 @@ sequenceDiagram
     API->>Kafka: execution_requested
     Note over API: producer span, context in headers
     API-->>Client: 200 ExecutionResponse
-    Kafka->>Saga: execution_requested
-    Note over Saga: consumer span, saga.step spans
-    Saga->>Kafka: create_pod_command
-    Kafka->>K8s: create_pod_command
-    Note over K8s: consumer span
+    Kafka->>Sched: execution_requested
+    Note over Sched: consumer span, queue.schedule_pending span
+    Sched->>K8s: create_pod
+    Note over K8s: pod.create span
+    K8s->>Kafka: pod_created
 ```
 
-The API stores the event in MongoDB, publishes `execution_requested` and answers 200. The saga orchestrator picks it up in a consumer span that continues the same trace, runs its steps as `saga.step` spans and publishes `create_pod_command`. The k8s worker's consumer span joins the trace too. Its calls to the Kubernetes API go through kubernetes_asyncio, which isn't instrumented, so they don't show up as spans. From there, pod monitor events start fresh traces, as described above.
+The API stores the event in MongoDB, publishes `execution_requested` and answers 200. The execution scheduler picks it up in a consumer span that continues the same trace and, when a slot is free, has the k8s worker create the pod in a `pod.create` span of the same trace. Its calls to the Kubernetes API go through kubernetes_asyncio, which isn't instrumented, so they don't show up as spans. From there, pod monitor events start fresh traces, as described above.
 
 ## Jaeger
 

@@ -50,7 +50,7 @@ class TestExceptionMapping:
 
 
 async def _domain() -> None:
-    raise NotFoundError("Saga", "s-1")
+    raise NotFoundError("Script", "s-1")
 
 
 async def _http() -> None:
@@ -78,7 +78,7 @@ def _app() -> FastAPI:
 @pytest.mark.parametrize(
     ("path", "body"),
     [
-        ("/domain", {"status": 404, "detail": "Saga 's-1' not found"}),
+        ("/domain", {"status": 404, "detail": "Script 's-1' not found"}),
         ("/http", {"status": 401, "detail": "Not authenticated"}),
         (
             "/validated?limit=x",

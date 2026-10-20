@@ -2,7 +2,6 @@
 export const ADMIN_ROUTES = [
     { path: '/admin/events', sidebarLabel: 'Event Browser', pageHeading: 'Event Browser' },
     { path: '/admin/executions', sidebarLabel: 'Executions', pageHeading: 'Execution Management' },
-    { path: '/admin/sagas', sidebarLabel: 'Sagas', pageHeading: 'Saga Management' },
     { path: '/admin/users', sidebarLabel: 'Users', pageHeading: 'User Management' },
     { path: '/admin/settings', sidebarLabel: 'Settings', pageHeading: 'System Settings' },
 ] as const;

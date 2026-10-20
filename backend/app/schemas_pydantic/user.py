@@ -109,7 +109,6 @@ class DeleteUserResponse(BaseModel):
     notifications: int = 0
     user_settings: int = 0
     events: int = 0
-    sagas: int = 0
 
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 

@@ -15,16 +15,16 @@ from app.core.logging import setup_log_exporter, setup_logger
 from app.core.metrics import setup_metrics
 from app.db.docs import ALL_DOCUMENTS
 from app.dlq.manager import DLQManager
-from app.events.handlers import k8s_worker_router, result_processor_router, saga_router
+from app.events.handlers import scheduler_router
+from app.services.execution_scheduler import ExecutionScheduler
 from app.services.idempotency import IdempotencyManager
 from app.services.k8s_worker import KubernetesWorker
 from app.services.pod_monitor import PodMonitor
-from app.services.saga import SagaOrchestrator
 from app.settings import Settings
 
 
 def main() -> None:
-    """Run everything outside the API: the Kafka consumers, the pod watch and the scheduled jobs."""
+    """Run executions outside the API: the queue consumers, the pod watch and the scheduled jobs."""
     settings = Settings(override_path="config.worker.toml")
     logger = setup_logger(settings.LOG_LEVEL)
     setup_log_exporter(settings, logger)
@@ -40,7 +40,7 @@ async def run(settings: Settings, logger: structlog.stdlib.BoundLogger) -> None:
 
     container = create_worker_container(settings)
     broker: KafkaBroker = await container.get(KafkaBroker)
-    broker.include_routers(k8s_worker_router(), result_processor_router(), saga_router())
+    broker.include_routers(scheduler_router())
     setup_dishka(container, broker=broker, auto_inject=True)
 
     scheduler = await start_jobs(container)
@@ -50,21 +50,21 @@ async def run(settings: Settings, logger: structlog.stdlib.BoundLogger) -> None:
 
 
 async def start_jobs(container: AsyncContainer) -> AsyncIOScheduler:
-    """Prepare the cluster, then schedule the pod watch, saga jobs, DLQ retries and the idempotency key count."""
+    """Prepare the cluster, then schedule the pod watch, the queue check, DLQ retries and the idempotency key count."""
     k8s_worker = await container.get(KubernetesWorker)
     await k8s_worker.ensure_namespace_security()
     await k8s_worker.ensure_image_pre_puller_daemonset()
 
     monitor = await container.get(PodMonitor)
-    orchestrator = await container.get(SagaOrchestrator)
+    execution_scheduler = await container.get(ExecutionScheduler)
     dlq_manager = await container.get(DLQManager)
     idempotency = await container.get(IdempotencyManager)
 
     scheduler = AsyncIOScheduler()
     jobs = (
         ("pod_monitor_watch", monitor.watch_cycle, 5, 60),
-        ("saga_try_schedule", orchestrator.try_schedule_from_queue, 10, 30),
-        ("saga_check_timeouts", orchestrator.check_timeouts, 30, 60),
+        # A slot freed by its Redis deadline sends no event, so the queue is checked on a timer too
+        ("execution_schedule_pending", execution_scheduler.schedule_pending, 10, 30),
         ("dlq_monitor_retries", dlq_manager.process_monitoring_cycle, 10, 60),
         ("idempotency_report_keys", idempotency.report_active_keys, 30, 60),
     )

@@ -16,7 +16,6 @@ from starlette.types import ASGIApp, Message, Scope
 
 from app.core.security import SecurityService
 from app.db.docs import EventDocument, ExecutionDocument, NotificationDocument
-from app.db.docs.saga import SagaDocument
 from app.db.repositories import (
     AdminEventsRepository,
     AdminSettingsRepository,
@@ -24,7 +23,6 @@ from app.db.repositories import (
     EventRepository,
     ExecutionRepository,
     NotificationRepository,
-    SagaRepository,
     SavedScriptRepository,
 )
 from app.domain.enums import EventType, ExecutionStatus, NotificationStatus, UserRole
@@ -32,7 +30,6 @@ from app.events import UnifiedProducer
 from app.runtime_registry import DEFAULT_LANG
 from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from app.schemas_pydantic.notification import NotificationListResponse, NotificationResponse
-from app.schemas_pydantic.saga import SagaStatusResponse
 from app.schemas_pydantic.saved_script import SavedScriptCreateRequest
 from app.schemas_pydantic.user import UserCreate
 from app.services.admin import AdminUserService
@@ -42,7 +39,6 @@ from app.services.execution_service import ExecutionService
 from app.services.idempotency import IdempotencyManager
 from app.services.notification_service import NotificationService
 from app.services.runtime_settings import RuntimeSettingsLoader
-from app.services.saga import SagaService
 from app.services.saved_script_service import SavedScriptService
 from app.services.sse import SSERedisBus
 from app.services.user_settings_service import UserSettingsService
@@ -180,11 +176,6 @@ async def saved_script_service(scope: AsyncContainer) -> SavedScriptService:
 
 
 @pytest.fixture
-async def saga_service(scope: AsyncContainer) -> SagaService:
-    return await scope.get(SagaService)
-
-
-@pytest.fixture
 async def event_replay_service(scope: AsyncContainer) -> EventReplayService:
     return await scope.get(EventReplayService)
 
@@ -227,11 +218,6 @@ async def unified_producer(scope: AsyncContainer) -> UnifiedProducer:
 @pytest.fixture
 async def execution_repository(scope: AsyncContainer) -> ExecutionRepository:
     return await scope.get(ExecutionRepository)
-
-
-@pytest.fixture
-async def saga_repository(scope: AsyncContainer) -> SagaRepository:
-    return await scope.get(SagaRepository)
 
 
 @pytest.fixture
@@ -339,18 +325,6 @@ async def store_execution(
     created = ExecutionDocument(script="print('stored')", user_id=me.json()["user_id"], status=status, lang=lang)
     await repo.create_execution(created)
     return created.execution_id
-
-
-async def create_execution_with_saga(
-    client: AsyncClient, request: ExecutionRequest
-) -> tuple[ExecutionResponse, SagaStatusResponse]:
-    """Create an execution and wait for POD_CREATED, which comes after the saga is stored and sends its command."""
-    execution = await create_execution(client, request)
-    await wait_for_event(execution.execution_id, EventType.POD_CREATED)
-
-    doc = await SagaDocument.find_one(SagaDocument.execution_id == execution.execution_id)
-    assert doc is not None, f"No saga document for {execution.execution_id} despite POD_CREATED"
-    return execution, SagaStatusResponse.model_validate(doc, from_attributes=True)
 
 
 async def create_execution_with_notification(

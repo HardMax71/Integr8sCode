@@ -35,7 +35,7 @@ def test_manager_generate_key_variants() -> None:
 
 def _event() -> MagicMock:
     ev = MagicMock(spec=BaseEvent)
-    ev.event_type = EventType.CREATE_POD_COMMAND
+    ev.event_type = EventType.EXECUTION_REQUESTED
     ev.event_id = "evt-1"
     return ev
 
@@ -46,9 +46,9 @@ def _manager(repo: AsyncMock, tracer: trace.Tracer) -> IdempotencyManager:
 
 def _record(status: IdempotencyStatus) -> IdempotencyRecord:
     return IdempotencyRecord(
-        key="idempotency:create_pod_command:evt-1",
+        key="idempotency:execution_requested:evt-1",
         status=status,
-        event_type=EventType.CREATE_POD_COMMAND,
+        event_type=EventType.EXECUTION_REQUESTED,
         event_id="evt-1",
         created_at=datetime.now(timezone.utc) - timedelta(seconds=2),
         ttl_seconds=3600,
@@ -83,7 +83,7 @@ async def test_marking_records_processing_duration(
     assert isinstance(seconds, float)
     assert seconds >= 2.0
     assert (span.attributes["idempotency.event_type"], span.attributes["idempotency.status"]) == (
-        EventType.CREATE_POD_COMMAND,
+        EventType.EXECUTION_REQUESTED,
         expected_status,
     )
 
@@ -113,7 +113,7 @@ async def test_check_and_reserve_of_a_new_key_reports_a_miss(
     assert (span.name, span.attributes) == (
         "idempotency.check",
         {
-            "idempotency.event_type": EventType.CREATE_POD_COMMAND,
+            "idempotency.event_type": EventType.EXECUTION_REQUESTED,
             "idempotency.operation": "check_and_reserve",
             "idempotency.result": "miss",
         },
@@ -132,7 +132,7 @@ async def test_check_and_reserve_of_a_done_key_reports_a_hit_and_a_blocked_dupli
     blocked, check = span_exporter.get_finished_spans()
     assert (blocked.name, blocked.attributes) == (
         "idempotency.duplicate_blocked",
-        {"idempotency.event_type": EventType.CREATE_POD_COMMAND},
+        {"idempotency.event_type": EventType.EXECUTION_REQUESTED},
     )
     assert check.attributes is not None
     assert (check.name, check.attributes["idempotency.result"]) == ("idempotency.check", "hit")

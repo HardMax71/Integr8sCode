@@ -164,7 +164,7 @@ async def test_update_priority_missing(queue_service: ExecutionQueueService, moc
 async def test_remove(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     pipe = MagicMock()
     # 5 ZREM results + 1 DELETE (event) + 1 DELETE (retry) + 1 SREM
-    pipe.execute = AsyncMock(return_value=[0, 0, 1, 0, 0, 1, 0, 0])
+    pipe.execute = AsyncMock(return_value=[0, 0, 1, 0, 0, 1, 0])
     mock_redis.pipeline.return_value = pipe
     result = await queue_service.remove("e1")
     assert result is True
@@ -172,7 +172,7 @@ async def test_remove(queue_service: ExecutionQueueService, mock_redis: AsyncMoc
 
 async def test_remove_not_found(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     pipe = MagicMock()
-    pipe.execute = AsyncMock(return_value=[0, 0, 0, 0, 0, 0, 0, 0])
+    pipe.execute = AsyncMock(return_value=[0, 0, 0, 0, 0, 0, 0])
     mock_redis.pipeline.return_value = pipe
     result = await queue_service.remove("e1")
     assert result is False
@@ -199,17 +199,6 @@ async def test_get_pending_by_priority(queue_service: ExecutionQueueService, moc
     assert counts[QueuePriority.BACKGROUND] == 1
     assert QueuePriority.CRITICAL not in counts
     assert QueuePriority.LOW not in counts
-
-
-async def test_increment_retry_count(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
-    mock_redis.incr = AsyncMock(return_value=1)
-    mock_redis.expire = AsyncMock(return_value=True)
-
-    count = await queue_service.increment_retry_count("e1")
-
-    assert count == 1
-    mock_redis.incr.assert_awaited_once_with("exec_queue:retries:e1")
-    mock_redis.expire.assert_awaited_once()
 
 
 @pytest.mark.parametrize(("script_result", "expected"), [(1, True), (0, False)])

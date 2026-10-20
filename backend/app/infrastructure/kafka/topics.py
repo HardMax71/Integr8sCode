@@ -22,13 +22,6 @@ POD_TYPES: set[EventType] = {
     EventType.POD_DELETED,
 }
 
-COMMAND_TYPES: set[EventType] = {
-    EventType.CREATE_POD_COMMAND,
-    EventType.DELETE_POD_COMMAND,
-    EventType.ALLOCATE_RESOURCES_COMMAND,
-    EventType.RELEASE_RESOURCES_COMMAND,
-}
-
 RESULT_TYPES: set[EventType] = {
     EventType.RESULT_STORED,
     EventType.RESULT_FAILED,
@@ -50,10 +43,8 @@ USER_TYPES: set[EventType] = {
     EventType.USER_SETTINGS_UPDATED,
 }
 
-# Events that signal the executor pod has reached a terminal state.
-# The pod monitor uses this to decide when to delete the pod.
-# Note: EXECUTION_CANCELLED is excluded — cancellation triggers pod deletion
-# via the saga's DeletePodCommandEvent compensation, not the monitor.
+# Events that signal the executor pod has reached a terminal state, so the pod monitor deletes the pod.
+# A cancel deletes its pod in the execution scheduler instead.
 EXECUTION_TERMINAL_EVENT_TYPES: frozenset[EventType] = frozenset(
     {
         EventType.EXECUTION_COMPLETED,

@@ -10,7 +10,6 @@ from app.api.routes import (
     health,
     notifications,
     replay,
-    saga,
     saved_scripts,
     sse,
     user_settings,
@@ -135,7 +134,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_users_router, prefix=settings.API_V1_STR)
     app.include_router(user_settings.router, prefix=settings.API_V1_STR)
     app.include_router(notifications.router, prefix=settings.API_V1_STR)
-    app.include_router(saga.router, prefix=settings.API_V1_STR)
 
     logger.info("All routers configured")
 

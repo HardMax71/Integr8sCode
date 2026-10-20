@@ -169,7 +169,7 @@ The status stays completed because the pod itself ran fine. The script's own fai
 
 <img src="./docs/assets/images/system_diagram.svg" alt="system diagram">
 
-A Svelte 5 frontend talks to a FastAPI backend, which keeps its state in MongoDB and Redis and publishes every execution request to Kafka. The worker takes it from there: its saga orchestrator schedules the run, the k8s worker starts a locked-down pod, the pod monitor watches it, and the result processor stores the output. The frontend follows each run live over SSE.
+A Svelte 5 frontend talks to a FastAPI backend, which keeps its state in MongoDB and Redis and publishes every execution request to Kafka. The worker takes it from there: its execution scheduler queues the run, the k8s worker starts a locked-down pod, the pod monitor watches it, and the result processor stores the output. The frontend follows each run live over SSE.
 
 ## License
 

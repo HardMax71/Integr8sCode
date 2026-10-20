@@ -236,8 +236,11 @@ cmd_check() {
 
     cd backend
 
+    print_info "Installing dependencies without building any package..."
+    uv sync --frozen --no-install-project --no-build
+
     print_info "Running Ruff linting..."
-    if uv run ruff check . --config pyproject.toml; then
+    if uv run --no-sync --no-build ruff check . --config pyproject.toml; then
         print_success "Ruff linting passed"
     else
         print_error "Ruff linting failed"
@@ -245,7 +248,7 @@ cmd_check() {
     fi
 
     print_info "Running MyPy type checking..."
-    if uv run mypy --config-file pyproject.toml --strict .; then
+    if uv run --no-sync --no-build mypy --config-file pyproject.toml --strict .; then
         print_success "MyPy type checking passed"
     else
         print_error "MyPy type checking failed"
@@ -253,7 +256,7 @@ cmd_check() {
     fi
 
     print_info "Running orphan module check..."
-    if uv run python -m scripts.check_orphan_modules; then
+    if uv run --no-sync --no-build python -m scripts.check_orphan_modules; then
         print_success "Orphan module check passed"
     else
         print_error "Orphan module check failed"
@@ -279,7 +282,9 @@ cmd_test() {
     print_header "Running Test Suite"
 
     print_info "Running unit and contract tests..."
-    if ! (cd backend && uv run pytest tests/unit && uv run pytest tests/contract -m grafana_contract); then
+    if ! (cd backend && uv sync --frozen --no-install-project --no-build \
+        && uv run --no-sync --no-build pytest tests/unit \
+        && uv run --no-sync --no-build pytest tests/contract -m grafana_contract); then
         print_error "Unit or contract tests failed"
         exit 1
     fi

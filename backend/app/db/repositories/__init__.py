@@ -4,7 +4,6 @@ from app.db.repositories.event_repository import EventRepository
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.db.repositories.notification_repository import NotificationRepository
 from app.db.repositories.replay_repository import ReplayRepository
-from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.saga_repository import SagaRepository
 from app.db.repositories.saved_script_repository import SavedScriptRepository
 from app.db.repositories.user_repository import UserRepository
@@ -18,7 +17,6 @@ __all__ = [
     "ExecutionRepository",
     "NotificationRepository",
     "ReplayRepository",
-    "ResourceAllocationRepository",
     "SagaRepository",
     "SavedScriptRepository",
     "UserSettingsRepository",

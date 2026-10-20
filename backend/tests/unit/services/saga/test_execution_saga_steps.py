@@ -3,16 +3,12 @@ from unittest.mock import AsyncMock
 import pytest
 import structlog
 
-from app.db.docs import ResourceAllocationDocument
-from app.db.repositories import ResourceAllocationRepository
 from app.domain.events import DomainEvent, ExecutionRequestedEvent
 from app.events.core import UnifiedProducer
 from app.services.saga import (
-    AllocateResourcesStep,
     CreatePodStep,
     DeletePodCompensation,
     ExecutionSaga,
-    ReleaseResourcesCompensation,
     SagaContext,
     ValidateExecutionStep,
 )
@@ -42,41 +38,6 @@ async def test_validate_execution_step_success_and_failures() -> None:
     big = "x" * (1024 * 1024 + 1)
     with pytest.raises(ValueError, match="Script size exceeds limit"):
         await ValidateExecutionStep(logger=_logger).execute(ctx3, _req(script=big))
-
-
-class _FakeAllocRepo(ResourceAllocationRepository):
-    """Fake ResourceAllocationRepository for testing."""
-
-    def __init__(self, active: int = 0, alloc_id: str = "alloc-1") -> None:
-        self.active = active
-        self.alloc_id = alloc_id
-        self.released: list[str] = []
-
-    async def count_active(self, language: str) -> int:
-        return self.active
-
-    async def create_allocation(self, allocation: ResourceAllocationDocument) -> None:
-        allocation.allocation_id = self.alloc_id
-
-    async def release_allocation(self, allocation_id: str) -> bool:
-        self.released.append(allocation_id)
-        return True
-
-
-async def test_allocate_resources_step_paths() -> None:
-    ctx = SagaContext("s1", "e1")
-    ctx.set("execution_id", "e1")
-    ok = await AllocateResourcesStep(
-        alloc_repo=_FakeAllocRepo(active=0, alloc_id="alloc-1"),
-        logger=_logger,
-    ).execute(ctx, _req())
-    assert ok is True and ctx.get("resources_allocated") is True and ctx.get("allocation_id") == "alloc-1"
-
-    # Limit exceeded → raises
-    ctx2 = SagaContext("s2", "e2")
-    ctx2.set("execution_id", "e2")
-    with pytest.raises(ValueError, match="Resource limit exceeded"):
-        await AllocateResourcesStep(alloc_repo=_FakeAllocRepo(active=100), logger=_logger).execute(ctx2, _req())
 
 
 class _FakeProducer(UnifiedProducer):
@@ -114,18 +75,6 @@ async def test_create_pod_step_publish_flag_and_compensation() -> None:
     assert await comp.compensate(ctx2) is True
 
 
-async def test_release_resources_compensation() -> None:
-    repo = _FakeAllocRepo()
-    comp = ReleaseResourcesCompensation(alloc_repo=repo, logger=_logger)
-    ctx = SagaContext("s1", "e1")
-    ctx.set("allocation_id", "alloc-1")
-    assert await comp.compensate(ctx) is True and repo.released == ["alloc-1"]
-
-    # Missing allocation_id -> True short-circuit
-    ctx2 = SagaContext("sX", "eX")
-    assert await ReleaseResourcesCompensation(alloc_repo=repo, logger=_logger).compensate(ctx2) is True
-
-
 async def test_delete_pod_compensation_variants() -> None:
     prod = _FakeProducer()
 
@@ -144,10 +93,6 @@ async def test_delete_pod_compensation_variants() -> None:
     # get_compensation return types
     assert ValidateExecutionStep(logger=_logger).get_compensation() is None
     assert isinstance(
-        AllocateResourcesStep(_FakeAllocRepo(), logger=_logger).get_compensation(),
-        ReleaseResourcesCompensation,
-    )
-    assert isinstance(
         CreatePodStep(prod, publish_commands=False, logger=_logger).get_compensation(),
         DeletePodCompensation,
     )
@@ -157,11 +102,10 @@ def test_execution_saga_bind_and_get_steps_sets_flags_and_types() -> None:
     s = ExecutionSaga()
     s.bind_dependencies(
         producer=AsyncMock(spec=UnifiedProducer),
-        alloc_repo=AsyncMock(spec=ResourceAllocationRepository),
         publish_commands=True,
         logger=_logger,
     )
     steps = s.get_steps()
-    assert len(steps) == 3
+    assert [step.name for step in steps] == ["validate_execution", "create_pod"]
     cps = [st for st in steps if isinstance(st, CreatePodStep)][0]
     assert cps.publish_commands is True

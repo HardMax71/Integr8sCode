@@ -16,7 +16,7 @@ from app.domain.enums.notification import (
 from app.domain.enums.replay import REPLAY_TERMINAL, ReplayStatus, ReplayTarget, ReplayType
 from app.domain.enums.saga import SAGA_ACTIVE, SAGA_TERMINAL, SagaState
 from app.domain.enums.sse import SSEControlEvent
-from app.domain.enums.storage import AllocationStatus, ExecutionErrorType, StorageType
+from app.domain.enums.storage import ExecutionErrorType, StorageType
 from app.domain.enums.user import UserRole
 
 __all__ = [
@@ -53,7 +53,6 @@ __all__ = [
     # SSE
     "SSEControlEvent",
     # Storage
-    "AllocationStatus",
     "ExecutionErrorType",
     "StorageType",
     # User

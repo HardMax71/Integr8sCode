@@ -7,8 +7,8 @@ import structlog
 from opentelemetry import trace
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from app.db.docs import ResourceAllocationDocument, SagaDocument
-from app.db.repositories import ResourceAllocationRepository, SagaRepository
+from app.db.docs import SagaDocument
+from app.db.repositories import SagaRepository
 from app.domain.admin import SystemSettings
 from app.domain.enums import ExecutionErrorType, SagaState
 from app.domain.events import (
@@ -92,22 +92,6 @@ class _FakeProd(UnifiedProducer):
         return None
 
 
-class _FakeAlloc(ResourceAllocationRepository):
-    """Fake ResourceAllocationRepository for testing."""
-
-    def __init__(self) -> None:
-        self.allocations: list[ResourceAllocationDocument] = []
-
-    async def count_active(self, language: str) -> int:
-        return 0
-
-    async def create_allocation(self, allocation: ResourceAllocationDocument) -> None:
-        self.allocations.append(allocation)
-
-    async def release_allocation(self, allocation_id: str) -> bool:
-        return True
-
-
 class _FakeQueue(ExecutionQueueService):
     """Fake ExecutionQueueService for testing."""
 
@@ -177,7 +161,6 @@ def _orch(
         config=SagaConfig(name="t", enable_compensation=True, store_events=True, publish_commands=True),
         saga_repository=repo or _FakeRepo(),
         producer=_FakeProd(),
-        resource_allocation_repository=_FakeAlloc(),
         logger=_test_logger,
         queue_service=queue or _FakeQueue(),
         runtime_settings=_FakeRuntimeSettings(),

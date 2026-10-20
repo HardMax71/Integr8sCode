@@ -208,7 +208,7 @@ describe('AdminSagas', () => {
             const saga = {
                 ...fakeSagaStatusResponse(),
                 saga_name: 'execution_saga',
-                completed_steps: ['validate_execution', 'allocate_resources'],
+                completed_steps: ['validate_execution', 'create_pod'],
             };
             mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(saga);
             await renderWithSagas([saga]);
@@ -294,8 +294,8 @@ describe('AdminSagas', () => {
                 ...fakeSagaStatusResponse(),
                 saga_name: 'execution_saga',
                 state: 'failed',
-                completed_steps: ['validate_execution', 'allocate_resources'],
-                compensated_steps: ['release_resources'],
+                completed_steps: ['validate_execution', 'create_pod'],
+                compensated_steps: ['delete_pod'],
             };
             mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(saga);
             await renderWithSagas([saga]);
@@ -304,7 +304,7 @@ describe('AdminSagas', () => {
             await user.click(viewBtn!);
 
             await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
-            expect(screen.getByText('release_resources')).toBeInTheDocument();
+            expect(screen.getByText('delete_pod')).toBeInTheDocument();
         });
     });
 

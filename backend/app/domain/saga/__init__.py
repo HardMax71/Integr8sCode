@@ -5,8 +5,6 @@ from app.domain.saga.exceptions import (
     SagaNotFoundError,
 )
 from app.domain.saga.models import (
-    DomainResourceAllocation,
-    DomainResourceAllocationCreate,
     Saga,
     SagaCancellationResult,
     SagaConfig,
@@ -18,8 +16,6 @@ from app.domain.saga.models import (
 )
 
 __all__ = [
-    "DomainResourceAllocation",
-    "DomainResourceAllocationCreate",
     "Saga",
     "SagaCancellationResult",
     "SagaConfig",

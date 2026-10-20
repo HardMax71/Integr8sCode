@@ -3,8 +3,8 @@ from typing import Any
 import structlog
 
 from app.db import ResourceAllocationRepository
+from app.db.docs import ResourceAllocationDocument
 from app.domain.events import CreatePodCommandEvent, DeletePodCommandEvent, EventMetadata, ExecutionRequestedEvent
-from app.domain.saga import DomainResourceAllocationCreate
 from app.events import UnifiedProducer
 
 from .saga_step import CompensationStep, SagaContext, SagaStep
@@ -52,7 +52,7 @@ class AllocateResourcesStep(SagaStep[ExecutionRequestedEvent]):
             raise ValueError("Resource limit exceeded")
 
         allocation = await self.alloc_repo.create_allocation(
-            DomainResourceAllocationCreate(
+            ResourceAllocationDocument(
                 execution_id=execution_id,
                 language=event.language,
                 cpu_request=event.cpu_request,

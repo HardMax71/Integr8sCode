@@ -119,31 +119,3 @@ class SagaCancellationResult:
     success: bool
     message: str
     saga_id: str
-
-
-@dataclass
-class DomainResourceAllocation:
-    """Domain model for resource allocation."""
-
-    allocation_id: str
-    execution_id: str
-    language: str
-    cpu_request: str
-    memory_request: str
-    cpu_limit: str
-    memory_limit: str
-    status: str = "active"
-    allocated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    released_at: datetime | None = None
-
-
-@dataclass
-class DomainResourceAllocationCreate:
-    """Data for creating a resource allocation."""
-
-    execution_id: str
-    language: str
-    cpu_request: str
-    memory_request: str
-    cpu_limit: str
-    memory_limit: str

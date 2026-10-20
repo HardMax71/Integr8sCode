@@ -1,4 +1,3 @@
-import dataclasses
 from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock
@@ -8,6 +7,7 @@ import structlog
 from opentelemetry import trace
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from app.db.docs import ResourceAllocationDocument
 from app.db.repositories import ResourceAllocationRepository, SagaRepository
 from app.domain.admin import SystemSettings
 from app.domain.enums import ExecutionErrorType, SagaState
@@ -20,8 +20,6 @@ from app.domain.events import (
     ResourceUsageDomain,
 )
 from app.domain.saga import (
-    DomainResourceAllocation,
-    DomainResourceAllocationCreate,
     Saga,
     SagaConfig,
     SagaNotFoundError,
@@ -98,18 +96,14 @@ class _FakeAlloc(ResourceAllocationRepository):
     """Fake ResourceAllocationRepository for testing."""
 
     def __init__(self) -> None:
-        self.allocations: list[DomainResourceAllocation] = []
+        self.allocations: list[ResourceAllocationDocument] = []
 
     async def count_active(self, language: str) -> int:
         return 0
 
-    async def create_allocation(self, create_data: DomainResourceAllocationCreate) -> DomainResourceAllocation:
-        alloc = DomainResourceAllocation(
-            allocation_id="alloc-1",
-            **dataclasses.asdict(create_data),
-        )
-        self.allocations.append(alloc)
-        return alloc
+    async def create_allocation(self, allocation: ResourceAllocationDocument) -> ResourceAllocationDocument:
+        self.allocations.append(allocation)
+        return allocation
 
     async def release_allocation(self, allocation_id: str) -> bool:
         return True

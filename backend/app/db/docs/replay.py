@@ -4,37 +4,11 @@ from typing import Annotated
 from uuid import uuid4
 
 from beanie import Document, Indexed
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 from pymongo import IndexModel
 
-from app.domain.enums import ReplayStatus, ReplayTarget, ReplayType
-from app.domain.replay import ReplayError, ReplayFilter
-
-
-class ReplayConfig(BaseModel):
-    """Replay configuration (embedded document).
-
-    Copied from domain/replay/models.py ReplayConfig.
-    """
-
-    replay_type: ReplayType
-    target: ReplayTarget = ReplayTarget.KAFKA
-    filter: ReplayFilter = Field(default_factory=ReplayFilter)
-
-    speed_multiplier: float = Field(default=1.0, ge=0.1, le=100.0)
-    preserve_timestamps: bool = False
-    batch_size: int = Field(default=100, ge=1, le=1000)
-    max_events: int | None = Field(default=None, ge=1)
-
-    target_file_path: str | None = None
-
-    skip_errors: bool = True
-    retry_failed: bool = False
-    retry_attempts: int = 3
-
-    enable_progress_tracking: bool = True
-
-    model_config = ConfigDict(from_attributes=True)
+from app.domain.enums import ReplayStatus
+from app.domain.replay import ReplayConfig, ReplayError, ReplayFilter
 
 
 class ReplaySessionDocument(Document):
@@ -78,7 +52,11 @@ class ReplaySessionDocument(Document):
     class Settings:
         name = "replay_sessions"
         use_state_management = True
-        bson_encoders = {ReplayFilter: dataclasses.asdict, ReplayError: dataclasses.asdict}
+        bson_encoders = {
+            ReplayConfig: dataclasses.asdict,
+            ReplayFilter: dataclasses.asdict,
+            ReplayError: dataclasses.asdict,
+        }
         indexes = [
             IndexModel([("status", 1)]),
             IndexModel([("replay_id", 1)]),

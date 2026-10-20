@@ -1,15 +1,14 @@
 import csv
 import json
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from io import StringIO
 from typing import Any
 
 import structlog
 
 from app.db import AdminEventsRepository
-from app.db.docs.replay import ReplaySessionDocument
-from app.domain.admin import ReplaySessionData, ReplaySessionStatusDetail, ReplaySessionUpdate
+from app.domain.admin import ReplaySessionData
 from app.domain.enums import ExportFormat, ReplayStatus, ReplayTarget, ReplayType
 from app.domain.events import (
     EventBrowseResult,
@@ -21,11 +20,9 @@ from app.domain.events import (
     EventSummary,
 )
 from app.domain.exceptions import NotFoundError, ValidationError
-from app.domain.replay import ReplayConfig, ReplayError, ReplayFilter, ReplaySessionNotFoundError
+from app.domain.replay import ReplayConfig, ReplayFilter, ReplaySessionChanges, ReplaySessionNotFoundError
 from app.domain.sse import DomainReplaySSEPayload
 from app.services.event_replay import EventReplayService
-
-_status_detail_fields = set(ReplaySessionStatusDetail.__dataclass_fields__)
 
 
 def _export_row_to_dict(row: EventExportRow) -> dict[str, str]:
@@ -189,14 +186,13 @@ class AdminEventsService:
         session_id = op.session_id
 
         # Persist additional metadata to the admin replay session record
-        session_update = ReplaySessionUpdate(
-            total_events=session_data.total_events,
-            replay_id=replay_id,
-            status=ReplayStatus.SCHEDULED,
-        )
         await self._repo.update_replay_session(
             session_id=session_id,
-            updates=session_update,
+            changes=ReplaySessionChanges(
+                total_events=session_data.total_events,
+                replay_id=replay_id,
+                status=ReplayStatus.SCHEDULED,
+            ),
         )
 
         result = AdminReplayResult(
@@ -223,32 +219,6 @@ class AdminEventsService:
             self.logger.warning("Replay session not found", session_id=session_id)
             raise ReplaySessionNotFoundError(session_id)
         return status
-
-    async def get_replay_status(self, session_id: str) -> ReplaySessionStatusDetail:
-        doc = await self._repo.get_replay_session_doc(session_id)
-        if not doc:
-            self.logger.warning("Replay session not found", session_id=session_id)
-            raise ReplaySessionNotFoundError(session_id)
-
-        data = doc.model_dump(include=_status_detail_fields)
-        config = data.get("config", {})
-        config["filter"] = ReplayFilter(**config.get("filter", {}))
-        data["config"] = ReplayConfig(**config)
-        data["errors"] = [ReplayError(**e) for e in data.get("errors", [])]
-        result = ReplaySessionStatusDetail(**data)
-        result.estimated_completion = self._estimate_completion(doc, datetime.now(timezone.utc))
-        result.execution_results = await self._repo.get_execution_results_for_filter(doc.config.filter)
-        return result
-
-    def _estimate_completion(self, doc: ReplaySessionDocument, now: datetime) -> datetime | None:
-        if not doc.is_running or not doc.started_at or doc.replayed_events <= 0:
-            return None
-        elapsed = (now - doc.started_at).total_seconds()
-        if elapsed <= 0:
-            return None
-        rate = doc.replayed_events / elapsed
-        remaining = doc.total_events - doc.replayed_events
-        return now + timedelta(seconds=remaining / rate) if rate > 0 else None
 
     async def export_events(
         self, *, event_filter: EventFilter, limit: int, export_format: ExportFormat

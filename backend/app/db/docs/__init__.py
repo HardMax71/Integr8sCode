@@ -13,7 +13,6 @@ from app.db.docs.notification import (
     NotificationSubscriptionDocument,
 )
 from app.db.docs.replay import (
-    ReplayConfig,
     ReplaySessionDocument,
 )
 from app.db.docs.resource import ResourceAllocationDocument
@@ -67,7 +66,6 @@ __all__ = [
     "EventArchiveDocument",
     # Replay
     "ReplaySessionDocument",
-    "ReplayConfig",
     # Resource
     "ResourceAllocationDocument",
     # Admin Settings

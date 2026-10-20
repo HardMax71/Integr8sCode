@@ -1,3 +1,4 @@
+import secrets
 from datetime import timedelta
 from typing import NoReturn
 
@@ -33,13 +34,6 @@ from app.settings import Settings
 
 
 class AuthService:
-    # Pre-computed bcrypt hash used as a timing side-channel mitigation.
-    # When a login attempt targets a non-existent username, we still run
-    # verify_password against this hash so the response time is comparable
-    # to the "user exists, wrong password" path. Without this, an attacker
-    # could measure response times to enumerate valid usernames.
-    _dummy_hash = SecretStr("$2b$12$hDE3I.Y1MHugA561T/NQgebE/IVQS.2YliUDGfqADq7v/MTUG6.Bi")
-
     def __init__(
         self,
         user_repo: UserRepository,
@@ -59,6 +53,8 @@ class AuthService:
         self._runtime_settings = runtime_settings
         self._producer = producer
         self._settings = settings
+        # An unknown username is checked against this, so its response time matches a real user's
+        self._dummy_hash = security_service.get_password_hash(SecretStr(secrets.token_urlsafe()))
 
     def _build_metadata(self, user_id: str = "") -> EventMetadata:
         return EventMetadata(

@@ -1,6 +1,6 @@
 # User settings events
 
-User settings are event-sourced. Every change publishes one `UserSettingsUpdatedEvent`, and current settings are rebuilt from the latest snapshot plus the events after it. Merging is a plain dict merge, with the nested settings objects converted back by hand. `UserSettingsService` in `app/services/user_settings_service.py` owns all of it.
+User settings are event-sourced. Every change publishes one `UserSettingsUpdatedEvent`, and current settings are rebuilt from the latest snapshot plus the events after it, one field at a time. The settings themselves are a `UserSettingsDocument`, the same type for a stored snapshot and for a rebuilt result. `UserSettingsService` in `app/services/user_settings_service.py` owns all of it.
 
 ## The event
 
@@ -10,7 +10,7 @@ There's one event type for every kind of change, theme, editor, notifications or
 --8<-- "backend/app/domain/events/typed.py:UserSettingsUpdatedEvent"
 ```
 
-The changed values aren't declared fields. The model has `extra="allow"`, and `_publish_settings_event()` passes the changes as keyword arguments, so `theme`, `editor` and the rest ride along as top-level fields. They stay top level on Kafka and in the `events` collection, since `EventDocument` allows extras too (see [Event Storage](event-storage.md)). `changed_fields` lists the keys. The aggregate id and the Kafka key are both `user_settings_{user_id}`.
+The changed values aren't declared fields. The model has `extra="allow"`, and `_publish_settings_event()` validates a dict that holds the changes next to the declared fields, so `theme`, `editor` and the rest ride along as top-level fields. They stay top level on Kafka and in the `events` collection, since `EventDocument` allows extras too (see [Event Storage](event-storage.md)). `changed_fields` lists the keys. The aggregate id and the Kafka key are both `user_settings_{user_id}`.
 
 ## Updating
 
@@ -18,20 +18,7 @@ The changed values aren't declared fields. The model has `extra="allow"`, and `_
 --8<-- "backend/app/services/user_settings_service.py:update_user_settings"
 ```
 
-`changes` holds the non-None fields of `DomainUserSettingsUpdate`. `dataclasses.asdict()` turns nested dataclasses into dicts on the way, so a notifications update arrives as a dict and replaces the whole notifications object. The service merges current settings, changes, a bumped `version` and a new `updated_at` into one dict and hands it to `_build_settings()`:
-
-```python
-@staticmethod
-def _build_settings(data: dict[str, Any]) -> DomainUserSettings:
-    filtered = {k: v for k, v in data.items() if k in _settings_fields}
-    if isinstance(filtered.get("notifications"), dict):
-        filtered["notifications"] = DomainNotificationSettings(**filtered["notifications"])
-    if isinstance(filtered.get("editor"), dict):
-        filtered["editor"] = DomainEditorSettings(**filtered["editor"])
-    return DomainUserSettings(**filtered)
-```
-
-`_settings_fields` is the field set of `DomainUserSettings`, so keys like `changed_fields` or `event_id` drop out. The two nested objects are rebuilt explicitly because stdlib dataclasses don't convert nested dicts (see [Domain Dataclasses](domain-dataclasses.md)).
+`changes` is a `UserSettingsChanges`, a `TypedDict` that holds only the fields the request set. The route builds it with `exclude_none=True`, since the settings page sends `null` for the sections it didn't change. A notifications or editor update replaces the whole object. After publishing, the service applies the same change to the current settings with `_apply_event()`, the code a rebuild runs, and bumps `version`.
 
 Once there are 10 or more events since the last snapshot, the service writes a snapshot to the `user_settings` collection.
 
@@ -51,7 +38,7 @@ graph TB
 
 Every read rebuilds, which costs two MongoDB queries and at most ten events, since a snapshot follows every ten. There's no cache. The API runs several worker processes, and a per-process cache served the old settings for up to 5 minutes whenever an update had gone through another worker.
 
-`UserSettingsRepository.get_settings_events()` reads events by aggregate id and builds `DomainUserSettingsChangedEvent` dataclasses with `model_dump(include=_event_fields)`. Nested values are still dicts at that point. `_apply_event()` drops the None fields and merges the rest, and `_build_settings()` converts them:
+`UserSettingsRepository.get_settings_events()` reads events by aggregate id and validates each into a `DomainUserSettingsChangedEvent` with a `TypeAdapter`. The adapter also turns the stored notification and editor dicts back into their dataclasses. `_apply_event()` sets each field the event carries and moves `updated_at` to the event's timestamp:
 
 ```python
 --8<-- "backend/app/services/user_settings_service.py:apply_event"

@@ -21,9 +21,9 @@ backend/
 │   ├── api/routes/          # FastAPI route handlers (DishkaRoute), admin/ for admin routers
 │   ├── core/                # providers.py (all Dishka providers), container.py, middlewares/, metrics/,
 │   │                        # tracing/, exceptions/, security.py, logging.py, utils.py (StringEnum)
-│   ├── db/                  # Beanie documents (db/docs/) and repositories (db/repositories/)
+│   ├── db/                  # Beanie documents, the stored entities (db/docs/), and repositories (db/repositories/)
 │   ├── dlq/                 # DLQ manager and models
-│   ├── domain/              # Domain models (stdlib dataclasses), events, enums, exceptions
+│   ├── domain/              # Value objects, results and update changes (dataclasses, TypedDicts), events, enums, exceptions
 │   ├── events/              # handlers.py (Kafka routers), middlewares.py (idempotency), core/ (producer, transport)
 │   ├── infrastructure/      # kafka/topics.py: event type groupings
 │   ├── schemas_pydantic/    # API request and response schemas
@@ -102,15 +102,16 @@ These layer boundaries hold throughout the codebase:
 
 | Layer | Technology | Rule |
 |-------|-----------|------|
-| Domain models | stdlib `@dataclass` in `domain/` | Business logic. Services use ONLY these |
-| Schema models | Pydantic `BaseModel` in `schemas_pydantic/` | API boundary only (request/response) |
-| ODM models | Beanie `Document` in `db/docs/` | Database layer only |
+| Entities | Beanie `Document` in `db/docs/` | The one model per stored entity. Services and repositories take and return documents |
+| Domain types | stdlib `@dataclass` and `TypedDict` in `domain/` | Value objects, results, filters and update changes. None repeats a document's fields |
+| Schema models | Pydantic `BaseModel` in `schemas_pydantic/` | Presentation only (request/response). Nothing under `services/` or `db/` imports them |
 
-- Services never use schema models directly
-- Routes convert with `SchemaResponse.model_validate(domain_result)`; `from_attributes=True` goes on the schema's `model_config`, never as a kwarg to `model_validate()`
-- Repositories convert domain to document: `UserDocument(**dataclasses.asdict(create_data))`
-- Repositories convert document to domain: `User(**doc.model_dump(include=_user_fields))`
-- Nested dataclass fields must be converted explicitly in repositories (no automatic Pydantic coercion)
+- Routes call services with keyword arguments taken from the request schema, and services build documents with the document's constructor
+- Routes return `SchemaResponse.model_validate(document)`; `from_attributes=True` goes on the schema's `model_config`, never as a kwarg to `model_validate()`
+- An update's changes are a `TypedDict` with `total=False` in `domain/` (`SavedScriptChanges`). The route builds it with a module-level `TypeAdapter(SavedScriptChanges).validate_python(body.model_dump(exclude_unset=True))`, so a key left out keeps its value and `None` clears it, and the repository applies it with `doc.set({**changes, "updated_at": now})`
+- A domain value embedded in a document (`ResourceUsageDomain`, `ReplayConfig`) is a dataclass that the document registers in `Settings.bson_encoders` with `dataclasses.asdict`; Pydantic converts it back on read
+- A result that holds documents (`UserListResult`) sits next to the repository or service that returns it, since `domain/` never imports `db/docs/`
+- No `**model_dump()`, `**asdict()` or `__dataclass_fields__` field sets to copy between models
 
 ## Python Conventions
 
@@ -189,9 +190,11 @@ Use `structlog.stdlib.BoundLogger` injected via the Dishka constructor. Never ca
 
 | Use `@dataclass` for | Use Pydantic `BaseModel` for |
 |----------------------|------------------------------|
-| Domain models (pure business logic) | API request/response schemas |
-| Internal DTOs | Kafka event payloads (FastStream) |
-| Simple data containers without validation | ODM embedded sub-documents |
+| Domain value objects, results and filters | API request/response schemas |
+| Values embedded in documents | Kafka event payloads (FastStream) |
+| Simple data containers without validation | Beanie documents, the stored entities |
+
+An update's changes are a `TypedDict` with `total=False`, not a dataclass with None defaults.
 
 ## Backend: Error Handling
 
@@ -225,20 +228,17 @@ A catch-all is allowed in two cases only. The first records or logs, then re-rai
 
 ```python
 # Repository: returns None for reads; raises only on write constraints
-async def get_user(self, username: str) -> User | None:
-    doc = await UserDocument.find_one(UserDocument.username == username)
-    return User(**doc.model_dump(include=_user_fields)) if doc else None
+async def get_user(self, username: str) -> UserDocument | None:
+    return await UserDocument.find_one(UserDocument.username == username)
 
-async def create_user(self, create_data: DomainUserCreate) -> User:
-    doc = UserDocument(**dataclasses.asdict(create_data))
+async def create_user(self, user: UserDocument) -> None:
     try:
-        await doc.insert()
+        await user.insert()
     except DuplicateKeyError as e:
         raise ConflictError("User already exists") from e
-    return User(**doc.model_dump(include=_user_fields))
 
 # Service: checks None and raises a domain exception (global handler returns 404)
-async def get_user(self, user_id: str) -> User:
+async def get_user(self, user_id: str) -> UserDocument:
     user = await self.user_repo.get_user_by_id(user_id)
     if not user:
         self.logger.warning("User not found", user_id=user_id)
@@ -323,28 +323,37 @@ class MyProvider(Provider):
 - `setup_dishka(container, broker=broker, auto_inject=True)` from `dishka_faststream` runs **after** subscriber registration and **before** the broker starts, in the worker and in the API lifespan
 - Never instantiate services directly; always use DI
 
-## Backend: Domain Models (Stdlib Dataclasses)
+## Backend: Domain Types (Dataclasses and TypedDicts)
 
 ```python
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from uuid import uuid4
+from dataclasses import dataclass
+from typing import TypedDict
 
 @dataclass
-class DomainExecution:
-    execution_id: str = field(default_factory=lambda: str(uuid4()))
-    script: str = ""
-    status: ExecutionStatus = ExecutionStatus.QUEUED
-    user_id: str | None = None
-    exit_code: int | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+class ResourceUsageDomain:
+    """Resource usage metrics from script execution."""
+
+    execution_time_wall_seconds: float = 0.0
+    cpu_time_jiffies: int = 0
+    clk_tck_hertz: int = 0
+    peak_memory_kb: int = 0
+
+
+class SavedScriptChanges(TypedDict, total=False):
+    """Fields an update sets; a missing key keeps the stored value and None clears the description."""
+
+    name: str
+    script: str
+    lang: str
+    lang_version: str
+    description: str | None
 ```
 
 - Pure Python, no Pydantic validation at construction
+- No dataclass repeats the fields of a document: the document is the entity
 - `event_id` and other UUID fields always use `default_factory`; never add None checks
 - Nested dataclass fields: `context_data: SagaContextData = field(default_factory=SagaContextData)`
-- Convert to dict: `dataclasses.asdict(domain_obj)` (for passing to ODM)
-- Field set helper: `_user_fields = set(User.__dataclass_fields__)` for `model_dump(include=...)`
+- `domain/` imports nothing from `db/docs/`, since the documents import domain values
 
 ## Backend: Pydantic Schemas
 
@@ -390,40 +399,44 @@ class UserDocument(Document):
         use_state_management = True
 ```
 
-- Documents in `app/db/docs/`; only top-level collection models extend `Document`
-- Embedded sub-documents use plain `BaseModel` (no `EmbeddedDocument`)
+- Documents in `app/db/docs/`; only top-level collection models extend `Document`. They are the entities services work with
+- An embedded value is a domain dataclass listed in `Settings.bson_encoders` with `dataclasses.asdict` (no `EmbeddedDocument`)
+- `Document.__init__` needs `init_beanie`; unit tests get it from a session fixture that runs it on a mocked database
+- lazy-model ships no `py.typed` yet ([BeanieODM/lazy_model#15](https://github.com/BeanieODM/lazy_model/issues/15)), so mypy sees a document's constructor and its Pydantic methods (`model_validate`, `model_dump`) as `Any`. Assign their results to annotated variables: `doc: EventDocument = EventDocument.model_validate(data)`
 - Indexed fields are `Annotated[type, Indexed(...)]`, so mypy sees the real type; an optional one is `Annotated[type | None, Indexed()]`, since `Indexed(type) | None` creates no index
 - `arbitrary_types_allowed=True` required on Document models
 - Compound indexes via `Settings.indexes = [IndexModel([...])]`
-- Update pattern: `await doc.set({"field": value, "updated_at": now})`
+- Update pattern: `await doc.set({**changes, "updated_at": now})`, or `await doc.update({"$set": changes})` when nothing is added
 - Atomic updates: `find_one().update(Set({...}), response_type=UpdateResponse.NEW_DOCUMENT)`
 
 ## Backend: Repository Pattern
 
 ```python
-_user_fields = set(User.__dataclass_fields__)
-
 class UserRepository:
     def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
         self.logger = logger
 
-    async def get_user(self, username: str) -> User | None:
-        doc = await UserDocument.find_one(UserDocument.username == username)
-        return User(**doc.model_dump(include=_user_fields)) if doc else None
+    async def get_user(self, username: str) -> UserDocument | None:
+        return await UserDocument.find_one(UserDocument.username == username)
 
-    async def create_user(self, create_data: DomainUserCreate) -> User:
-        doc = UserDocument(**dataclasses.asdict(create_data))
+    async def create_user(self, user: UserDocument) -> None:
         try:
-            await doc.insert()
+            await user.insert()
         except DuplicateKeyError as e:
             raise ConflictError("User already exists") from e
-        return User(**doc.model_dump(include=_user_fields))
+
+    async def update_user(self, user_id: str, changes: UserChanges) -> UserDocument | None:
+        doc = await UserDocument.find_one(UserDocument.user_id == user_id)
+        if not doc:
+            return None
+        await doc.set({**changes, "updated_at": datetime.now(timezone.utc)})
+        return doc
 ```
 
 - Location: `app/db/repositories/`
-- Always return domain models, never ODM documents
-- `doc.model_dump(include=_user_fields)` filters to domain model fields
-- `dataclasses.asdict(domain)` converts domain to document on write
+- Take and return documents and domain types, never schema models
+- A create takes the document the service built and inserts it
+- An update takes a changes `TypedDict` and applies it as is
 - Inject `structlog.stdlib.BoundLogger` via constructor
 - Raise domain exceptions for write-constraint violations only (e.g. `ConflictError` for a duplicate key), **not** for missing entities; return `None` instead
 
@@ -455,6 +468,7 @@ class ExecutionService:
 - New metrics come from spans: put the facts on a span as attributes (`queue.priority`, `queue.outcome`) and define the metric under `signaltometrics` in `backend/otel-collector-config.yaml`. There are no metric classes: `app/core/metrics/` only sets up the OTLP `MeterProvider` for the instrumentations ([#389](https://github.com/HardMax71/Integr8sCode/issues/389)). A gauge needs a job that reports it on a timer
 - Publish events via `UnifiedProducer`: `await self.producer.produce(event_to_produce=event, key=execution_id)`
 - Services orchestrate domain logic; no direct DB or HTTP calls
+- Services build new documents with the document's constructor and hand them to the repository; they never import `app.schemas_pydantic`
 - Always check `None` from repos and raise a domain-specific `NotFoundError` subclass (e.g. `ExecutionNotFoundError`, `SagaNotFoundError`); never return `None` to a route
 
 ## Backend: Runtime Registry
@@ -773,6 +787,8 @@ backend/tests/
 ```
 
 Markers registered in pyproject.toml: `unit`, `e2e`, `grafana_contract` (CI selects the contract tests with it). pytest-xdist adds `xdist_group`. No `@pytest.mark.asyncio`: `asyncio_mode = "auto"` covers it.
+
+Unit tests build documents through their constructors, with no MongoDB: the session fixture `beanie_without_server` in `tests/unit/conftest.py` runs `init_beanie` on a mocked database.
 
 `asyncio_mode = "auto"`, so a test is `async def` when it awaits and a plain `def` otherwise; about a quarter of the suite is sync. Key fixtures: `test_settings`, `app`, `client`, `redis_client`, `test_user`, `test_admin`, `another_user` (the last three are logged-in `httpx2.AsyncClient`s with the CSRF header set), and in e2e one fixture per service or repository (`execution_service`, `execution_repository`, `notification_service`, ...). A test names what it needs as parameters; it doesn't call `scope.get` itself.
 

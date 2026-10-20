@@ -1,8 +1,5 @@
 from .overview_models import DerivedCountsDomain
-from .replay_models import (
-    ReplaySessionData,
-    ReplaySessionStatusInfo,
-)
+from .replay_models import ReplaySessionData
 from .settings_models import (
     AuditAction,
     LogLevel,
@@ -18,5 +15,4 @@ __all__ = [
     "SystemSettings",
     # Replay
     "ReplaySessionData",
-    "ReplaySessionStatusInfo",
 ]

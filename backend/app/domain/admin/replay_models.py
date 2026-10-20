@@ -1,27 +1,7 @@
 from dataclasses import dataclass, field
-from datetime import datetime
 
-from app.domain.enums import ReplayStatus
 from app.domain.events import EventSummary
 from app.domain.replay import ReplayFilter
-
-
-@dataclass
-class ReplaySessionStatusInfo:
-    """Lightweight status info for API responses."""
-
-    session_id: str
-    status: ReplayStatus
-    total_events: int
-    replayed_events: int
-    failed_events: int
-    skipped_events: int
-    replay_id: str
-    created_at: datetime
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
-    error: str | None = None
-    progress_percentage: float = 0.0
 
 
 @dataclass

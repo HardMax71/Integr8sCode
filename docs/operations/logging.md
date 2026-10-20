@@ -25,7 +25,7 @@ The processor chain:
 --8<-- "backend/app/core/logging.py:log_processors"
 ```
 
-`add_otel_context` adds `trace_id` and `span_id` when there's a recording span. `sanitize_sensitive_data` replaces the value of any sensitive-looking key whole and redacts every other top-level string value. Strings nested inside a dict or list pass through unredacted. `render_json` renders the event and marks the result as already redacted, so the filter further down passes it through untouched.
+`add_otel_context` adds `trace_id` and `span_id` when there's a recording span. `sanitize_sensitive_data` replaces the value of any sensitive-looking key whole and redacts every other top-level string value. Strings nested inside a dict or list pass through unredacted, so our own secrets are typed `SecretStr` (see [Redaction](#redaction)). `render_json` renders the event and marks the result as already redacted, so the filter further down passes it through untouched.
 
 A line looks like this:
 
@@ -49,6 +49,8 @@ The same rules apply in two places. `sanitize_sensitive_data` runs them on struc
 | email addresses                                           | first 3 characters of the local part, then `***@domain` |
 
 For structlog events, field names count too. A key named `password`, `passwd`, `pwd`, `secret`, `token`, `api_key`, `credential(s)`, `authorization` or `cookie`, or ending in `_` plus one of those such as `csrf_token`, has its whole value replaced with `***REDACTED***`. So `logger.info("x", password="hunter2")` writes `"password": "***REDACTED***"`. Stdlib records have no fields, so only the patterns apply to them.
+
+Our own secrets don't depend on these rules. The Settings secrets (`SECRET_KEY`, `MONGO_PASSWORD`, `MONGODB_URL`, `REDIS_PASSWORD`), the passwords in request bodies, `UserDocument.hashed_password` and the two session tokens in `LoginResult` are Pydantic `SecretStr`. Their `str()` and `repr()` are `**********`, so a log call prints the mask however deep it nests them: in a dict, in a list, inside a model. Code that needs the value calls `.get_secret_value()`. A plain string in a nested dict still prints as is, so a new secret gets the `SecretStr` type rather than a new rule here.
 
 ## Third-party loggers
 

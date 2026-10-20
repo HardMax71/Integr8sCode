@@ -1,14 +1,13 @@
 import structlog
 
 from app.db import ExecutionRepository, SagaRepository
-from app.db.docs import UserDocument
+from app.db.docs import SagaDocument, UserDocument
+from app.db.repositories.saga_repository import SagaListResult
 from app.domain.enums import SagaState, UserRole
 from app.domain.saga import (
-    Saga,
     SagaAccessDeniedError,
     SagaCancellationResult,
     SagaFilter,
-    SagaListResult,
     SagaNotFoundError,
 )
 from app.services.saga import SagaOrchestrator
@@ -56,7 +55,7 @@ class SagaService:
         )
         return False
 
-    async def get_saga_with_access_check(self, saga_id: str, user: UserDocument) -> Saga:
+    async def get_saga_with_access_check(self, saga_id: str, user: UserDocument) -> SagaDocument:
         """Get saga with access control."""
         self.logger.debug("Getting saga for user", saga_id=saga_id, user_id=user.user_id, user_role=user.role)
 

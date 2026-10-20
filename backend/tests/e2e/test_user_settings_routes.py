@@ -79,6 +79,19 @@ class TestUpdateUserSettings:
         settings = UserSettings.model_validate(response.json())
         assert settings.theme == Theme.LIGHT
 
+    async def test_null_sections_keep_their_values(self, test_user: AsyncClient) -> None:
+        """The settings page sends null for the sections it didn't change."""
+        editor = EditorSettings(tab_size=2, font_size=18)
+        await test_user.put("/api/v1/user/settings/editor", json=editor.model_dump())
+
+        response = await test_user.put(
+            "/api/v1/user/settings/", json={"theme": Theme.DARK, "notifications": None, "editor": None}
+        )
+
+        assert response.status_code == 200
+        settings = UserSettings.model_validate(response.json())
+        assert (settings.theme, settings.editor) == (Theme.DARK, editor)
+
 
 class TestUpdateTheme:
     """Tests for PUT /api/v1/user/settings/theme."""

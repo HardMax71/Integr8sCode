@@ -10,13 +10,11 @@ from .exceptions import (
     UserNotFoundError,
 )
 from .settings_models import (
-    CachedSettings,
     DomainEditorSettings,
     DomainNotificationSettings,
     DomainSettingsHistoryEntry,
-    DomainUserSettings,
     DomainUserSettingsChangedEvent,
-    DomainUserSettingsUpdate,
+    UserSettingsChanges,
 )
 from .user_models import (
     LoginResult,
@@ -30,14 +28,11 @@ __all__ = [
     "AccountDeactivatedError",
     "AdminAccessRequiredError",
     "AuthenticationRequiredError",
-    "CachedSettings",
     "CSRFValidationError",
     "DomainEditorSettings",
     "DomainNotificationSettings",
     "DomainSettingsHistoryEntry",
-    "DomainUserSettings",
     "DomainUserSettingsChangedEvent",
-    "DomainUserSettingsUpdate",
     "InvalidCredentialsError",
     "LoginResult",
     "SelfDeletionError",
@@ -46,5 +41,6 @@ __all__ = [
     "UserFields",
     "UserFilterType",
     "UserNotFoundError",
+    "UserSettingsChanges",
     "UserRole",
 ]

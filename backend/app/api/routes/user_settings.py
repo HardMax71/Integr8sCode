@@ -3,14 +3,11 @@ from typing import Annotated
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, Query
+from pydantic import TypeAdapter
 
 from app.api.dependencies import current_user
 from app.db.docs import UserDocument
-from app.domain.user import (
-    DomainEditorSettings,
-    DomainNotificationSettings,
-    DomainUserSettingsUpdate,
-)
+from app.domain.user import DomainEditorSettings, DomainNotificationSettings, UserSettingsChanges
 from app.schemas_pydantic.user_settings import (
     EditorSettings,
     NotificationSettings,
@@ -24,6 +21,10 @@ from app.schemas_pydantic.user_settings import (
 from app.services.user_settings_service import UserSettingsService
 
 router = APIRouter(prefix="/user/settings", tags=["user-settings"], route_class=DishkaRoute)
+
+_settings_changes = TypeAdapter(UserSettingsChanges)
+_notification_settings = TypeAdapter(DomainNotificationSettings)
+_editor_settings = TypeAdapter(DomainEditorSettings)
 
 
 @router.get("/", response_model=UserSettings)
@@ -42,14 +43,9 @@ async def update_user_settings(
     updates: UserSettingsUpdate,
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
-    """Update the authenticated user's settings."""
-    data = updates.model_dump()
-    if isinstance(data.get("notifications"), dict):
-        data["notifications"] = DomainNotificationSettings(**data["notifications"])
-    if isinstance(data.get("editor"), dict):
-        data["editor"] = DomainEditorSettings(**data["editor"])
-    domain_updates = DomainUserSettingsUpdate(**data)
-    domain = await settings_service.update_user_settings(current_user.user_id, domain_updates)
+    """Update the authenticated user's settings; a field left out or sent as null keeps its value."""
+    changes = _settings_changes.validate_python(updates.model_dump(exclude_none=True))
+    domain = await settings_service.update_user_settings(current_user.user_id, changes)
     return UserSettings.model_validate(domain)
 
 
@@ -73,7 +69,7 @@ async def update_notification_settings(
     """Update notification preferences."""
     domain = await settings_service.update_notification_settings(
         current_user.user_id,
-        DomainNotificationSettings(**notifications.model_dump()),
+        _notification_settings.validate_python(notifications.model_dump()),
     )
     return UserSettings.model_validate(domain)
 
@@ -87,7 +83,7 @@ async def update_editor_settings(
     """Update code editor preferences."""
     domain = await settings_service.update_editor_settings(
         current_user.user_id,
-        DomainEditorSettings(**editor.model_dump()),
+        _editor_settings.validate_python(editor.model_dump()),
     )
     return UserSettings.model_validate(domain)
 

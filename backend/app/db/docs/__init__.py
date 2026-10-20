@@ -19,11 +19,7 @@ from app.db.docs.resource import ResourceAllocationDocument
 from app.db.docs.saga import SagaDocument
 from app.db.docs.saved_script import SavedScriptDocument
 from app.db.docs.user import UserDocument
-from app.db.docs.user_settings import (
-    EditorSettings,
-    NotificationSettings,
-    UserSettingsDocument,
-)
+from app.db.docs.user_settings import UserSettingsDocument
 
 # All document classes that need to be initialized with Beanie
 ALL_DOCUMENTS = [
@@ -55,8 +51,6 @@ __all__ = [
     "NotificationSubscriptionDocument",
     # User Settings
     "UserSettingsDocument",
-    "NotificationSettings",
-    "EditorSettings",
     # Saga
     "SagaDocument",
     # DLQ

@@ -3,35 +3,36 @@ from unittest.mock import AsyncMock
 
 import pytest
 import structlog
+from pydantic import TypeAdapter
 
 from app.db import UserSettingsRepository
+from app.db.docs import UserSettingsDocument
 from app.domain.enums import EventType, Theme
 from app.domain.events import DomainEvent
-from app.domain.user import DomainUserSettings, DomainUserSettingsChangedEvent
+from app.domain.user import DomainUserSettingsChangedEvent
 from app.events import UnifiedProducer
 from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit
 
-_event_fields = set(DomainUserSettingsChangedEvent.__dataclass_fields__)
+_changed_event = TypeAdapter(DomainUserSettingsChangedEvent)
 
 
 class _MemoryRepo(UserSettingsRepository):
     def __init__(self) -> None:
-        self.snapshot: DomainUserSettings | None = None
+        self.snapshot: UserSettingsDocument | None = None
         self.events: list[DomainUserSettingsChangedEvent] = []
 
-    async def get_snapshot(self, user_id: str) -> DomainUserSettings | None:
+    async def get_snapshot(self, user_id: str) -> UserSettingsDocument | None:
         return self.snapshot
 
-    async def create_snapshot(self, settings: DomainUserSettings) -> None:
+    async def create_snapshot(self, settings: UserSettingsDocument) -> None:
         self.snapshot = settings
 
     async def store_produced(self, event_to_produce: DomainEvent, key: str) -> None:
         """Keep a produced settings event, as the producer stores every event before publishing it."""
-        data = {k: v for k, v in event_to_produce.model_dump().items() if k in _event_fields}
-        self.events.append(DomainUserSettingsChangedEvent(**data))
+        self.events.append(_changed_event.validate_python(event_to_produce.model_dump()))
 
     async def get_settings_events(
         self,

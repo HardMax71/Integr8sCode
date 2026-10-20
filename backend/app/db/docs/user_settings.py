@@ -1,55 +1,24 @@
+import dataclasses
 from datetime import datetime, timezone
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from beanie import Document, Indexed
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
-from app.domain.enums import NotificationChannel, Theme
-
-
-class NotificationSettings(BaseModel):
-    """User notification preferences (embedded document).
-
-    Copied from user_settings.py NotificationSettings.
-    """
-
-    model_config = ConfigDict(from_attributes=True)
-
-    execution_completed: bool = True
-    execution_failed: bool = True
-    system_updates: bool = True
-    security_alerts: bool = True
-    channels: list[NotificationChannel] = [NotificationChannel.IN_APP]
-
-
-class EditorSettings(BaseModel):
-    """Code editor preferences (embedded document).
-
-    Copied from user_settings.py EditorSettings.
-    """
-
-    model_config = ConfigDict(from_attributes=True)
-
-    font_size: int = Field(default=14, ge=8, le=32)
-    tab_size: Literal[2, 4, 8] = 4
-    use_tabs: bool = False
-    word_wrap: bool = True
-    show_line_numbers: bool = True
+from app.domain.enums import Theme
+from app.domain.user import DomainEditorSettings, DomainNotificationSettings
 
 
 class UserSettingsDocument(Document):
-    """Complete user settings model.
-
-    Copied from UserSettings schema.
-    """
+    """A user's settings snapshot; the settings events after updated_at apply on top of it."""
 
     user_id: Annotated[str, Indexed(unique=True)]
     theme: Theme = Theme.SYSTEM
     timezone: str = "UTC"
     date_format: str = "YYYY-MM-DD"
     time_format: str = "24h"
-    notifications: NotificationSettings = Field(default_factory=NotificationSettings)
-    editor: EditorSettings = Field(default_factory=EditorSettings)
+    notifications: DomainNotificationSettings = Field(default_factory=DomainNotificationSettings)
+    editor: DomainEditorSettings = Field(default_factory=DomainEditorSettings)
     custom_settings: dict[str, Any] = Field(default_factory=dict)
     version: int = 1
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -60,3 +29,4 @@ class UserSettingsDocument(Document):
     class Settings:
         name = "user_settings"
         use_state_management = True
+        bson_encoders = {DomainNotificationSettings: dataclasses.asdict, DomainEditorSettings: dataclasses.asdict}

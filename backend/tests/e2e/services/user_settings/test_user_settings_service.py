@@ -3,13 +3,13 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from app.db.docs import UserSettingsDocument
 from app.domain.enums import Theme
 from app.domain.user import (
     DomainEditorSettings,
     DomainNotificationSettings,
     DomainSettingsHistoryEntry,
-    DomainUserSettings,
-    DomainUserSettingsUpdate,
+    UserSettingsChanges,
 )
 from app.services.user_settings_service import UserSettingsService
 
@@ -29,7 +29,7 @@ class TestGetUserSettings:
 
         settings = await user_settings_service.get_user_settings(user_id)
 
-        assert isinstance(settings, DomainUserSettings)
+        assert isinstance(settings, UserSettingsDocument)
         assert settings.user_id == user_id
         assert settings.theme == Theme.SYSTEM  # Default theme
         assert settings.editor is not None
@@ -55,7 +55,7 @@ class TestUpdateUserSettings:
         user_id = _unique_user_id()
 
         # Update theme
-        updates = DomainUserSettingsUpdate(theme=Theme.DARK)
+        updates = UserSettingsChanges(theme=Theme.DARK)
         updated = await user_settings_service.update_user_settings(user_id, updates)
 
         assert updated.theme == Theme.DARK
@@ -68,7 +68,7 @@ class TestUpdateUserSettings:
         """Update multiple settings at once."""
         user_id = _unique_user_id()
 
-        updates = DomainUserSettingsUpdate(
+        updates = UserSettingsChanges(
             theme=Theme.LIGHT,
             timezone="Europe/London",
             date_format="DD/MM/YYYY",
@@ -84,7 +84,7 @@ class TestUpdateUserSettings:
         user_id = _unique_user_id()
 
         reason_text = "User preference"
-        updates = DomainUserSettingsUpdate(theme=Theme.DARK)
+        updates = UserSettingsChanges(theme=Theme.DARK)
         await user_settings_service.update_user_settings(user_id, updates, reason=reason_text)
 
         # Verify reason was persisted in history
@@ -108,7 +108,7 @@ class TestUpdateUserSettings:
         initial_version = initial.version or 0
 
         # Update
-        updates = DomainUserSettingsUpdate(theme=Theme.DARK)
+        updates = UserSettingsChanges(theme=Theme.DARK)
         updated = await user_settings_service.update_user_settings(user_id, updates)
 
         assert updated.version is not None
@@ -122,7 +122,7 @@ class TestUpdateUserSettings:
         initial = await user_settings_service.get_user_settings(user_id)
 
         # Empty update
-        updates = DomainUserSettingsUpdate()
+        updates = UserSettingsChanges()
         result = await user_settings_service.update_user_settings(user_id, updates)
 
         # Should return same settings
@@ -333,7 +333,7 @@ class TestRestoreSettingsToPoint:
         now = datetime.now(timezone.utc)
         restored = await user_settings_service.restore_settings_to_point(user_id, now)
 
-        assert isinstance(restored, DomainUserSettings)
+        assert isinstance(restored, UserSettingsDocument)
         assert restored.user_id == user_id
 
     async def test_restore_settings_to_past(self, user_settings_service: UserSettingsService) -> None:
@@ -357,7 +357,7 @@ class TestRestoreSettingsToPoint:
         restored = await user_settings_service.restore_settings_to_point(user_id, past)
 
         # Verify restore actually reverted to initial defaults
-        assert isinstance(restored, DomainUserSettings)
+        assert isinstance(restored, UserSettingsDocument)
         assert restored.theme == initial.theme, (
             f"Restored theme should match initial ({initial.theme}), got {restored.theme}"
         )

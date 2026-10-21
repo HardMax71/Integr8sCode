@@ -236,10 +236,10 @@ class PodMonitor:
             case ExecutionTimeoutEvent():
                 await self._results.handle_execution_timeout(event)
             case PodScheduledEvent() | PodRunningEvent():
-                await self._producer.produce(event_to_produce=event, key=event.execution_id)
+                await self._producer.produce_or_log(event_to_produce=event, key=event.execution_id)
                 await self._results.handle_pod_progress(event)
             case PodTerminatedEvent():
-                await self._producer.produce(event_to_produce=event, key=event.execution_id)
+                await self._producer.produce_or_log(event_to_produce=event, key=event.execution_id)
 
     def _track_pod_phase(self, event_type: WatchEventType, pod: k8s_client.V1Pod, phase: str | None) -> None:
         """Keep the per-phase pod count current for the pods.by.phase gauge."""

@@ -109,7 +109,7 @@ class AuthService:
             user_agent=user_agent,
         )
         locked = await self._lockout.record_failed_attempt(username)
-        await self._producer.produce(
+        await self._producer.produce_or_log(
             event_to_produce=AuthFailedEvent(
                 username=username,
                 reason=reason,
@@ -174,7 +174,7 @@ class AuthService:
             )
             csrf_token = self.security_service.generate_csrf_token(access_token)
 
-            await self._producer.produce(
+            await self._producer.produce_or_log(
                 event_to_produce=UserLoggedInEvent(
                     user_id=user.user_id,
                     login_method=LoginMethod.PASSWORD,
@@ -245,7 +245,7 @@ class AuthService:
             user_agent=user_agent,
         )
 
-        await self._producer.produce(
+        await self._producer.produce_or_log(
             event_to_produce=UserRegisteredEvent(
                 user_id=created_user.user_id,
                 username=created_user.username,
@@ -264,7 +264,7 @@ class AuthService:
         user = await self.user_repo.get_user(username)
         if not user:
             return
-        await self._producer.produce(
+        await self._producer.produce_or_log(
             event_to_produce=UserLoggedOutEvent(
                 user_id=user.user_id,
                 logout_reason="user_initiated",

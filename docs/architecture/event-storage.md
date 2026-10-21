@@ -25,12 +25,11 @@ graph LR
     UP -->|1. store_event| Events[(events)]
     UP -->|2. publish| Transport[KafkaEventTransport]
     Transport --> Kafka[(Kafka topic = event_type)]
-    UP -.->|on publish error| Mark[mark_publish_failed]
 ```
 
 `UnifiedProducer.produce()` in `app/events/core/producer.py` does both steps. First `EventRepository.store_event()` dumps the event with `model_dump(exclude_none=True)`, sets `stored_at` and inserts it. A duplicate `event_id` hits the unique index, and the repository logs it and returns, so storing the same event twice is a no-op. Replayed events keep their `event_id`, so a replay doesn't create new rows.
 
-Then `KafkaEventTransport.publish()` sends the event to the topic named after its `event_type`. If that fails, `mark_publish_failed()` sets `publish_failed` and `publish_failed_at` on the stored document and the exception goes back to the caller. Nothing re-publishes flagged events automatically, though a replay session with the Kafka target sends stored events again.
+Then `KafkaEventTransport.publish()` sends the event to the topic named after its `event_type`. If that fails, the stored event stays as it is and the error goes back to the caller, or into the log for `produce_or_log`. Nothing re-sends it automatically, though a replay session with the Kafka target sends stored events again.
 
 Every service publishes through `UnifiedProducer.produce`, which also opens a trace span and records the publish metrics.
 

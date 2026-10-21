@@ -73,7 +73,7 @@ def repo() -> _MemoryRepo:
 @pytest.fixture
 def service(repo: _MemoryRepo, test_settings: Settings) -> UserSettingsService:
     producer = AsyncMock(spec=UnifiedProducer)
-    producer.produce.side_effect = repo.store_produced
+    producer.produce_or_log.side_effect = repo.store_produced
     return UserSettingsService(repo, producer, test_settings, structlog.get_logger("test"))
 
 

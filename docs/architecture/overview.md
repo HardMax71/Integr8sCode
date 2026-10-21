@@ -114,7 +114,7 @@ The rate limit middleware has already run by the time the route sees the request
 
 The execution scheduler in the worker puts the request into the [execution queue](execution-queue.md) and, once a slot is free, has the k8s worker create a ConfigMap with the script and a hardened pod. The k8s worker publishes `pod_created`; if the Kubernetes API refused, the execution is stored as `failed` instead. The pod monitor watches the pod and publishes `pod_scheduled` and `pod_running`. When the pod ends, the monitor reads its output and hands `execution_completed`, `execution_failed` or `execution_timeout` to the result processor. Then it deletes the pod, which frees its share of the ResourceQuota, and Kubernetes garbage-collects the ConfigMap through its owner reference.
 
-The result processor writes the final state and output to MongoDB, then publishes the terminal event and `result_stored`, or `result_failed` if it couldn't. Last, the monitor tells the scheduler the execution finished, so its queue slot frees and the next execution starts. A cancel goes the same way in reverse: the scheduler takes `execution_cancelled`, stores the execution as `cancelled` and deletes its pod.
+The result processor writes the final state and output to MongoDB, then publishes the terminal event and `result_stored`, or `result_failed` if the write failed. Last, the monitor tells the scheduler the execution finished, so its queue slot frees and the next execution starts. A cancel goes the same way in reverse: the scheduler takes `execution_cancelled`, stores the execution as `cancelled` and deletes its pod.
 
 ## SSE
 

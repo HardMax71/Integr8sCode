@@ -1,6 +1,7 @@
 import structlog
 from opentelemetry import trace
 from opentelemetry.util.types import AttributeValue
+from pymongo.errors import PyMongoError
 
 from app.db import ExecutionRepository
 from app.domain.enums import ExecutionErrorType, ExecutionStatus, StorageType
@@ -17,7 +18,7 @@ from app.domain.events import (
     ResultStoredEvent,
 )
 from app.domain.execution import ExecutionResultDomain
-from app.events import PRODUCE_ERRORS, UnifiedProducer
+from app.events import UnifiedProducer
 from app.infrastructure.kafka.topics import POD_EVENT_STATUS
 from app.runtime_registry import parse_quantity
 from app.services.runtime_settings import RuntimeSettingsLoader
@@ -156,27 +157,30 @@ class ResultProcessor:
         """Write the terminal result, then publish the announce events and result_stored.
 
         Nothing is published when the execution already ended another way, so the failure of a
-        cancelled execution's pod neither overwrites the cancel nor notifies anyone.
+        cancelled execution's pod neither overwrites the cancel nor notifies anyone. Once the result is
+        written, a Kafka error is only logged, so the pod monitor still deletes the pod and frees the slot.
         """
         try:
-            if not await self._execution_repo.write_terminal_result(result):
-                self.logger.info(
-                    "Execution already finished, result not stored",
-                    execution_id=result.execution_id,
-                    status=result.status,
-                )
-                return
-            for event in announce:
-                await self._producer.produce(event_to_produce=event, key=result.execution_id)
-            await self._publish_result_stored(
-                result.execution_id,
-                len(result.stdout or "") + len(result.stderr or ""),
-                metadata.user_id,
-                aggregate_id,
-            )
-        except PRODUCE_ERRORS as e:
+            written = await self._execution_repo.write_terminal_result(result)
+        except PyMongoError as e:
             self.logger.error("Failed to store execution result", execution_id=result.execution_id, exc_info=True)
             await self._publish_result_failed(result.execution_id, str(e), metadata.user_id, aggregate_id)
+            return
+        if not written:
+            self.logger.info(
+                "Execution already finished, result not stored",
+                execution_id=result.execution_id,
+                status=result.status,
+            )
+            return
+        for event in announce:
+            await self._producer.produce_or_log(event_to_produce=event, key=result.execution_id)
+        await self._publish_result_stored(
+            result.execution_id,
+            len(result.stdout or "") + len(result.stderr or ""),
+            metadata.user_id,
+            aggregate_id,
+        )
 
     async def _publish_result_stored(
         self, execution_id: str, size_bytes: int, user_id: str, aggregate_id: str | None
@@ -194,7 +198,7 @@ class ResultProcessor:
                 user_id=user_id,
             ),
         )
-        await self._producer.produce(event_to_produce=event, key=execution_id)
+        await self._producer.produce_or_log(event_to_produce=event, key=execution_id)
 
     async def _publish_result_failed(
         self, execution_id: str, error_message: str, user_id: str, aggregate_id: str | None

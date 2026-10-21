@@ -102,7 +102,7 @@ class UserSettingsService:
                 **changes,
             }
         )
-        await self._producer.produce(event_to_produce=event, key=f"user_settings_{user_id}")
+        await self._producer.produce_or_log(event_to_produce=event, key=f"user_settings_{user_id}")
         return event
 
     async def update_theme(self, user_id: str, theme: Theme) -> UserSettingsDocument:
@@ -181,7 +181,7 @@ class UserSettingsService:
         # Rebuilds replay events after updated_at, so the snapshot carries the restore time
         settings.updated_at = restore_event.timestamp
         await self.repository.create_snapshot(settings)
-        await self._producer.produce(event_to_produce=restore_event, key=f"user_settings_{user_id}")
+        await self._producer.produce_or_log(event_to_produce=restore_event, key=f"user_settings_{user_id}")
 
         return settings
 

@@ -67,19 +67,15 @@ sequenceDiagram
 
 ## Publishing
 
-All publishing goes through `UnifiedProducer` in `app/events/core/producer.py`. It's a store-then-publish outbox: it writes the event to MongoDB, then hands it to `KafkaEventTransport`, which calls `broker.publish` with the event type as the topic.
+All publishing goes through `UnifiedProducer` in `app/events/core/producer.py`. It writes the event to MongoDB, then hands it to `KafkaEventTransport`, which calls `broker.publish` with the event type as the topic.
 
 ```python
 async def produce(self, event_to_produce: DomainEvent, key: str) -> None:
     await self._event_repository.store_event(event_to_produce)
-    try:
-        await self._transport.publish(event_to_produce, event_to_produce.event_type, key)
-    except Exception:
-        await self._event_repository.mark_publish_failed(event_to_produce.event_id)
-        raise
+    await self._transport.publish(event_to_produce, event_to_produce.event_type, key)
 ```
 
-`store_event` ignores a duplicate `event_id`, so storing the same event twice is a no-op. If Kafka fails, the stored event gets `publish_failed: true` and the exception goes back to the caller. Nothing re-sends those events automatically. A replay session with the Kafka target is the only way they go out again.
+`store_event` ignores a duplicate `event_id`, so storing the same event twice is a no-op. If Kafka fails, `produce` raises to the caller, which decides: the API marks a new execution `error` and answers 500, and a cancel answers 500. `produce_or_log` logs the Kafka error instead, for events sent after their work is done: auth and settings events, pod progress and the result processor's terminal event and `result_stored`. Nothing re-sends an event that didn't go out; a replay session with the Kafka target can.
 
 ```mermaid
 graph TB
@@ -102,7 +98,7 @@ graph TB
     Kafka --> APIc
 ```
 
-The worker consumes only `execution_requested` and `execution_cancelled`; inside it, the parts call each other directly. The DLQ manager is the one place that skips the outbox: it calls `broker.publish` directly for retries and its `dlq_message_*` status events. See [Kafka Topics](kafka-topic-architecture.md) for the consumer groups.
+The worker consumes only `execution_requested` and `execution_cancelled`; inside it, the parts call each other directly. The DLQ manager is the one place that skips the producer: it calls `broker.publish` directly for retries and its `dlq_message_*` status events. See [Kafka Topics](kafka-topic-architecture.md) for the consumer groups.
 
 ## Adding an event type
 

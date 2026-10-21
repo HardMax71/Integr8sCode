@@ -9,7 +9,6 @@ from app.domain.enums.execution import (
     QueuePriority,
 )
 from app.domain.enums.notification import (
-    NotificationChannel,
     NotificationSeverity,
     NotificationStatus,
 )
@@ -37,7 +36,6 @@ __all__ = [
     "ExecutionStatus",
     "QueuePriority",
     # Notification
-    "NotificationChannel",
     "NotificationSeverity",
     "NotificationStatus",
     # Replay

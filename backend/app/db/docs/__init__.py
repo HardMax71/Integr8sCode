@@ -10,7 +10,6 @@ from app.db.docs.event import (
 from app.db.docs.execution import ExecutionDocument
 from app.db.docs.notification import (
     NotificationDocument,
-    NotificationSubscriptionDocument,
 )
 from app.db.docs.replay import (
     ReplaySessionDocument,
@@ -25,7 +24,6 @@ ALL_DOCUMENTS = [
     ExecutionDocument,
     SavedScriptDocument,
     NotificationDocument,
-    NotificationSubscriptionDocument,
     UserSettingsDocument,
     DLQMessageDocument,
     EventDocument,
@@ -44,7 +42,6 @@ __all__ = [
     "SavedScriptDocument",
     # Notification
     "NotificationDocument",
-    "NotificationSubscriptionDocument",
     # User Settings
     "UserSettingsDocument",
     # DLQ

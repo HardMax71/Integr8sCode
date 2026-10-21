@@ -41,7 +41,6 @@ from app.services.execution_service import ExecutionService
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager, RedisIdempotencyRepository
 from app.services.k8s_worker import KubernetesWorker
 from app.services.login_lockout import LoginLockoutService
-from app.services.notification_scheduler import NotificationScheduler
 from app.services.notification_service import NotificationService
 from app.services.pod_monitor import PodEventMapper, PodMonitor, PodMonitorConfig
 from app.services.rate_limit_service import RateLimitService
@@ -425,19 +424,6 @@ class AdminServicesProvider(Provider):
             settings=settings,
             logger=logger,
             tracer=tracer,
-        )
-
-    @provide
-    def get_notification_scheduler(
-        self,
-        notification_repository: NotificationRepository,
-        notification_service: NotificationService,
-        logger: structlog.stdlib.BoundLogger,
-    ) -> NotificationScheduler:
-        return NotificationScheduler(
-            notification_repository=notification_repository,
-            notification_service=notification_service,
-            logger=logger,
         )
 
 

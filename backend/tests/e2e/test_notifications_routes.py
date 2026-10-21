@@ -1,13 +1,11 @@
 import pytest
 from httpx2 import AsyncClient
 
-from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus
+from app.domain.enums import NotificationStatus
 from app.schemas_pydantic.execution import ExecutionRequest
 from app.schemas_pydantic.notification import (
     DeleteNotificationResponse,
     NotificationListResponse,
-    NotificationSubscription,
-    SubscriptionsResponse,
     UnreadCountResponse,
 )
 from app.services.notification_service import NotificationService
@@ -146,111 +144,6 @@ class TestMarkAllRead:
 
         assert response1.status_code == 204
         assert response2.status_code == 204
-
-
-class TestSubscriptions:
-    """Tests for /api/v1/notifications/subscriptions."""
-
-    async def test_get_subscriptions(self, test_user: AsyncClient) -> None:
-        """Get notification subscriptions."""
-        response = await test_user.get("/api/v1/notifications/subscriptions")
-
-        assert response.status_code == 200
-        result = SubscriptionsResponse.model_validate(response.json())
-
-        assert isinstance(result.subscriptions, list)
-        for sub in result.subscriptions:
-            assert sub.channel in list(NotificationChannel)
-
-    async def test_update_subscription(self, test_user: AsyncClient) -> None:
-        """Update a subscription channel."""
-        response = await test_user.put(
-            f"/api/v1/notifications/subscriptions/{NotificationChannel.IN_APP}",
-            json={
-                "enabled": True,
-                "severities": [NotificationSeverity.LOW, NotificationSeverity.MEDIUM, NotificationSeverity.HIGH],
-            },
-        )
-
-        assert response.status_code == 200
-        result = NotificationSubscription.model_validate(response.json())
-
-        assert result.enabled is True
-        assert result.channel == NotificationChannel.IN_APP
-        expected_severities = {NotificationSeverity.LOW, NotificationSeverity.MEDIUM, NotificationSeverity.HIGH}
-        assert set(result.severities) == expected_severities
-
-    async def test_update_subscription_disable(self, test_user: AsyncClient) -> None:
-        """Disable a subscription channel."""
-        response = await test_user.put(
-            f"/api/v1/notifications/subscriptions/{NotificationChannel.IN_APP}",
-            json={"enabled": False},
-        )
-
-        assert response.status_code == 200
-        result = NotificationSubscription.model_validate(response.json())
-        assert result.enabled is False
-
-    async def test_update_subscription_with_tags(self, test_user: AsyncClient) -> None:
-        """Update subscription with tag filters."""
-        response = await test_user.put(
-            f"/api/v1/notifications/subscriptions/{NotificationChannel.IN_APP}",
-            json={
-                "enabled": True,
-                "include_tags": ["execution", "system"],
-                "exclude_tags": ["debug"],
-            },
-        )
-
-        assert response.status_code == 200
-        result = NotificationSubscription.model_validate(response.json())
-        assert result.enabled is True
-        assert result.include_tags == ["execution", "system"]
-        assert result.exclude_tags == ["debug"]
-
-
-class TestSubscriptionUrlValidation:
-    """Tests for URL format validation on subscription updates."""
-
-    @pytest.mark.parametrize(
-        "channel, payload",
-        [
-            (
-                NotificationChannel.WEBHOOK,
-                {"enabled": True, "webhook_url": "http://example.com/hook"},
-            ),
-            (
-                NotificationChannel.WEBHOOK,
-                {"enabled": False, "webhook_url": "not-a-url"},
-            ),
-            (
-                NotificationChannel.SLACK,
-                {"enabled": True, "slack_webhook": "https://evil.com/hook"},
-            ),
-            (
-                NotificationChannel.SLACK,
-                {"enabled": False, "slack_webhook": "http://bad"},
-            ),
-        ],
-        ids=[
-            "webhook_rejects_http_url",
-            "webhook_rejects_bad_url_when_disabled",
-            "slack_rejects_invalid_webhook",
-            "slack_rejects_bad_url_when_disabled",
-        ],
-    )
-    async def test_update_subscription_rejects_invalid_url(
-        self,
-        test_user: AsyncClient,
-        channel: NotificationChannel,
-        payload: dict[str, object],
-    ) -> None:
-        """Invalid webhook/slack URLs are rejected with 422 regardless of enabled flag."""
-        response = await test_user.put(
-            f"/api/v1/notifications/subscriptions/{channel}",
-            json=payload,
-        )
-        assert response.status_code == 422
 
 
 class TestUnreadCount:

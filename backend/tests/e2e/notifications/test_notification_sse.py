@@ -5,8 +5,7 @@ from uuid import uuid4
 import pytest
 import redis.asyncio as redis
 
-from app.domain.enums import NotificationChannel, NotificationSeverity
-from app.domain.notification import SubscriptionChanges
+from app.domain.enums import NotificationSeverity
 from app.services.notification_service import NotificationService
 from app.services.sse import SSERedisBus
 
@@ -18,11 +17,6 @@ async def test_in_app_notification_published_to_sse(
 ) -> None:
 
     user_id = f"notif-user-{uuid4().hex[:8]}"
-
-    # Enable IN_APP subscription for the user to allow delivery
-    await notification_service.update_subscription(
-        user_id, NotificationChannel.IN_APP, SubscriptionChanges(enabled=True)
-    )
 
     async with aclosing(sse_redis_bus.listen_notifications(user_id)) as messages, asyncio.timeout(5.0):
         async with asyncio.TaskGroup() as tasks:
@@ -36,7 +30,6 @@ async def test_in_app_notification_published_to_sse(
                 tags=["test"],
                 action_url="/api/v1/notifications",
                 severity=NotificationSeverity.MEDIUM,
-                channel=NotificationChannel.IN_APP,
             )
     msg = next_message.result()
 

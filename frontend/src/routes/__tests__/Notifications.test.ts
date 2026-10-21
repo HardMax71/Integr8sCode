@@ -50,14 +50,13 @@ describe('Notifications', () => {
     });
 
     describe('Notification rendering', () => {
-        it('renders notification subject, body, channel, severity, and tags', async () => {
+        it('renders notification subject, body, severity, and tags', async () => {
             setNotifications(
                 [
                     {
                         ...fakeNotificationResponse(),
                         subject: 'Execution Complete',
                         body: 'Your script finished running',
-                        channel: 'webhook',
                         severity: 'high',
                         tags: ['completed', 'exec:abc123'],
                         status: 'delivered',
@@ -71,7 +70,6 @@ describe('Notifications', () => {
                 expect(screen.getByText('Execution Complete')).toBeInTheDocument();
             });
             expect(screen.getByText('Your script finished running')).toBeInTheDocument();
-            expect(screen.getByText('webhook')).toBeInTheDocument();
             expect(screen.getByText('high')).toBeInTheDocument();
             expect(screen.getByText('completed')).toBeInTheDocument();
         });

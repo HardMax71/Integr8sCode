@@ -3595,90 +3595,6 @@
         }
       }
     },
-    "/api/v1/notifications/subscriptions": {
-      "get": {
-        "tags": [
-          "notifications"
-        ],
-        "summary": "Get Subscriptions",
-        "description": "Get all notification channel subscriptions for the authenticated user.",
-        "operationId": "get_subscriptions_api_v1_notifications_subscriptions_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SubscriptionsResponse"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/notifications/subscriptions/{channel}": {
-      "put": {
-        "tags": [
-          "notifications"
-        ],
-        "summary": "Update Subscription",
-        "description": "Update subscription settings for a notification channel.",
-        "operationId": "update_subscription_api_v1_notifications_subscriptions__channel__put",
-        "parameters": [
-          {
-            "name": "channel",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/NotificationChannel"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SubscriptionUpdate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NotificationSubscription"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/notifications/unread-count": {
       "get": {
         "tags": [
@@ -7042,16 +6958,6 @@
         ],
         "title": "NotificationAllReadEvent"
       },
-      "NotificationChannel": {
-        "type": "string",
-        "enum": [
-          "in_app",
-          "webhook",
-          "slack"
-        ],
-        "title": "NotificationChannel",
-        "description": "Notification delivery channels."
-      },
       "NotificationClickedEvent": {
         "properties": {
           "event_id": {
@@ -7184,13 +7090,6 @@
             },
             "type": "array",
             "title": "Tags"
-          },
-          "channels": {
-            "items": {
-              "$ref": "#/components/schemas/NotificationChannel"
-            },
-            "type": "array",
-            "title": "Channels"
           }
         },
         "type": "object",
@@ -7246,9 +7145,6 @@
           "user_id": {
             "type": "string",
             "title": "User Id"
-          },
-          "channel": {
-            "$ref": "#/components/schemas/NotificationChannel"
           },
           "delivered_at": {
             "type": "string",
@@ -7309,9 +7205,6 @@
           "user_id": {
             "type": "string",
             "title": "User Id"
-          },
-          "channel": {
-            "$ref": "#/components/schemas/NotificationChannel"
           },
           "error": {
             "type": "string",
@@ -7484,9 +7377,6 @@
             "type": "string",
             "title": "Notification Id"
           },
-          "channel": {
-            "$ref": "#/components/schemas/NotificationChannel"
-          },
           "status": {
             "$ref": "#/components/schemas/NotificationStatus"
           },
@@ -7533,7 +7423,6 @@
         "type": "object",
         "required": [
           "notification_id",
-          "channel",
           "status",
           "subject",
           "body",
@@ -7590,9 +7479,6 @@
             "type": "string",
             "title": "User Id"
           },
-          "channel": {
-            "$ref": "#/components/schemas/NotificationChannel"
-          },
           "sent_at": {
             "type": "string",
             "format": "date-time",
@@ -7630,16 +7516,6 @@
             "type": "boolean",
             "title": "Security Alerts",
             "default": true
-          },
-          "channels": {
-            "items": {
-              "$ref": "#/components/schemas/NotificationChannel"
-            },
-            "type": "array",
-            "title": "Channels",
-            "default": [
-              "in_app"
-            ]
           }
         },
         "type": "object",
@@ -7667,16 +7543,6 @@
             "type": "boolean",
             "title": "Security Alerts",
             "default": true
-          },
-          "channels": {
-            "items": {
-              "$ref": "#/components/schemas/NotificationChannel"
-            },
-            "type": "array",
-            "title": "Channels",
-            "default": [
-              "in_app"
-            ]
           }
         },
         "type": "object",
@@ -7684,8 +7550,7 @@
           "execution_completed",
           "execution_failed",
           "system_updates",
-          "security_alerts",
-          "channels"
+          "security_alerts"
         ],
         "title": "NotificationSettings",
         "description": "User notification preferences"
@@ -7709,138 +7574,11 @@
           "sending",
           "delivered",
           "failed",
-          "skipped",
           "read",
           "clicked"
         ],
         "title": "NotificationStatus",
         "description": "Notification delivery status."
-      },
-      "NotificationSubscription": {
-        "properties": {
-          "user_id": {
-            "type": "string",
-            "title": "User Id"
-          },
-          "channel": {
-            "$ref": "#/components/schemas/NotificationChannel"
-          },
-          "severities": {
-            "items": {
-              "$ref": "#/components/schemas/NotificationSeverity"
-            },
-            "type": "array",
-            "title": "Severities"
-          },
-          "include_tags": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Include Tags"
-          },
-          "exclude_tags": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Exclude Tags"
-          },
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled",
-            "default": true
-          },
-          "webhook_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Webhook Url"
-          },
-          "slack_webhook": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Slack Webhook"
-          },
-          "quiet_hours_enabled": {
-            "type": "boolean",
-            "title": "Quiet Hours Enabled",
-            "default": false
-          },
-          "quiet_hours_start": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Quiet Hours Start"
-          },
-          "quiet_hours_end": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Quiet Hours End"
-          },
-          "timezone": {
-            "type": "string",
-            "title": "Timezone",
-            "default": "UTC"
-          },
-          "batch_interval_minutes": {
-            "type": "integer",
-            "title": "Batch Interval Minutes",
-            "default": 60
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "user_id",
-          "channel",
-          "severities",
-          "include_tags",
-          "exclude_tags",
-          "enabled",
-          "webhook_url",
-          "slack_webhook",
-          "quiet_hours_enabled",
-          "quiet_hours_start",
-          "quiet_hours_end",
-          "timezone",
-          "batch_interval_minutes",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "NotificationSubscription",
-        "description": "User subscription preferences for notifications"
       },
       "PasswordResetRequest": {
         "properties": {
@@ -9899,119 +9637,6 @@
         ],
         "title": "StorageType",
         "description": "Types of storage backends."
-      },
-      "SubscriptionUpdate": {
-        "properties": {
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled"
-          },
-          "severities": {
-            "items": {
-              "$ref": "#/components/schemas/NotificationSeverity"
-            },
-            "type": "array",
-            "title": "Severities"
-          },
-          "include_tags": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Include Tags"
-          },
-          "exclude_tags": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Exclude Tags"
-          },
-          "webhook_url": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^https://"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Webhook Url"
-          },
-          "slack_webhook": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^https://hooks\\.slack\\.com/"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Slack Webhook"
-          },
-          "quiet_hours_enabled": {
-            "type": "boolean",
-            "title": "Quiet Hours Enabled",
-            "default": false
-          },
-          "quiet_hours_start": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Quiet Hours Start"
-          },
-          "quiet_hours_end": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Quiet Hours End"
-          },
-          "timezone": {
-            "type": "string",
-            "title": "Timezone",
-            "default": "UTC"
-          },
-          "batch_interval_minutes": {
-            "type": "integer",
-            "title": "Batch Interval Minutes",
-            "default": 60
-          }
-        },
-        "type": "object",
-        "required": [
-          "enabled"
-        ],
-        "title": "SubscriptionUpdate",
-        "description": "Request schema for updating notification subscriptions"
-      },
-      "SubscriptionsResponse": {
-        "properties": {
-          "subscriptions": {
-            "items": {
-              "$ref": "#/components/schemas/NotificationSubscription"
-            },
-            "type": "array",
-            "title": "Subscriptions"
-          }
-        },
-        "type": "object",
-        "required": [
-          "subscriptions"
-        ],
-        "title": "SubscriptionsResponse",
-        "description": "Response schema for user subscriptions"
       },
       "SystemErrorEvent": {
         "properties": {

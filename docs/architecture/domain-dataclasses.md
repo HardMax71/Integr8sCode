@@ -20,7 +20,7 @@ The opposite holds inside Pydantic models, and the code relies on that. When a d
 | `app/domain/replay/models.py` | `ReplayFilter`, `ReplayConfig`, `ReplayError` |
 | `app/domain/events/event_models.py` | `EventFilter`, `EventListResult`, `EventStatistics` |
 | `app/domain/events/typed.py` | `EventMetadata`, `ResourceUsageDomain` (next to the Pydantic events) |
-| `app/domain/notification/models.py` | `NotificationChanges`, `SubscriptionChanges` |
+| `app/domain/notification/models.py` | `NotificationChanges` |
 | `app/domain/saved_script/models.py` | `SavedScriptChanges` |
 | `app/domain/rate_limit/rate_limit_models.py` | `RateLimitConfig`, `RateLimitRule`, `UserRateLimit` |
 | `app/domain/admin/settings_models.py` | `SystemSettings` |

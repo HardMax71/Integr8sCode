@@ -114,20 +114,16 @@ The status snapshot a stream sends first comes from the database, not Redis, and
 
 ### Notifications (backend)
 
-`NotificationService` in backend, where direct and scheduled delivery both run. Each delivery is a `notification.deliver` span, and the throttle, each retry and each subscription update leave a span named `notification.throttled`, `notification.retry` or `notification.subscription_change`. `notification_category` is the notification's first tag, such as `execution` or `system`, or `unknown` without tags.
+`NotificationService` in backend. Each delivery is a `notification.deliver` span, and the throttle and each retry leave a span named `notification.throttled` or `notification.retry`. `notification_category` is the notification's first tag, such as `execution`, or `unknown` without tags.
 
 | Metric | Type | Labels | Recorded from |
 |--------|------|--------|---------------|
 | `notifications_sent_total` | counter | notification_category | `notification.deliver` with `notification.result` `delivered` |
-| `notifications_by_channel_total` | counter | notification_channel, notification_category | the same spans, by channel |
 | `notifications_by_severity_total` | counter | notification_severity, notification_category | the same spans, by severity |
 | `notification_delivery_time_seconds` | histogram | notification_category | `notification.delivery_seconds` on those spans: delivery attempts including backoff waits |
-| `notification_channel_delivery_time_seconds` | histogram | notification_channel, notification_category | the same value split by channel |
 | `notifications_failed_total` | counter | notification_category, notification_error | `notification.deliver` with `notification.result` `failed`; the error is the exception type of the last attempt |
-| `notification_channel_failures_total` | counter | notification_channel, notification_error | the same spans, by channel |
-| `notification_retries_total` | counter | notification_category, notification_channel | `notification.retry`: each failed attempt that backoff retries |
-| `notifications_throttled_total` | counter | notification_category: general, system | `notification.throttled`: the per-user throttle; `system` for system broadcasts |
-| `notification_subscription_changes_total` | counter | notification_channel, notification_action: enabled, disabled, updated | `notification.subscription_change` |
+| `notification_retries_total` | counter | notification_category | `notification.retry`: each failed attempt that backoff retries |
+| `notifications_throttled_total` | counter | notification_category: general | `notification.throttled`: the per-user throttle |
 
 ### Event replay (worker)
 

@@ -1,8 +1,8 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, TypedDict
 
-from app.domain.enums import EventType, NotificationChannel, Theme
+from app.domain.enums import EventType, Theme
 
 
 @dataclass
@@ -11,7 +11,6 @@ class DomainNotificationSettings:
     execution_failed: bool = True
     system_updates: bool = True
     security_alerts: bool = True
-    channels: list[NotificationChannel] = field(default_factory=lambda: [NotificationChannel.IN_APP])
 
 
 @dataclass

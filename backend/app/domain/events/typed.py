@@ -10,7 +10,6 @@ from app.domain.enums import (
     EventType,
     ExecutionErrorType,
     LoginMethod,
-    NotificationChannel,
     NotificationSeverity,
     QueuePriority,
     StorageType,
@@ -285,14 +284,12 @@ class NotificationCreatedEvent(BaseEvent):
     body: str
     severity: NotificationSeverity
     tags: list[str] = Field(default_factory=list)
-    channels: list[NotificationChannel] = Field(default_factory=list)
 
 
 class NotificationSentEvent(BaseEvent):
     event_type: Literal[EventType.NOTIFICATION_SENT] = EventType.NOTIFICATION_SENT
     notification_id: str
     user_id: str
-    channel: NotificationChannel
     sent_at: datetime
 
 
@@ -300,7 +297,6 @@ class NotificationDeliveredEvent(BaseEvent):
     event_type: Literal[EventType.NOTIFICATION_DELIVERED] = EventType.NOTIFICATION_DELIVERED
     notification_id: str
     user_id: str
-    channel: NotificationChannel
     delivered_at: datetime
 
 
@@ -308,7 +304,6 @@ class NotificationFailedEvent(BaseEvent):
     event_type: Literal[EventType.NOTIFICATION_FAILED] = EventType.NOTIFICATION_FAILED
     notification_id: str
     user_id: str
-    channel: NotificationChannel
     error: str
     retry_count: int = 0
 

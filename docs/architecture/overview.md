@@ -163,7 +163,7 @@ graph TD
     click NotificationSvc "../../operations/notification-types/" "Notification types"
 ```
 
-`NotificationService` runs inside the API under the `notification-service` consumer group. For each completed, failed or timed-out execution it stores a notification in MongoDB and pushes it to the user's SSE channel. It also has webhook and Slack handlers, and users can set up subscriptions for them, but every notification the code creates today uses the in-app channel, so those handlers never fire.
+`NotificationService` runs inside the API under the `notification-service` consumer group. For each completed, failed or timed-out execution it stores a notification in MongoDB and pushes it to the user's SSE channel. Notifications are in-app only.
 
 ## API surface
 

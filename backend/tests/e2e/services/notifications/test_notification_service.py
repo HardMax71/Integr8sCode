@@ -2,12 +2,10 @@ import uuid
 
 import pytest
 
-from app.db.repositories import NotificationRepository
-from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus
+from app.domain.enums import NotificationSeverity, NotificationStatus
 from app.domain.notification import (
     NotificationNotFoundError,
     NotificationValidationError,
-    SubscriptionChanges,
 )
 from app.services.notification_service import NotificationService
 
@@ -35,7 +33,6 @@ class TestCreateNotification:
             tags=["test", "basic"],
             action_url=_TEST_ACTION_URL,
             severity=NotificationSeverity.MEDIUM,
-            channel=NotificationChannel.IN_APP,
         )
 
         assert notification.notification_id is not None
@@ -43,7 +40,6 @@ class TestCreateNotification:
         assert notification.subject == "Test Subject"
         assert notification.body == "Test body content"
         assert notification.severity == NotificationSeverity.MEDIUM
-        assert notification.channel == NotificationChannel.IN_APP
         assert "test" in notification.tags
         assert "basic" in notification.tags
 
@@ -304,143 +300,6 @@ class TestDeleteNotification:
             await notification_service.delete_notification(user_id, "nonexistent-id")
 
 
-class TestSubscriptions:
-    """Tests for subscription management."""
-
-    async def test_update_subscription_in_app(
-        self, notification_service: NotificationService, notification_repository: NotificationRepository
-    ) -> None:
-        """Update in-app subscription."""
-        user_id = _unique_user_id()
-
-        # Update subscription
-        subscription = await notification_service.update_subscription(
-            user_id=user_id,
-            channel=NotificationChannel.IN_APP,
-            changes=SubscriptionChanges(enabled=True),
-        )
-
-        assert subscription.channel == NotificationChannel.IN_APP
-        assert subscription.enabled is True
-
-        # Verify via notification_repository
-        stored = await notification_repository.get_subscription(user_id, NotificationChannel.IN_APP)
-        assert stored is not None
-        assert stored.enabled is True
-
-    async def test_update_subscription_disable(self, notification_service: NotificationService) -> None:
-        """Disable subscription channel."""
-        user_id = _unique_user_id()
-
-        # Enable first
-        await notification_service.update_subscription(
-            user_id=user_id,
-            channel=NotificationChannel.IN_APP,
-            changes=SubscriptionChanges(enabled=True),
-        )
-
-        # Then disable
-        subscription = await notification_service.update_subscription(
-            user_id=user_id,
-            channel=NotificationChannel.IN_APP,
-            changes=SubscriptionChanges(enabled=False),
-        )
-
-        assert subscription.enabled is False
-
-    async def test_update_subscription_with_severities(self, notification_service: NotificationService) -> None:
-        """Update subscription with severity filter."""
-        user_id = _unique_user_id()
-
-        subscription = await notification_service.update_subscription(
-            user_id=user_id,
-            channel=NotificationChannel.IN_APP,
-            changes=SubscriptionChanges(
-                enabled=True,
-                severities=[NotificationSeverity.HIGH, NotificationSeverity.URGENT],
-            ),
-        )
-
-        assert subscription.severities is not None
-        assert NotificationSeverity.HIGH in subscription.severities
-        assert NotificationSeverity.URGENT in subscription.severities
-
-    async def test_update_webhook_requires_url(self, notification_service: NotificationService) -> None:
-        """Webhook subscription requires URL when enabled."""
-        user_id = _unique_user_id()
-
-        with pytest.raises(NotificationValidationError):
-            await notification_service.update_subscription(
-                user_id=user_id,
-                channel=NotificationChannel.WEBHOOK,
-                changes=SubscriptionChanges(enabled=True),
-            )
-
-    async def test_update_webhook_with_url(self, notification_service: NotificationService) -> None:
-        """Webhook subscription with valid URL."""
-        user_id = _unique_user_id()
-
-        subscription = await notification_service.update_subscription(
-            user_id=user_id,
-            channel=NotificationChannel.WEBHOOK,
-            changes=SubscriptionChanges(enabled=True, webhook_url="https://example.com/webhook"),
-        )
-
-        assert subscription.enabled is True
-        assert subscription.webhook_url == "https://example.com/webhook"
-
-    async def test_get_all_subscriptions(self, notification_service: NotificationService) -> None:
-        """Get all subscriptions for user."""
-        user_id = _unique_user_id()
-
-        # Update a subscription
-        await notification_service.update_subscription(
-            user_id=user_id,
-            channel=NotificationChannel.IN_APP,
-            changes=SubscriptionChanges(enabled=True),
-        )
-
-        # Get all
-        result = await notification_service.get_subscriptions(user_id)
-
-        channels = [s.channel for s in result]
-        assert NotificationChannel.IN_APP in channels
-
-
-class TestSystemNotification:
-    """Tests for create_system_notification method."""
-
-    async def test_create_system_notification_to_users(self, notification_service: NotificationService) -> None:
-        """Create system notification targeting specific users."""
-        target_users = [_unique_user_id(), _unique_user_id()]
-
-        stats = await notification_service.create_system_notification(
-            title="System Alert",
-            message="Important system message",
-            severity=NotificationSeverity.HIGH,
-            tags=["system", "alert"],
-            target_users=target_users,
-        )
-
-        assert isinstance(stats, dict)
-        assert stats["total_users"] == 2
-        assert "created" in stats
-        assert "failed" in stats
-        assert "throttled" in stats
-
-    async def test_create_system_notification_empty_targets(self, notification_service: NotificationService) -> None:
-        """System notification with no targets returns zero stats."""
-
-        stats = await notification_service.create_system_notification(
-            title="No Targets",
-            message="Message",
-            target_users=[],
-        )
-
-        assert stats["total_users"] == 0
-        assert stats["created"] == 0
-
-
 class TestNotificationIntegration:
     """Integration tests for notification workflow."""
 
@@ -472,25 +331,3 @@ class TestNotificationIntegration:
         result = await notification_service.list_notifications(user_id=user_id)
         remaining_ids = [n.notification_id for n in result.notifications]
         assert notification.notification_id not in remaining_ids
-
-    async def test_notification_with_subscription_filter(self, notification_service: NotificationService) -> None:
-        """Notification delivery respects subscription filters."""
-        user_id = _unique_user_id()
-
-        # Set up subscription with severity filter
-        await notification_service.update_subscription(
-            user_id=user_id,
-            channel=NotificationChannel.IN_APP,
-            changes=SubscriptionChanges(enabled=True, severities=[NotificationSeverity.HIGH]),
-        )
-
-        # Create HIGH severity notification - should be delivered
-        high_notif = await notification_service.create_notification(
-            user_id=user_id,
-            subject="High Priority",
-            body="Body",
-            tags=["filter-test"],
-            action_url=_TEST_ACTION_URL,
-            severity=NotificationSeverity.HIGH,
-        )
-        assert high_notif.notification_id is not None

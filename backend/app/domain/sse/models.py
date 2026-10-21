@@ -6,7 +6,6 @@ from datetime import datetime
 from app.domain.enums import (
     EventType,
     ExecutionStatus,
-    NotificationChannel,
     NotificationSeverity,
     NotificationStatus,
     ReplayStatus,
@@ -45,7 +44,6 @@ class DomainNotificationSSEPayload:
     created_at: datetime
     severity: NotificationSeverity
     tags: list[str] = field(default_factory=list)
-    channel: NotificationChannel = NotificationChannel.IN_APP
     read_at: datetime | None = None
 
 

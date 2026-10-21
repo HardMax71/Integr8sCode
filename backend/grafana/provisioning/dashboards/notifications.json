@@ -76,33 +76,8 @@
       },
       "id": 101,
       "panels": [],
-      "title": "Channels",
+      "title": "Severity",
       "type": "row"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
-      },
-      "id": 5,
-      "targets": [
-        {
-          "expr": "rate(notifications_by_channel_total[5m])",
-          "legendFormat": "{{notification_channel}}",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "By Channel",
-      "type": "timeseries"
     },
     {
       "datasource": "Victoria Metrics",
@@ -127,56 +102,6 @@
         }
       ],
       "title": "By Severity",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 16
-      },
-      "id": 7,
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(notification_channel_delivery_time_seconds_bucket[5m])) by (le, notification_channel))",
-          "legendFormat": "{{notification_channel}} p95",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "Channel Delivery Time",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 16
-      },
-      "id": 8,
-      "targets": [
-        {
-          "expr": "sum by (notification_channel, notification_error) (rate(notification_channel_failures_total[5m]))",
-          "legendFormat": "{{notification_channel}} {{notification_error}}",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "Channel Failures",
       "type": "timeseries"
     },
     {
@@ -271,51 +196,13 @@
       "id": 12,
       "targets": [
         {
-          "expr": "sum by (notification_channel) (rate(notification_retries_total[5m]))",
-          "legendFormat": "{{notification_channel}}",
+          "expr": "sum by (notification_category) (rate(notification_retries_total[5m]))",
+          "legendFormat": "{{notification_category}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
       ],
       "title": "Retries",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 42
-      },
-      "id": 105,
-      "panels": [],
-      "title": "Subscriptions",
-      "type": "row"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 43
-      },
-      "id": 15,
-      "targets": [
-        {
-          "expr": "rate(notification_subscription_changes_total[5m])",
-          "legendFormat": "Changes/s",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "Subscriptions",
       "type": "timeseries"
     }
   ],

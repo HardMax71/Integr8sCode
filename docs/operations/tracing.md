@@ -34,7 +34,6 @@ Beyond the automatic HTTP, Mongo, outbound HTTPX and Kafka spans:
 | `EventRepository.store_event`           | `event.type`, `event.id`, `execution.id` on the current span         |
 | `UnifiedProducer.produce`               | a `publish_event` span with `event.type` and `aggregate.id`          |
 | `ExecutionScheduler`                    | a `queue.schedule_pending` span per pass, and a `pod.create` span per pod the k8s worker creates |
-| Webhook and Slack notifications         | `notification.id`, `notification.channel` (and webhook host) on the current span |
 
 ## An execution, end to end
 

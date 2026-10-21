@@ -17,7 +17,6 @@ function createMockSettings(): UserSettings {
             execution_failed: false,
             system_updates: true,
             security_alerts: false,
-            channels: ['in_app'],
         },
         editor: {
             font_size: 16,

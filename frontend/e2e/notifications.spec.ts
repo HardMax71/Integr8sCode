@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test } from './fixtures';
-import { NotificationChannel, NotificationSeverity } from '#lib/api/types.gen.ts';
+import { NotificationSeverity } from '#lib/api/types.gen.ts';
 import { fieldTitle } from '#lib/formatters.ts';
 
 test('the notifications page shows the tag filters', async ({ userPage }) => {
@@ -24,7 +24,6 @@ test('a finished execution arrives as an unread notification', async ({ userPage
     await userPage.goto('/notifications');
     const card = userPage.getByRole('article').filter({ hasText: execution.execution_id });
     await expect(card).toBeVisible({ timeout: 20_000 });
-    await expect(card.getByText(NotificationChannel.IN_APP, { exact: true })).toBeVisible();
     await expect(card.getByText(new RegExp(`^(${Object.values(NotificationSeverity).join('|')})$`))).toBeVisible();
     await expect(card.getByText(/just now|\d+m ago/)).toBeVisible();
     await expect(card.getByTitle('Mark as read')).toBeVisible();

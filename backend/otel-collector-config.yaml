@@ -387,17 +387,6 @@ connectors:
         sum:
           value: "1"
           monotonic: true
-      - name: notifications.by.channel
-        description: Notifications delivered, by channel
-        unit: "{notification}"
-        attributes:
-          - key: notification.channel
-          - key: notification.category
-        conditions:
-          - span.name == "notification.deliver" and span.attributes["notification.result"] == "delivered"
-        sum:
-          value: "1"
-          monotonic: true
       - name: notifications.by.severity
         description: Notifications delivered, by severity
         unit: "{notification}"
@@ -420,32 +409,10 @@ connectors:
         sum:
           value: "1"
           monotonic: true
-      - name: notification.channel.failures
-        description: Notifications that failed every delivery attempt, by channel
-        unit: "{notification}"
-        attributes:
-          - key: notification.channel
-          - key: notification.error
-        conditions:
-          - span.name == "notification.deliver" and span.attributes["notification.result"] == "failed"
-        sum:
-          value: "1"
-          monotonic: true
       - name: notification.delivery.time
         description: Time to deliver a notification, retries included
         unit: s
         attributes:
-          - key: notification.category
-        conditions:
-          - span.name == "notification.deliver" and span.attributes["notification.delivery_seconds"] != nil
-        histogram:
-          buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30]
-          value: Double(span.attributes["notification.delivery_seconds"])
-      - name: notification.channel.delivery.time
-        description: Time to deliver a notification, retries included, by channel
-        unit: s
-        attributes:
-          - key: notification.channel
           - key: notification.category
         conditions:
           - span.name == "notification.deliver" and span.attributes["notification.delivery_seconds"] != nil
@@ -467,20 +434,8 @@ connectors:
         unit: "{retry}"
         attributes:
           - key: notification.category
-          - key: notification.channel
         conditions:
           - span.name == "notification.retry"
-        sum:
-          value: "1"
-          monotonic: true
-      - name: notification.subscription.changes
-        description: Subscription updates, by channel and action
-        unit: "{change}"
-        attributes:
-          - key: notification.channel
-          - key: notification.action
-        conditions:
-          - span.name == "notification.subscription_change"
         sum:
           value: "1"
           monotonic: true

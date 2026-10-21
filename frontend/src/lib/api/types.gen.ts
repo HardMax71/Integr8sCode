@@ -1864,24 +1864,6 @@ export type NotificationAllReadEvent = {
 };
 
 /**
- * NotificationChannel
- *
- * Notification delivery channels.
- */
-export const NotificationChannel = {
-    IN_APP: 'in_app',
-    WEBHOOK: 'webhook',
-    SLACK: 'slack'
-} as const;
-
-/**
- * NotificationChannel
- *
- * Notification delivery channels.
- */
-export type NotificationChannel = typeof NotificationChannel[keyof typeof NotificationChannel];
-
-/**
  * NotificationClickedEvent
  */
 export type NotificationClickedEvent = {
@@ -1970,10 +1952,6 @@ export type NotificationCreatedEvent = {
      * Tags
      */
     tags?: Array<string>;
-    /**
-     * Channels
-     */
-    channels?: Array<NotificationChannel>;
 };
 
 /**
@@ -2009,7 +1987,6 @@ export type NotificationDeliveredEvent = {
      * User Id
      */
     user_id?: string;
-    channel?: NotificationChannel;
     /**
      * Delivered At
      */
@@ -2049,7 +2026,6 @@ export type NotificationFailedEvent = {
      * User Id
      */
     user_id?: string;
-    channel?: NotificationChannel;
     /**
      * Error
      */
@@ -2164,7 +2140,6 @@ export type NotificationResponse = {
      * Notification Id
      */
     notification_id: string;
-    channel: NotificationChannel;
     status: NotificationStatus;
     /**
      * Subject
@@ -2226,7 +2201,6 @@ export type NotificationSentEvent = {
      * User Id
      */
     user_id?: string;
-    channel?: NotificationChannel;
     /**
      * Sent At
      */
@@ -2255,10 +2229,6 @@ export type NotificationSettingsInput = {
      * Security Alerts
      */
     security_alerts?: boolean;
-    /**
-     * Channels
-     */
-    channels?: Array<NotificationChannel>;
 };
 
 /**
@@ -2283,10 +2253,6 @@ export type NotificationSettingsOutput = {
      * Security Alerts
      */
     security_alerts: boolean;
-    /**
-     * Channels
-     */
-    channels: Array<NotificationChannel>;
 };
 
 /**
@@ -2319,7 +2285,6 @@ export const NotificationStatus = {
     SENDING: 'sending',
     DELIVERED: 'delivered',
     FAILED: 'failed',
-    SKIPPED: 'skipped',
     READ: 'read',
     CLICKED: 'clicked'
 } as const;
@@ -2330,71 +2295,6 @@ export const NotificationStatus = {
  * Notification delivery status.
  */
 export type NotificationStatus = typeof NotificationStatus[keyof typeof NotificationStatus];
-
-/**
- * NotificationSubscription
- *
- * User subscription preferences for notifications
- */
-export type NotificationSubscription = {
-    /**
-     * User Id
-     */
-    user_id: string;
-    channel: NotificationChannel;
-    /**
-     * Severities
-     */
-    severities: Array<NotificationSeverity>;
-    /**
-     * Include Tags
-     */
-    include_tags: Array<string>;
-    /**
-     * Exclude Tags
-     */
-    exclude_tags: Array<string>;
-    /**
-     * Enabled
-     */
-    enabled: boolean;
-    /**
-     * Webhook Url
-     */
-    webhook_url: string | null;
-    /**
-     * Slack Webhook
-     */
-    slack_webhook: string | null;
-    /**
-     * Quiet Hours Enabled
-     */
-    quiet_hours_enabled: boolean;
-    /**
-     * Quiet Hours Start
-     */
-    quiet_hours_start: string | null;
-    /**
-     * Quiet Hours End
-     */
-    quiet_hours_end: string | null;
-    /**
-     * Timezone
-     */
-    timezone: string;
-    /**
-     * Batch Interval Minutes
-     */
-    batch_interval_minutes: number;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Updated At
-     */
-    updated_at: string;
-};
 
 /**
  * PasswordResetRequest
@@ -3761,70 +3661,6 @@ export const StorageType = {
  * Types of storage backends.
  */
 export type StorageType = typeof StorageType[keyof typeof StorageType];
-
-/**
- * SubscriptionUpdate
- *
- * Request schema for updating notification subscriptions
- */
-export type SubscriptionUpdate = {
-    /**
-     * Enabled
-     */
-    enabled: boolean;
-    /**
-     * Severities
-     */
-    severities?: Array<NotificationSeverity>;
-    /**
-     * Include Tags
-     */
-    include_tags?: Array<string>;
-    /**
-     * Exclude Tags
-     */
-    exclude_tags?: Array<string>;
-    /**
-     * Webhook Url
-     */
-    webhook_url?: string | null;
-    /**
-     * Slack Webhook
-     */
-    slack_webhook?: string | null;
-    /**
-     * Quiet Hours Enabled
-     */
-    quiet_hours_enabled?: boolean;
-    /**
-     * Quiet Hours Start
-     */
-    quiet_hours_start?: string | null;
-    /**
-     * Quiet Hours End
-     */
-    quiet_hours_end?: string | null;
-    /**
-     * Timezone
-     */
-    timezone?: string;
-    /**
-     * Batch Interval Minutes
-     */
-    batch_interval_minutes?: number;
-};
-
-/**
- * SubscriptionsResponse
- *
- * Response schema for user subscriptions
- */
-export type SubscriptionsResponse = {
-    /**
-     * Subscriptions
-     */
-    subscriptions: Array<NotificationSubscription>;
-};
 
 /**
  * SystemErrorEvent
@@ -6617,58 +6453,6 @@ export type MarkAllReadApiV1NotificationsMarkAllReadPostResponses = {
 };
 
 export type MarkAllReadApiV1NotificationsMarkAllReadPostResponse = MarkAllReadApiV1NotificationsMarkAllReadPostResponses[keyof MarkAllReadApiV1NotificationsMarkAllReadPostResponses];
-
-export type GetSubscriptionsApiV1NotificationsSubscriptionsGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/notifications/subscriptions';
-};
-
-export type GetSubscriptionsApiV1NotificationsSubscriptionsGetErrors = {
-    /**
-     * Error
-     */
-    default: ErrorResponse;
-};
-
-export type GetSubscriptionsApiV1NotificationsSubscriptionsGetError = GetSubscriptionsApiV1NotificationsSubscriptionsGetErrors[keyof GetSubscriptionsApiV1NotificationsSubscriptionsGetErrors];
-
-export type GetSubscriptionsApiV1NotificationsSubscriptionsGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: SubscriptionsResponse;
-};
-
-export type GetSubscriptionsApiV1NotificationsSubscriptionsGetResponse = GetSubscriptionsApiV1NotificationsSubscriptionsGetResponses[keyof GetSubscriptionsApiV1NotificationsSubscriptionsGetResponses];
-
-export type UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutData = {
-    body: SubscriptionUpdate;
-    path: {
-        channel: NotificationChannel;
-    };
-    query?: never;
-    url: '/api/v1/notifications/subscriptions/{channel}';
-};
-
-export type UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutErrors = {
-    /**
-     * Error
-     */
-    default: ErrorResponse;
-};
-
-export type UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutError = UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutErrors[keyof UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutErrors];
-
-export type UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponses = {
-    /**
-     * Successful Response
-     */
-    200: NotificationSubscription;
-};
-
-export type UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponse = UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponses[keyof UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponses];
 
 export type GetUnreadCountApiV1NotificationsUnreadCountGetData = {
     body?: never;

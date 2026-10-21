@@ -15,7 +15,6 @@ from pymongo import AsyncMongoClient
 from app.core.tracing import Tracer
 from app.db.docs import ALL_DOCUMENTS
 from app.events.handlers import notification_router, sse_router
-from app.services.notification_scheduler import NotificationScheduler
 from app.services.sse import SSERedisBus
 from app.settings import Settings
 
@@ -65,18 +64,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await broker.start()
     logger.info("Kafka broker started")
 
-    # Set up APScheduler for NotificationScheduler and the SSE stream report
-    notification_scheduler: NotificationScheduler = await container.get(NotificationScheduler)
+    # APScheduler reports the open SSE streams for the collector's gauge
     sse_bus: SSERedisBus = await container.get(SSERedisBus)
     apscheduler = AsyncIOScheduler()
-    apscheduler.add_job(
-        notification_scheduler.process_due_notifications,
-        trigger="interval",
-        seconds=15,
-        id="process_due_notifications",
-        max_instances=1,
-        misfire_grace_time=60,
-    )
     apscheduler.add_job(
         sse_bus.report_open_streams,
         trigger="interval",
@@ -86,13 +76,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         misfire_grace_time=30,
     )
     apscheduler.start()
-    logger.info("NotificationScheduler started (APScheduler interval=15s)")
 
     try:
         yield
     finally:
         apscheduler.shutdown(wait=False)
-        logger.info("NotificationScheduler stopped")
         await broker.stop()
         logger.info("Kafka broker stopped")
         await container.close()

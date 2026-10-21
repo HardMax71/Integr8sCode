@@ -3,26 +3,18 @@ from typing import Annotated
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, Query, Response
-from fastapi.exceptions import RequestValidationError
-from pydantic import TypeAdapter, ValidationError
 
 from app.api.dependencies import current_user
 from app.db.docs import UserDocument
-from app.domain.enums import NotificationChannel, NotificationStatus
-from app.domain.notification import SubscriptionChanges
+from app.domain.enums import NotificationStatus
 from app.schemas_pydantic.notification import (
     DeleteNotificationResponse,
     NotificationListResponse,
-    NotificationSubscription,
-    SubscriptionsResponse,
-    SubscriptionUpdate,
     UnreadCountResponse,
 )
 from app.services.notification_service import NotificationService
 
 router = APIRouter(prefix="/notifications", tags=["notifications"], route_class=DishkaRoute)
-
-_subscription_changes = TypeAdapter(SubscriptionChanges)
 
 
 @router.get("", response_model=NotificationListResponse)
@@ -70,38 +62,6 @@ async def mark_all_read(
     """Mark all notifications as read."""
     await notification_service.mark_all_as_read(user.user_id)
     return Response(status_code=204)
-
-
-@router.get("/subscriptions", response_model=SubscriptionsResponse)
-async def get_subscriptions(
-    user: Annotated[UserDocument, Depends(current_user)],
-    notification_service: FromDishka[NotificationService],
-) -> SubscriptionsResponse:
-    """Get all notification channel subscriptions for the authenticated user."""
-    subscriptions = await notification_service.get_subscriptions(user.user_id)
-    return SubscriptionsResponse(
-        subscriptions=[NotificationSubscription.model_validate(subscription) for subscription in subscriptions]
-    )
-
-
-@router.put("/subscriptions/{channel}", response_model=NotificationSubscription)
-async def update_subscription(
-    channel: NotificationChannel,
-    subscription: SubscriptionUpdate,
-    user: Annotated[UserDocument, Depends(current_user)],
-    notification_service: FromDishka[NotificationService],
-) -> NotificationSubscription:
-    """Update subscription settings for a notification channel."""
-    try:
-        changes = _subscription_changes.validate_python(subscription.model_dump(exclude_unset=True))
-    except ValidationError as e:
-        raise RequestValidationError(e.errors()) from e
-    updated_sub = await notification_service.update_subscription(
-        user_id=user.user_id,
-        channel=channel,
-        changes=changes,
-    )
-    return NotificationSubscription.model_validate(updated_sub)
 
 
 @router.get("/unread-count", response_model=UnreadCountResponse)

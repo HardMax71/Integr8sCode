@@ -14,7 +14,7 @@ The container is built in `create_app()`. The lifespan then does the rest, in th
 2. Resolve the `Tracer` and instrument FastAPI with OpenTelemetry, skipping health, metrics and docs URLs.
 3. Get the broker, register the `sse-bridge-pool` and `notification-service` subscribers, and call `setup_dishka_faststream`.
 4. Start the broker.
-5. Start an `AsyncIOScheduler` that runs `NotificationScheduler.process_due_notifications` every 15 seconds.
+5. Start an `AsyncIOScheduler` that reports the open SSE streams every 10 seconds.
 
 On shutdown it stops the scheduler, then the broker, then closes the container. `broker.stop()` waits up to `KAFKA_GRACEFUL_TIMEOUT` (15 seconds by default) for running handlers, and Redis is still open while it does.
 

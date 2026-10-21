@@ -3,7 +3,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.enums import EventType, NotificationChannel, Theme
+from app.domain.enums import EventType, Theme
 
 
 class NotificationSettings(BaseModel):
@@ -15,7 +15,6 @@ class NotificationSettings(BaseModel):
     execution_failed: bool = True
     system_updates: bool = True
     security_alerts: bool = True
-    channels: list[NotificationChannel] = [NotificationChannel.IN_APP]
 
 
 class EditorSettings(BaseModel):

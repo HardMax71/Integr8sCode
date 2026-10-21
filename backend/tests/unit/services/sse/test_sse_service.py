@@ -236,7 +236,6 @@ async def test_notification_stream_yields_notification_and_cleans_up() -> None:
         data = json.loads(notif["data"])
         assert data["notification_id"] == "n1"
         assert data["subject"] == "s"
-        assert data["channel"] == "in_app"
     assert bus.notif_closed
 
 

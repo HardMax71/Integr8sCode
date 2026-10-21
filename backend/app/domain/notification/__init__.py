@@ -3,12 +3,11 @@ from .exceptions import (
     NotificationThrottledError,
     NotificationValidationError,
 )
-from .models import NotificationChanges, SubscriptionChanges
+from .models import NotificationChanges
 
 __all__ = [
     "NotificationChanges",
     "NotificationNotFoundError",
     "NotificationThrottledError",
     "NotificationValidationError",
-    "SubscriptionChanges",
 ]

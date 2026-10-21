@@ -190,10 +190,6 @@
                                 {formatRelativeTime(notification.created_at)}
                             </span>
 
-                            <span class="badge badge-neutral text-fg-muted">
-                                {notification.channel}
-                            </span>
-
                             <span class="badge badge-neutral {SEVERITY_COLORS[notification.severity]}">
                                 {notification.severity}
                             </span>

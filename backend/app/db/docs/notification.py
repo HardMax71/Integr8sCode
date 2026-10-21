@@ -6,20 +6,16 @@ from beanie import Document, Indexed
 from pydantic import ConfigDict, Field
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
-from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus
+from app.domain.enums import NotificationSeverity, NotificationStatus
 
 
 class NotificationDocument(Document):
-    """Individual notification instance.
-
-    Copied from Notification schema.
-    """
+    """An in-app notification: stored, then pushed to the user's open notification streams."""
 
     notification_id: Annotated[str, Indexed(unique=True)] = Field(default_factory=lambda: str(uuid4()))
     user_id: Annotated[str, Indexed()]
-    channel: NotificationChannel
     severity: NotificationSeverity = NotificationSeverity.MEDIUM
-    status: NotificationStatus = NotificationStatus.PENDING  # Indexed via Settings.indexes
+    status: NotificationStatus = NotificationStatus.PENDING
 
     # Content
     subject: str
@@ -29,7 +25,6 @@ class NotificationDocument(Document):
 
     # Tracking
     created_at: Annotated[datetime, Indexed()] = Field(default_factory=lambda: datetime.now(UTC))
-    scheduled_for: datetime | None = None
     sent_at: datetime | None = None
     delivered_at: datetime | None = None
     read_at: datetime | None = None
@@ -44,10 +39,6 @@ class NotificationDocument(Document):
     # Context
     metadata: dict[str, Any] = Field(default_factory=dict)
 
-    # Webhook specific
-    webhook_url: str | None = None
-    webhook_headers: dict[str, str] | None = None
-
     model_config = ConfigDict(from_attributes=True)
 
     class Settings:
@@ -55,48 +46,5 @@ class NotificationDocument(Document):
         use_state_management = True
         indexes = [
             IndexModel([("user_id", ASCENDING), ("created_at", DESCENDING)], name="idx_notif_user_created_desc"),
-            IndexModel([("status", ASCENDING), ("scheduled_for", ASCENDING)], name="idx_notif_status_sched"),
             IndexModel([("created_at", ASCENDING)], expireAfterSeconds=30 * 86400, name="idx_notif_ttl"),
-        ]
-
-
-class NotificationSubscriptionDocument(Document):
-    """User subscription preferences for notifications.
-
-    Copied from NotificationSubscription schema.
-    """
-
-    user_id: Annotated[str, Indexed()]
-    channel: NotificationChannel
-    severities: list[NotificationSeverity] = Field(default_factory=list)
-    include_tags: list[str] = Field(default_factory=list)
-    exclude_tags: list[str] = Field(default_factory=list)
-    enabled: bool = True  # Indexed via Settings.indexes
-
-    # Channel-specific settings
-    webhook_url: str | None = None
-    slack_webhook: str | None = None
-
-    # Delivery preferences
-    quiet_hours_enabled: bool = False
-    quiet_hours_start: str | None = None  # "22:00"
-    quiet_hours_end: str | None = None  # "08:00"
-    timezone: str = "UTC"
-
-    # Batching preferences
-    batch_interval_minutes: int = 60
-
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-
-    model_config = ConfigDict(from_attributes=True)
-
-    class Settings:
-        name = "notification_subscriptions"
-        use_state_management = True
-        indexes = [
-            IndexModel(
-                [("user_id", ASCENDING), ("channel", ASCENDING)], name="idx_sub_user_channel_unique", unique=True
-            ),
-            IndexModel([("enabled", ASCENDING)], name="idx_sub_enabled"),
         ]

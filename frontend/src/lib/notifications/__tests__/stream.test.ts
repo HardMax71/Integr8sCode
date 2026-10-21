@@ -11,7 +11,6 @@ const mockSseFn = vi.mocked(notificationStreamApiV1EventsNotificationsStreamGet)
 const payload = (): NotificationResponse => ({
     ...fakeNotificationResponse(),
     notification_id: 'n-1',
-    channel: 'in_app',
     severity: 'medium',
     subject: 'Test',
     body: 'Hello',
@@ -45,7 +44,6 @@ describe('NotificationStream', () => {
         await vi.waitFor(() => expect(callback).toHaveBeenCalledOnce());
         expect(callback.mock.calls[0]![0]).toMatchObject({
             notification_id: 'n-1',
-            channel: 'in_app',
             subject: 'Test',
             body: 'Hello',
             severity: 'medium',

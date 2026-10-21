@@ -23,7 +23,6 @@ The 30 days for events is hardcoded in the document. Everything else stays until
 |------------|-----------|-----|
 | `events` | `event_id` | The producer stores before publishing and skips a duplicate id, so a replayed event isn't stored twice |
 | `dlq_messages` | `event.event_id` + `consumer_group` | One DLQ row per event and consumer group |
-| `notification_subscriptions` | `user_id` + `channel` | One subscription per channel |
 | `users` | `username`, `email`, `user_id` | Registration conflicts become 409 |
 | `user_settings` | `user_id` | One settings document per user |
 | `system_settings` | `settings_id` | One `global` document; every read upserts it on this key |

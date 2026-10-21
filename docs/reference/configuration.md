@@ -145,7 +145,6 @@ These have no entry in `config.toml`, so the `Settings` default applies.
 | `RATE_LIMIT_REDIS_PREFIX` | `rate_limit:` | Prefix for rate limit keys in Redis |
 | `NOTIF_THROTTLE_WINDOW_HOURS` | `1` | Notification throttle window |
 | `NOTIF_THROTTLE_MAX_PER_HOUR` | `5` | Notifications allowed per user per window |
-| `NOTIF_MAX_SCHEDULE_DAYS` | `25` | How far ahead a notification can be scheduled |
 | `DEVELOPMENT_MODE` | `false` | `true` serves `/openapi.json`, `/docs` and `/redoc` |
 
 `CORS_ORIGINS` is the list in config.toml, and it replaces the `Settings` default list.

@@ -579,17 +579,6 @@ export const zNotificationAllReadEvent = z.object({
 });
 
 /**
- * NotificationChannel
- *
- * Notification delivery channels.
- */
-export const zNotificationChannel = z.enum([
-    'in_app',
-    'webhook',
-    'slack'
-]);
-
-/**
  * NotificationClickedEvent
  */
 export const zNotificationClickedEvent = z.object({
@@ -617,7 +606,6 @@ export const zNotificationDeliveredEvent = z.object({
     metadata: zEventMetadata,
     notification_id: z.optional(z.string()),
     user_id: z.optional(z.string()),
-    channel: z.optional(zNotificationChannel),
     delivered_at: z.optional(z.iso.datetime())
 });
 
@@ -633,7 +621,6 @@ export const zNotificationFailedEvent = z.object({
     metadata: zEventMetadata,
     notification_id: z.optional(z.string()),
     user_id: z.optional(z.string()),
-    channel: z.optional(zNotificationChannel),
     error: z.optional(z.string()),
     retry_count: z._default(z.optional(z.int()), 0)
 });
@@ -679,7 +666,6 @@ export const zNotificationSentEvent = z.object({
     metadata: zEventMetadata,
     notification_id: z.optional(z.string()),
     user_id: z.optional(z.string()),
-    channel: z.optional(zNotificationChannel),
     sent_at: z.optional(z.iso.datetime())
 });
 
@@ -692,8 +678,7 @@ export const zNotificationSettingsInput = z.object({
     execution_completed: z._default(z.optional(z.boolean()), true),
     execution_failed: z._default(z.optional(z.boolean()), true),
     system_updates: z._default(z.optional(z.boolean()), true),
-    security_alerts: z._default(z.optional(z.boolean()), true),
-    channels: z._default(z.optional(z.array(zNotificationChannel)), ['in_app'])
+    security_alerts: z._default(z.optional(z.boolean()), true)
 });
 
 /**
@@ -705,8 +690,7 @@ export const zNotificationSettingsOutput = z.object({
     execution_completed: z._default(z.boolean(), true),
     execution_failed: z._default(z.boolean(), true),
     system_updates: z._default(z.boolean(), true),
-    security_alerts: z._default(z.boolean(), true),
-    channels: z._default(z.array(zNotificationChannel), ['in_app'])
+    security_alerts: z._default(z.boolean(), true)
 });
 
 /**
@@ -736,8 +720,7 @@ export const zNotificationCreatedEvent = z.object({
     subject: z.optional(z.string()),
     body: z.optional(z.string()),
     severity: z.optional(zNotificationSeverity),
-    tags: z.optional(z.array(z.string())),
-    channels: z.optional(z.array(zNotificationChannel))
+    tags: z.optional(z.array(z.string()))
 });
 
 /**
@@ -751,7 +734,6 @@ export const zNotificationStatus = z.enum([
     'sending',
     'delivered',
     'failed',
-    'skipped',
     'read',
     'clicked'
 ]);
@@ -763,7 +745,6 @@ export const zNotificationStatus = z.enum([
  */
 export const zNotificationResponse = z.object({
     notification_id: z.string(),
-    channel: zNotificationChannel,
     status: zNotificationStatus,
     subject: z.string(),
     body: z.string(),
@@ -783,29 +764,6 @@ export const zNotificationListResponse = z.object({
     notifications: z.array(zNotificationResponse),
     total: z.int(),
     unread_count: z.int()
-});
-
-/**
- * NotificationSubscription
- *
- * User subscription preferences for notifications
- */
-export const zNotificationSubscription = z.object({
-    user_id: z.string(),
-    channel: zNotificationChannel,
-    severities: z.array(zNotificationSeverity),
-    include_tags: z.array(z.string()),
-    exclude_tags: z.array(z.string()),
-    enabled: z._default(z.boolean(), true),
-    webhook_url: z.nullable(z.string()),
-    slack_webhook: z.nullable(z.string()),
-    quiet_hours_enabled: z._default(z.boolean(), false),
-    quiet_hours_start: z.nullable(z.string()),
-    quiet_hours_end: z.nullable(z.string()),
-    timezone: z._default(z.string(), 'UTC'),
-    batch_interval_minutes: z._default(z.int(), 60),
-    created_at: z.iso.datetime(),
-    updated_at: z.iso.datetime()
 });
 
 /**
@@ -1596,34 +1554,6 @@ export const zResultStoredEvent = z.object({
     storage_type: z.nullish(zStorageType),
     storage_path: z._default(z.optional(z.string()), ''),
     size_bytes: z._default(z.optional(z.int()), 0)
-});
-
-/**
- * SubscriptionUpdate
- *
- * Request schema for updating notification subscriptions
- */
-export const zSubscriptionUpdate = z.object({
-    enabled: z.boolean(),
-    severities: z.optional(z.array(zNotificationSeverity)),
-    include_tags: z.optional(z.array(z.string())),
-    exclude_tags: z.optional(z.array(z.string())),
-    webhook_url: z.nullish(z.string().check(z.regex(/^https:\/\//))),
-    slack_webhook: z.nullish(z.string().check(z.regex(/^https:\/\/hooks\.slack\.com\//))),
-    quiet_hours_enabled: z._default(z.optional(z.boolean()), false),
-    quiet_hours_start: z.nullish(z.string()),
-    quiet_hours_end: z.nullish(z.string()),
-    timezone: z._default(z.optional(z.string()), 'UTC'),
-    batch_interval_minutes: z._default(z.optional(z.int()), 60)
-});
-
-/**
- * SubscriptionsResponse
- *
- * Response schema for user subscriptions
- */
-export const zSubscriptionsResponse = z.object({
-    subscriptions: z.array(zNotificationSubscription)
 });
 
 /**
@@ -2774,22 +2704,6 @@ export const zMarkNotificationReadApiV1NotificationsNotificationIdReadPutRespons
  * Successful Response
  */
 export const zMarkAllReadApiV1NotificationsMarkAllReadPostResponse = z.void();
-
-/**
- * Successful Response
- */
-export const zGetSubscriptionsApiV1NotificationsSubscriptionsGetResponse = zSubscriptionsResponse;
-
-export const zUpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutBody = zSubscriptionUpdate;
-
-export const zUpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutPath = z.object({
-    channel: zNotificationChannel
-});
-
-/**
- * Successful Response
- */
-export const zUpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponse = zNotificationSubscription;
 
 /**
  * Successful Response

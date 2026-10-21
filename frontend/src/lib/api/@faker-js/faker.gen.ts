@@ -2,7 +2,7 @@
 
 import { faker, type Faker } from '@faker-js/faker';
 
-import type { AdminExecutionListResponse, AdminExecutionResponse, AdminUserOverview, AuthFailedEvent, BodyLoginApiV1AuthLoginPost, BrowseEventsApiV1AdminEventsBrowsePostData, BrowseEventsApiV1AdminEventsBrowsePostErrors, BrowseEventsApiV1AdminEventsBrowsePostResponses, CancelExecutionApiV1ExecutionsExecutionIdCancelPostData, CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors, CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponses, CancelExecutionRequest, CancelResponse, CancelStatus, ContainerStatusInfo, CreateExecutionApiV1ExecutePostData, CreateExecutionApiV1ExecutePostErrors, CreateExecutionApiV1ExecutePostResponses, CreateSavedScriptApiV1ScriptsPostData, CreateSavedScriptApiV1ScriptsPostErrors, CreateSavedScriptApiV1ScriptsPostResponses, CreateUserApiV1AdminUsersPostData, CreateUserApiV1AdminUsersPostErrors, CreateUserApiV1AdminUsersPostResponses, DeleteEventApiV1AdminEventsEventIdDeleteData, DeleteEventApiV1AdminEventsEventIdDeleteErrors, DeleteEventApiV1AdminEventsEventIdDeleteResponses, DeleteExecutionApiV1ExecutionsExecutionIdDeleteData, DeleteExecutionApiV1ExecutionsExecutionIdDeleteErrors, DeleteExecutionApiV1ExecutionsExecutionIdDeleteResponses, DeleteNotificationApiV1NotificationsNotificationIdDeleteData, DeleteNotificationApiV1NotificationsNotificationIdDeleteErrors, DeleteNotificationApiV1NotificationsNotificationIdDeleteResponses, DeleteNotificationResponse, DeleteResponse, DeleteSavedScriptApiV1ScriptsScriptIdDeleteData, DeleteSavedScriptApiV1ScriptsScriptIdDeleteErrors, DeleteUserApiV1AdminUsersUserIdDeleteData, DeleteUserApiV1AdminUsersUserIdDeleteErrors, DeleteUserApiV1AdminUsersUserIdDeleteResponses, DeleteUserResponse, DerivedCounts, DlqMessageDiscardedEvent, DlqMessageReceivedEvent, DlqMessageRetriedEvent, EditorSettingsInput, EditorSettingsOutput, EndpointGroup, EndpointUsageStats, Environment, ErrorResponse, EventBrowseRequest, EventBrowseResponse, EventDeleteResponse, EventDetailResponse, EventFilter, EventMetadata, EventReplayRequest, EventReplayResponse, EventReplayStatusResponse, EventReplayStatusResponseWritable, EventStatistics, EventStatsResponse, EventSummary, EventType, EventTypeCount, ExampleScripts, ExecutionAcceptedEvent, ExecutionCancelledEvent, ExecutionCompletedEvent, ExecutionErrorType, ExecutionEventsApiV1EventsExecutionsExecutionIdGetData, ExecutionEventsApiV1EventsExecutionsExecutionIdGetErrors, ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses, ExecutionFailedEvent, ExecutionListResponse, ExecutionQueuedEvent, ExecutionRequest, ExecutionRequestedEvent, ExecutionResponse, ExecutionResult, ExecutionRunningEvent, ExecutionStartedEvent, ExecutionStatus, ExecutionTimeoutEvent, ExportEventsApiV1AdminEventsExportExportFormatGetData, ExportEventsApiV1AdminEventsExportExportFormatGetErrors, ExportEventsApiV1AdminEventsExportExportFormatGetResponses, ExportFormat, GetCurrentUserProfileApiV1AuthMeGetErrors, GetCurrentUserProfileApiV1AuthMeGetResponses, GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetErrors, GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetResponses, GetEventDetailApiV1AdminEventsEventIdGetData, GetEventDetailApiV1AdminEventsEventIdGetErrors, GetEventDetailApiV1AdminEventsEventIdGetResponses, GetEventStatsApiV1AdminEventsStatsGetData, GetEventStatsApiV1AdminEventsStatsGetErrors, GetEventStatsApiV1AdminEventsStatsGetResponses, GetExampleScriptsApiV1ExampleScriptsGetErrors, GetExampleScriptsApiV1ExampleScriptsGetResponses, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetData, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetErrors, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses, GetK8sResourceLimitsApiV1K8sLimitsGetErrors, GetK8sResourceLimitsApiV1K8sLimitsGetResponses, GetNotificationsApiV1NotificationsGetData, GetNotificationsApiV1NotificationsGetErrors, GetNotificationsApiV1NotificationsGetResponses, GetQueueStatusApiV1AdminExecutionsQueueGetErrors, GetQueueStatusApiV1AdminExecutionsQueueGetResponses, GetResultApiV1ExecutionsExecutionIdResultGetData, GetResultApiV1ExecutionsExecutionIdResultGetErrors, GetResultApiV1ExecutionsExecutionIdResultGetResponses, GetSavedScriptApiV1ScriptsScriptIdGetData, GetSavedScriptApiV1ScriptsScriptIdGetErrors, GetSavedScriptApiV1ScriptsScriptIdGetResponses, GetSettingsHistoryApiV1UserSettingsHistoryGetData, GetSettingsHistoryApiV1UserSettingsHistoryGetErrors, GetSettingsHistoryApiV1UserSettingsHistoryGetResponses, GetSubscriptionsApiV1NotificationsSubscriptionsGetErrors, GetSubscriptionsApiV1NotificationsSubscriptionsGetResponses, GetSystemSettingsApiV1AdminSettingsGetErrors, GetSystemSettingsApiV1AdminSettingsGetResponses, GetUnreadCountApiV1NotificationsUnreadCountGetErrors, GetUnreadCountApiV1NotificationsUnreadCountGetResponses, GetUserApiV1AdminUsersUserIdGetData, GetUserApiV1AdminUsersUserIdGetErrors, GetUserApiV1AdminUsersUserIdGetResponses, GetUserExecutionsApiV1UserExecutionsGetData, GetUserExecutionsApiV1UserExecutionsGetErrors, GetUserExecutionsApiV1UserExecutionsGetResponses, GetUserOverviewApiV1AdminUsersUserIdOverviewGetData, GetUserOverviewApiV1AdminUsersUserIdOverviewGetErrors, GetUserOverviewApiV1AdminUsersUserIdOverviewGetResponses, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetData, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetErrors, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetResponses, GetUserSettingsApiV1UserSettingsGetErrors, GetUserSettingsApiV1UserSettingsGetResponses, HourlyEventCount, LanguageInfo, LanguageLimits, ListExecutionsApiV1AdminExecutionsGetData, ListExecutionsApiV1AdminExecutionsGetErrors, ListExecutionsApiV1AdminExecutionsGetResponses, ListSavedScriptsApiV1ScriptsGetErrors, ListSavedScriptsApiV1ScriptsGetResponses, ListUsersApiV1AdminUsersGetData, ListUsersApiV1AdminUsersGetErrors, ListUsersApiV1AdminUsersGetResponses, LivenessApiV1HealthLiveGetErrors, LivenessApiV1HealthLiveGetResponses, LivenessResponse, LoginApiV1AuthLoginPostData, LoginApiV1AuthLoginPostErrors, LoginApiV1AuthLoginPostResponses, LoginMethod, LoginResponse, LogoutApiV1AuthLogoutPostErrors, LogoutApiV1AuthLogoutPostResponses, MarkAllReadApiV1NotificationsMarkAllReadPostErrors, MarkNotificationReadApiV1NotificationsNotificationIdReadPutData, MarkNotificationReadApiV1NotificationsNotificationIdReadPutErrors, MessageResponse, NotificationAllReadEvent, NotificationChannel, NotificationClickedEvent, NotificationCreatedEvent, NotificationDeliveredEvent, NotificationFailedEvent, NotificationListResponse, NotificationPreferencesUpdatedEvent, NotificationReadEvent, NotificationResponse, NotificationSentEvent, NotificationSettingsInput, NotificationSettingsOutput, NotificationSeverity, NotificationStatus, NotificationStreamApiV1EventsNotificationsStreamGetErrors, NotificationStreamApiV1EventsNotificationsStreamGetResponses, NotificationSubscription, PasswordResetRequest, PodCreatedEvent, PodDeletedEvent, PodFailedEvent, PodRunningEvent, PodScheduledEvent, PodSucceededEvent, PodTerminatedEvent, PriorityUpdateRequest, QueuePriority, QueueStatusResponse, QuotaExceededEvent, RateLimitAlgorithm, RateLimitExceededEvent, RateLimitRuleRequest, RateLimitRuleResponse, RateLimitSummary, RateLimitUpdateRequest, RateLimitUpdateResponse, RegisterApiV1AuthRegisterPostData, RegisterApiV1AuthRegisterPostErrors, RegisterApiV1AuthRegisterPostResponses, ReplayError, ReplayEventsApiV1AdminEventsReplayPostData, ReplayEventsApiV1AdminEventsReplayPostErrors, ReplayEventsApiV1AdminEventsReplayPostResponses, ReplayStatus, ResetSystemSettingsApiV1AdminSettingsResetPostErrors, ResetSystemSettingsApiV1AdminSettingsResetPostResponses, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostData, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostErrors, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostResponses, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostData, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostErrors, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostResponses, ResourceLimitExceededEvent, ResourceLimits, ResourceUsage, ResourceUsageDomain, RestoreSettingsApiV1UserSettingsRestorePostData, RestoreSettingsApiV1UserSettingsRestorePostErrors, RestoreSettingsApiV1UserSettingsRestorePostResponses, RestoreSettingsRequest, ResultFailedEvent, ResultStoredEvent, RetryExecutionApiV1ExecutionsExecutionIdRetryPostData, RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors, RetryExecutionApiV1ExecutionsExecutionIdRetryPostResponses, SavedScriptCreateRequest, SavedScriptListResponse, SavedScriptResponse, SavedScriptUpdate, ScriptDeletedEvent, ScriptSavedEvent, ScriptSharedEvent, SecurityViolationEvent, ServiceEventCount, ServiceRecoveredEvent, ServiceUnhealthyEvent, SettingsHistoryEntry, SettingsHistoryResponse, SseControlEvent, SseExecutionEventSchema, StorageType, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetData, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses, SubscriptionsResponse, SubscriptionUpdate, SystemErrorEvent, SystemSettingsSchemaInput, SystemSettingsSchemaOutput, Theme, ThemeUpdateRequest, UnlockResponse, UnlockUserApiV1AdminUsersUserIdUnlockPostData, UnlockUserApiV1AdminUsersUserIdUnlockPostErrors, UnlockUserApiV1AdminUsersUserIdUnlockPostResponses, UnreadCountResponse, UpdateCustomSettingApiV1UserSettingsCustomKeyPutData, UpdateCustomSettingApiV1UserSettingsCustomKeyPutErrors, UpdateCustomSettingApiV1UserSettingsCustomKeyPutResponses, UpdateEditorSettingsApiV1UserSettingsEditorPutData, UpdateEditorSettingsApiV1UserSettingsEditorPutErrors, UpdateEditorSettingsApiV1UserSettingsEditorPutResponses, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutData, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutErrors, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutResponses, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutData, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutErrors, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutResponses, UpdateSavedScriptApiV1ScriptsScriptIdPutData, UpdateSavedScriptApiV1ScriptsScriptIdPutErrors, UpdateSavedScriptApiV1ScriptsScriptIdPutResponses, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutData, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutErrors, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponses, UpdateSystemSettingsApiV1AdminSettingsPutData, UpdateSystemSettingsApiV1AdminSettingsPutErrors, UpdateSystemSettingsApiV1AdminSettingsPutResponses, UpdateThemeApiV1UserSettingsThemePutData, UpdateThemeApiV1UserSettingsThemePutErrors, UpdateThemeApiV1UserSettingsThemePutResponses, UpdateUserApiV1AdminUsersUserIdPutData, UpdateUserApiV1AdminUsersUserIdPutErrors, UpdateUserApiV1AdminUsersUserIdPutResponses, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutData, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutErrors, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutResponses, UpdateUserSettingsApiV1UserSettingsPutData, UpdateUserSettingsApiV1UserSettingsPutErrors, UpdateUserSettingsApiV1UserSettingsPutResponses, UserCreate, UserCreateWritable, UserDeletedEvent, UserEventCount, UserListResponse, UserLoggedInEvent, UserLoggedOutEvent, UserLoginEvent, UserRateLimitConfigResponse, UserRateLimitsResponse, UserRegisteredEvent, UserResponse, UserRole, UserSettings, UserSettingsUpdate, UserSettingsUpdatedEvent, UserUpdate, UserUpdatedEvent, UserUpdateWritable } from '../types.gen';
+import type { AdminExecutionListResponse, AdminExecutionResponse, AdminUserOverview, AuthFailedEvent, BodyLoginApiV1AuthLoginPost, BrowseEventsApiV1AdminEventsBrowsePostData, BrowseEventsApiV1AdminEventsBrowsePostErrors, BrowseEventsApiV1AdminEventsBrowsePostResponses, CancelExecutionApiV1ExecutionsExecutionIdCancelPostData, CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors, CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponses, CancelExecutionRequest, CancelResponse, CancelStatus, ContainerStatusInfo, CreateExecutionApiV1ExecutePostData, CreateExecutionApiV1ExecutePostErrors, CreateExecutionApiV1ExecutePostResponses, CreateSavedScriptApiV1ScriptsPostData, CreateSavedScriptApiV1ScriptsPostErrors, CreateSavedScriptApiV1ScriptsPostResponses, CreateUserApiV1AdminUsersPostData, CreateUserApiV1AdminUsersPostErrors, CreateUserApiV1AdminUsersPostResponses, DeleteEventApiV1AdminEventsEventIdDeleteData, DeleteEventApiV1AdminEventsEventIdDeleteErrors, DeleteEventApiV1AdminEventsEventIdDeleteResponses, DeleteExecutionApiV1ExecutionsExecutionIdDeleteData, DeleteExecutionApiV1ExecutionsExecutionIdDeleteErrors, DeleteExecutionApiV1ExecutionsExecutionIdDeleteResponses, DeleteNotificationApiV1NotificationsNotificationIdDeleteData, DeleteNotificationApiV1NotificationsNotificationIdDeleteErrors, DeleteNotificationApiV1NotificationsNotificationIdDeleteResponses, DeleteNotificationResponse, DeleteResponse, DeleteSavedScriptApiV1ScriptsScriptIdDeleteData, DeleteSavedScriptApiV1ScriptsScriptIdDeleteErrors, DeleteUserApiV1AdminUsersUserIdDeleteData, DeleteUserApiV1AdminUsersUserIdDeleteErrors, DeleteUserApiV1AdminUsersUserIdDeleteResponses, DeleteUserResponse, DerivedCounts, DlqMessageDiscardedEvent, DlqMessageReceivedEvent, DlqMessageRetriedEvent, EditorSettingsInput, EditorSettingsOutput, EndpointGroup, EndpointUsageStats, Environment, ErrorResponse, EventBrowseRequest, EventBrowseResponse, EventDeleteResponse, EventDetailResponse, EventFilter, EventMetadata, EventReplayRequest, EventReplayResponse, EventReplayStatusResponse, EventReplayStatusResponseWritable, EventStatistics, EventStatsResponse, EventSummary, EventType, EventTypeCount, ExampleScripts, ExecutionAcceptedEvent, ExecutionCancelledEvent, ExecutionCompletedEvent, ExecutionErrorType, ExecutionEventsApiV1EventsExecutionsExecutionIdGetData, ExecutionEventsApiV1EventsExecutionsExecutionIdGetErrors, ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses, ExecutionFailedEvent, ExecutionListResponse, ExecutionQueuedEvent, ExecutionRequest, ExecutionRequestedEvent, ExecutionResponse, ExecutionResult, ExecutionRunningEvent, ExecutionStartedEvent, ExecutionStatus, ExecutionTimeoutEvent, ExportEventsApiV1AdminEventsExportExportFormatGetData, ExportEventsApiV1AdminEventsExportExportFormatGetErrors, ExportEventsApiV1AdminEventsExportExportFormatGetResponses, ExportFormat, GetCurrentUserProfileApiV1AuthMeGetErrors, GetCurrentUserProfileApiV1AuthMeGetResponses, GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetErrors, GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetResponses, GetEventDetailApiV1AdminEventsEventIdGetData, GetEventDetailApiV1AdminEventsEventIdGetErrors, GetEventDetailApiV1AdminEventsEventIdGetResponses, GetEventStatsApiV1AdminEventsStatsGetData, GetEventStatsApiV1AdminEventsStatsGetErrors, GetEventStatsApiV1AdminEventsStatsGetResponses, GetExampleScriptsApiV1ExampleScriptsGetErrors, GetExampleScriptsApiV1ExampleScriptsGetResponses, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetData, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetErrors, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses, GetK8sResourceLimitsApiV1K8sLimitsGetErrors, GetK8sResourceLimitsApiV1K8sLimitsGetResponses, GetNotificationsApiV1NotificationsGetData, GetNotificationsApiV1NotificationsGetErrors, GetNotificationsApiV1NotificationsGetResponses, GetQueueStatusApiV1AdminExecutionsQueueGetErrors, GetQueueStatusApiV1AdminExecutionsQueueGetResponses, GetResultApiV1ExecutionsExecutionIdResultGetData, GetResultApiV1ExecutionsExecutionIdResultGetErrors, GetResultApiV1ExecutionsExecutionIdResultGetResponses, GetSavedScriptApiV1ScriptsScriptIdGetData, GetSavedScriptApiV1ScriptsScriptIdGetErrors, GetSavedScriptApiV1ScriptsScriptIdGetResponses, GetSettingsHistoryApiV1UserSettingsHistoryGetData, GetSettingsHistoryApiV1UserSettingsHistoryGetErrors, GetSettingsHistoryApiV1UserSettingsHistoryGetResponses, GetSystemSettingsApiV1AdminSettingsGetErrors, GetSystemSettingsApiV1AdminSettingsGetResponses, GetUnreadCountApiV1NotificationsUnreadCountGetErrors, GetUnreadCountApiV1NotificationsUnreadCountGetResponses, GetUserApiV1AdminUsersUserIdGetData, GetUserApiV1AdminUsersUserIdGetErrors, GetUserApiV1AdminUsersUserIdGetResponses, GetUserExecutionsApiV1UserExecutionsGetData, GetUserExecutionsApiV1UserExecutionsGetErrors, GetUserExecutionsApiV1UserExecutionsGetResponses, GetUserOverviewApiV1AdminUsersUserIdOverviewGetData, GetUserOverviewApiV1AdminUsersUserIdOverviewGetErrors, GetUserOverviewApiV1AdminUsersUserIdOverviewGetResponses, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetData, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetErrors, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetResponses, GetUserSettingsApiV1UserSettingsGetErrors, GetUserSettingsApiV1UserSettingsGetResponses, HourlyEventCount, LanguageInfo, LanguageLimits, ListExecutionsApiV1AdminExecutionsGetData, ListExecutionsApiV1AdminExecutionsGetErrors, ListExecutionsApiV1AdminExecutionsGetResponses, ListSavedScriptsApiV1ScriptsGetErrors, ListSavedScriptsApiV1ScriptsGetResponses, ListUsersApiV1AdminUsersGetData, ListUsersApiV1AdminUsersGetErrors, ListUsersApiV1AdminUsersGetResponses, LivenessApiV1HealthLiveGetErrors, LivenessApiV1HealthLiveGetResponses, LivenessResponse, LoginApiV1AuthLoginPostData, LoginApiV1AuthLoginPostErrors, LoginApiV1AuthLoginPostResponses, LoginMethod, LoginResponse, LogoutApiV1AuthLogoutPostErrors, LogoutApiV1AuthLogoutPostResponses, MarkAllReadApiV1NotificationsMarkAllReadPostErrors, MarkNotificationReadApiV1NotificationsNotificationIdReadPutData, MarkNotificationReadApiV1NotificationsNotificationIdReadPutErrors, MessageResponse, NotificationAllReadEvent, NotificationClickedEvent, NotificationCreatedEvent, NotificationDeliveredEvent, NotificationFailedEvent, NotificationListResponse, NotificationPreferencesUpdatedEvent, NotificationReadEvent, NotificationResponse, NotificationSentEvent, NotificationSettingsInput, NotificationSettingsOutput, NotificationSeverity, NotificationStatus, NotificationStreamApiV1EventsNotificationsStreamGetErrors, NotificationStreamApiV1EventsNotificationsStreamGetResponses, PasswordResetRequest, PodCreatedEvent, PodDeletedEvent, PodFailedEvent, PodRunningEvent, PodScheduledEvent, PodSucceededEvent, PodTerminatedEvent, PriorityUpdateRequest, QueuePriority, QueueStatusResponse, QuotaExceededEvent, RateLimitAlgorithm, RateLimitExceededEvent, RateLimitRuleRequest, RateLimitRuleResponse, RateLimitSummary, RateLimitUpdateRequest, RateLimitUpdateResponse, RegisterApiV1AuthRegisterPostData, RegisterApiV1AuthRegisterPostErrors, RegisterApiV1AuthRegisterPostResponses, ReplayError, ReplayEventsApiV1AdminEventsReplayPostData, ReplayEventsApiV1AdminEventsReplayPostErrors, ReplayEventsApiV1AdminEventsReplayPostResponses, ReplayStatus, ResetSystemSettingsApiV1AdminSettingsResetPostErrors, ResetSystemSettingsApiV1AdminSettingsResetPostResponses, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostData, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostErrors, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostResponses, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostData, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostErrors, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostResponses, ResourceLimitExceededEvent, ResourceLimits, ResourceUsage, ResourceUsageDomain, RestoreSettingsApiV1UserSettingsRestorePostData, RestoreSettingsApiV1UserSettingsRestorePostErrors, RestoreSettingsApiV1UserSettingsRestorePostResponses, RestoreSettingsRequest, ResultFailedEvent, ResultStoredEvent, RetryExecutionApiV1ExecutionsExecutionIdRetryPostData, RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors, RetryExecutionApiV1ExecutionsExecutionIdRetryPostResponses, SavedScriptCreateRequest, SavedScriptListResponse, SavedScriptResponse, SavedScriptUpdate, ScriptDeletedEvent, ScriptSavedEvent, ScriptSharedEvent, SecurityViolationEvent, ServiceEventCount, ServiceRecoveredEvent, ServiceUnhealthyEvent, SettingsHistoryEntry, SettingsHistoryResponse, SseControlEvent, SseExecutionEventSchema, StorageType, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetData, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses, SystemErrorEvent, SystemSettingsSchemaInput, SystemSettingsSchemaOutput, Theme, ThemeUpdateRequest, UnlockResponse, UnlockUserApiV1AdminUsersUserIdUnlockPostData, UnlockUserApiV1AdminUsersUserIdUnlockPostErrors, UnlockUserApiV1AdminUsersUserIdUnlockPostResponses, UnreadCountResponse, UpdateCustomSettingApiV1UserSettingsCustomKeyPutData, UpdateCustomSettingApiV1UserSettingsCustomKeyPutErrors, UpdateCustomSettingApiV1UserSettingsCustomKeyPutResponses, UpdateEditorSettingsApiV1UserSettingsEditorPutData, UpdateEditorSettingsApiV1UserSettingsEditorPutErrors, UpdateEditorSettingsApiV1UserSettingsEditorPutResponses, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutData, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutErrors, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutResponses, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutData, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutErrors, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutResponses, UpdateSavedScriptApiV1ScriptsScriptIdPutData, UpdateSavedScriptApiV1ScriptsScriptIdPutErrors, UpdateSavedScriptApiV1ScriptsScriptIdPutResponses, UpdateSystemSettingsApiV1AdminSettingsPutData, UpdateSystemSettingsApiV1AdminSettingsPutErrors, UpdateSystemSettingsApiV1AdminSettingsPutResponses, UpdateThemeApiV1UserSettingsThemePutData, UpdateThemeApiV1UserSettingsThemePutErrors, UpdateThemeApiV1UserSettingsThemePutResponses, UpdateUserApiV1AdminUsersUserIdPutData, UpdateUserApiV1AdminUsersUserIdPutErrors, UpdateUserApiV1AdminUsersUserIdPutResponses, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutData, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutErrors, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutResponses, UpdateUserSettingsApiV1UserSettingsPutData, UpdateUserSettingsApiV1UserSettingsPutErrors, UpdateUserSettingsApiV1UserSettingsPutResponses, UserCreate, UserCreateWritable, UserDeletedEvent, UserEventCount, UserListResponse, UserLoggedInEvent, UserLoggedOutEvent, UserLoginEvent, UserRateLimitConfigResponse, UserRateLimitsResponse, UserRegisteredEvent, UserResponse, UserRole, UserSettings, UserSettingsUpdate, UserSettingsUpdatedEvent, UserUpdate, UserUpdatedEvent, UserUpdateWritable } from '../types.gen';
 
 export type Options = {
     faker?: Faker;
@@ -538,15 +538,6 @@ export const fakeNotificationAllReadEvent = (options?: Options): NotificationAll
     };
 };
 
-export const fakeNotificationChannel = (options?: Options): NotificationChannel => {
-    const f = options?.faker ?? faker;
-    return f.helpers.arrayElement([
-        'in_app',
-        'webhook',
-        'slack'
-    ]);
-};
-
 export const fakeNotificationClickedEvent = (options?: Options): NotificationClickedEvent => {
     const f = options?.faker ?? faker;
     return {
@@ -574,7 +565,6 @@ export const fakeNotificationDeliveredEvent = (options?: Options): NotificationD
         metadata: fakeEventMetadata(options),
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { notification_id: f.string.sample() },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { user_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { channel: fakeNotificationChannel(options) },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { delivered_at: f.date.recent().toISOString() }
     };
 };
@@ -590,7 +580,6 @@ export const fakeNotificationFailedEvent = (options?: Options): NotificationFail
         metadata: fakeEventMetadata(options),
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { notification_id: f.string.sample() },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { user_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { channel: fakeNotificationChannel(options) },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { error: f.string.sample() },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { retry_count: resolveCondition(options?.useDefault ?? false, f) ? 0 : f.number.int() }
     };
@@ -636,7 +625,6 @@ export const fakeNotificationSentEvent = (options?: Options): NotificationSentEv
         metadata: fakeEventMetadata(options),
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { notification_id: f.string.sample() },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { user_id: f.string.sample() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { channel: fakeNotificationChannel(options) },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { sent_at: f.date.recent().toISOString() }
     };
 };
@@ -647,8 +635,7 @@ export const fakeNotificationSettingsInput = (options?: Options): NotificationSe
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { execution_completed: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean() },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { execution_failed: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean() },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { system_updates: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { security_alerts: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { channels: resolveCondition(options?.useDefault ?? false, f) ? ['in_app'] : f.helpers.multiple(() => fakeNotificationChannel(options)) }
+        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { security_alerts: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean() }
     };
 };
 
@@ -658,8 +645,7 @@ export const fakeNotificationSettingsOutput = (options?: Options): NotificationS
         execution_completed: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean(),
         execution_failed: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean(),
         system_updates: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean(),
-        security_alerts: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean(),
-        channels: resolveCondition(options?.useDefault ?? false, f) ? ['in_app'] : f.helpers.multiple(() => fakeNotificationChannel(options))
+        security_alerts: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean()
     };
 };
 
@@ -687,8 +673,7 @@ export const fakeNotificationCreatedEvent = (options?: Options): NotificationCre
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { subject: f.string.sample() },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { body: f.string.sample() },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { severity: fakeNotificationSeverity(options) },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { tags: f.helpers.multiple(() => f.string.sample()) },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { channels: f.helpers.multiple(() => fakeNotificationChannel(options)) }
+        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { tags: f.helpers.multiple(() => f.string.sample()) }
     };
 };
 
@@ -700,7 +685,6 @@ export const fakeNotificationStatus = (options?: Options): NotificationStatus =>
         'sending',
         'delivered',
         'failed',
-        'skipped',
         'read',
         'clicked'
     ]);
@@ -710,7 +694,6 @@ export const fakeNotificationResponse = (options?: Options): NotificationRespons
     const f = options?.faker ?? faker;
     return {
         notification_id: f.string.sample(),
-        channel: fakeNotificationChannel(options),
         status: fakeNotificationStatus(options),
         subject: f.string.sample(),
         body: f.string.sample(),
@@ -728,27 +711,6 @@ export const fakeNotificationListResponse = (options?: Options): NotificationLis
         notifications: f.helpers.multiple(() => fakeNotificationResponse(options)),
         total: f.number.int(),
         unread_count: f.number.int()
-    };
-};
-
-export const fakeNotificationSubscription = (options?: Options): NotificationSubscription => {
-    const f = options?.faker ?? faker;
-    return {
-        user_id: f.string.sample(),
-        channel: fakeNotificationChannel(options),
-        severities: f.helpers.multiple(() => fakeNotificationSeverity(options)),
-        include_tags: f.helpers.multiple(() => f.string.sample()),
-        exclude_tags: f.helpers.multiple(() => f.string.sample()),
-        enabled: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean(),
-        webhook_url: f.datatype.boolean() ? f.string.sample() : null,
-        slack_webhook: f.datatype.boolean() ? f.string.sample() : null,
-        quiet_hours_enabled: resolveCondition(options?.useDefault ?? false, f) ? false : f.datatype.boolean(),
-        quiet_hours_start: f.datatype.boolean() ? f.string.sample() : null,
-        quiet_hours_end: f.datatype.boolean() ? f.string.sample() : null,
-        timezone: resolveCondition(options?.useDefault ?? false, f) ? 'UTC' : f.location.timeZone(),
-        batch_interval_minutes: resolveCondition(options?.useDefault ?? false, f) ? 60 : f.number.int(),
-        created_at: f.date.recent().toISOString(),
-        updated_at: f.date.recent().toISOString()
     };
 };
 
@@ -1476,30 +1438,6 @@ export const fakeResultStoredEvent = (options?: Options): ResultStoredEvent => {
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { storage_type: f.datatype.boolean() ? fakeStorageType(options) : null },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { storage_path: resolveCondition(options?.useDefault ?? false, f) ? '' : f.string.sample() },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { size_bytes: resolveCondition(options?.useDefault ?? false, f) ? 0 : f.number.int() }
-    };
-};
-
-export const fakeSubscriptionUpdate = (options?: Options): SubscriptionUpdate => {
-    const f = options?.faker ?? faker;
-    return {
-        enabled: f.datatype.boolean(),
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { severities: f.helpers.multiple(() => fakeNotificationSeverity(options)) },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { include_tags: f.helpers.multiple(() => f.string.sample()) },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { exclude_tags: f.helpers.multiple(() => f.string.sample()) },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { webhook_url: f.datatype.boolean() ? f.helpers.fromRegExp('^https://') : null },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { slack_webhook: f.datatype.boolean() ? f.helpers.fromRegExp('^https://hooks\\.slack\\.com/') : null },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { quiet_hours_enabled: resolveCondition(options?.useDefault ?? false, f) ? false : f.datatype.boolean() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { quiet_hours_start: f.datatype.boolean() ? f.string.sample() : null },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { quiet_hours_end: f.datatype.boolean() ? f.string.sample() : null },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { timezone: resolveCondition(options?.useDefault ?? false, f) ? 'UTC' : f.location.timeZone() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { batch_interval_minutes: resolveCondition(options?.useDefault ?? false, f) ? 60 : f.number.int() }
-    };
-};
-
-export const fakeSubscriptionsResponse = (options?: Options): SubscriptionsResponse => {
-    const f = options?.faker ?? faker;
-    return {
-        subscriptions: f.helpers.multiple(() => fakeNotificationSubscription(options))
     };
 };
 
@@ -2814,21 +2752,6 @@ export const fakeMarkNotificationReadApiV1NotificationsNotificationIdReadPutRequ
 export const fakeMarkNotificationReadApiV1NotificationsNotificationIdReadPutResponsedefault = (options?: Options): MarkNotificationReadApiV1NotificationsNotificationIdReadPutErrors['default'] => fakeErrorResponse(options);
 
 export const fakeMarkAllReadApiV1NotificationsMarkAllReadPostResponsedefault = (options?: Options): MarkAllReadApiV1NotificationsMarkAllReadPostErrors['default'] => fakeErrorResponse(options);
-
-export const fakeGetSubscriptionsApiV1NotificationsSubscriptionsGetResponse200 = (options?: Options): GetSubscriptionsApiV1NotificationsSubscriptionsGetResponses[200] => fakeSubscriptionsResponse(options);
-
-export const fakeGetSubscriptionsApiV1NotificationsSubscriptionsGetResponsedefault = (options?: Options): GetSubscriptionsApiV1NotificationsSubscriptionsGetErrors['default'] => fakeErrorResponse(options);
-
-export const fakeUpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutRequest = (options?: Options): Omit<UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutData, 'url'> => ({
-    body: fakeSubscriptionUpdate(options),
-    path: {
-        channel: fakeNotificationChannel(options)
-    }
-});
-
-export const fakeUpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponse200 = (options?: Options): UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponses[200] => fakeNotificationSubscription(options);
-
-export const fakeUpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponsedefault = (options?: Options): UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutErrors['default'] => fakeErrorResponse(options);
 
 export const fakeGetUnreadCountApiV1NotificationsUnreadCountGetResponse200 = (options?: Options): GetUnreadCountApiV1NotificationsUnreadCountGetResponses[200] => fakeUnreadCountResponse(options);
 

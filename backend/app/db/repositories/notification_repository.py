@@ -1,13 +1,13 @@
 from collections.abc import Mapping
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import structlog
 from beanie.odm.enums import SortDirection
-from beanie.operators import GTE, LTE, ElemMatch, In, NotIn, Or
+from beanie.operators import ElemMatch, In, NotIn
 
-from app.db.docs import NotificationDocument, NotificationSubscriptionDocument, UserDocument
-from app.domain.enums import NotificationChannel, NotificationStatus, UserRole
-from app.domain.notification import NotificationChanges, SubscriptionChanges
+from app.db.docs import NotificationDocument
+from app.domain.enums import NotificationStatus
+from app.domain.notification import NotificationChanges
 
 
 class NotificationRepository:
@@ -110,107 +110,10 @@ class NotificationRepository:
             In(NotificationDocument.status, [NotificationStatus.DELIVERED]),
         ).count()
 
-    async def find_due_notifications(self, limit: int = 50) -> list[NotificationDocument]:
-        """Find PENDING notifications whose scheduled_for time has passed."""
-        now = datetime.now(UTC)
-        return (
-            await NotificationDocument.find(
-                NotificationDocument.status == NotificationStatus.PENDING,
-                NotificationDocument.scheduled_for != None,  # noqa: E711
-                LTE(NotificationDocument.scheduled_for, now),
-            )
-            .sort([("scheduled_for", SortDirection.ASCENDING)])
-            .limit(limit)
-            .to_list()
-        )
-
     async def try_claim_pending(self, notification_id: str) -> bool:
         now = datetime.now(UTC)
         result = await NotificationDocument.find_one(
             NotificationDocument.notification_id == notification_id,
             NotificationDocument.status == NotificationStatus.PENDING,
-            Or(
-                NotificationDocument.scheduled_for == None,  # noqa: E711
-                LTE(NotificationDocument.scheduled_for, now),
-            ),
         ).update({"$set": {"status": NotificationStatus.SENDING, "sent_at": now}})
         return bool(result and getattr(result, "modified_count", 0) > 0)
-
-    # Subscriptions
-    async def get_subscription(self, user_id: str, channel: NotificationChannel) -> NotificationSubscriptionDocument:
-        """Get subscription for user/channel, returning an unsaved default enabled subscription if none exists."""
-        doc = await NotificationSubscriptionDocument.find_one(
-            NotificationSubscriptionDocument.user_id == user_id,
-            NotificationSubscriptionDocument.channel == channel,
-        )
-        if not doc:
-            # Default: enabled=True for new users (consistent with get_all_subscriptions)
-            return NotificationSubscriptionDocument(user_id=user_id, channel=channel, enabled=True)
-        return doc
-
-    async def upsert_subscription(
-        self, user_id: str, channel: NotificationChannel, changes: SubscriptionChanges
-    ) -> NotificationSubscriptionDocument:
-        existing = await NotificationSubscriptionDocument.find_one(
-            NotificationSubscriptionDocument.user_id == user_id,
-            NotificationSubscriptionDocument.channel == channel,
-        )
-        if existing:
-            await existing.set({**changes, "updated_at": datetime.now(UTC)})
-            return existing
-        doc = NotificationSubscriptionDocument(user_id=user_id, channel=channel, **changes)
-        await doc.insert()
-        return doc
-
-    async def get_all_subscriptions(self, user_id: str) -> list[NotificationSubscriptionDocument]:
-        docs = await NotificationSubscriptionDocument.find(
-            NotificationSubscriptionDocument.user_id == user_id,
-        ).to_list()
-        existing = {doc.channel: doc for doc in docs}
-        return [
-            existing.get(channel, NotificationSubscriptionDocument(user_id=user_id, channel=channel, enabled=True))
-            for channel in NotificationChannel
-        ]
-
-    # User query operations
-    async def get_users_by_roles(self, roles: list[UserRole]) -> list[str]:
-        docs = await UserDocument.find(
-            In(UserDocument.role, roles),
-            UserDocument.is_active == True,  # noqa: E712
-        ).to_list()
-        user_ids = [doc.user_id for doc in docs if doc.user_id]
-        self.logger.info("Found users by roles", count=len(user_ids), roles=roles)
-        return user_ids
-
-    async def get_active_users(self, days: int = 30) -> list[str]:
-        from app.db.docs import ExecutionDocument
-
-        cutoff_date = datetime.now(UTC) - timedelta(days=days)
-        user_ids: set[str] = set()
-
-        # From users collection
-        docs = await UserDocument.find(
-            Or(
-                GTE(UserDocument.last_login, cutoff_date),
-                GTE(UserDocument.last_activity, cutoff_date),
-                GTE(UserDocument.updated_at, cutoff_date),
-            ),
-            UserDocument.is_active == True,  # noqa: E712
-        ).to_list()
-        for doc in docs:
-            if doc.user_id:
-                user_ids.add(doc.user_id)
-
-        # From executions
-        exec_docs = (
-            await ExecutionDocument.find(
-                GTE(ExecutionDocument.created_at, cutoff_date),
-            )
-            .limit(1000)
-            .to_list()
-        )
-        for doc in exec_docs:
-            if doc.user_id:
-                user_ids.add(doc.user_id)
-
-        return list(user_ids)

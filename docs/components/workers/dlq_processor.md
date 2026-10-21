@@ -12,7 +12,7 @@ graph LR
 
 Every 10 seconds `process_monitoring_cycle` does two things. First it loads up to 100 rows with status `scheduled` whose `next_retry_at` has passed. For each one it sets the row to `retried` with `retry_count` plus one, republishes the event to its original topic keyed by event id, with headers naming the consumer group that failed and the retry count, and publishes `dlq_message_retried`. Then it counts the pending and scheduled rows per topic and reports each count on a `dlq.queue_size` span, which the collector keeps as the `dlq_queue_size` gauge. A retry that fails again comes back as a new failure for the same row.
 
-Retry policies are hardcoded in `app/dlq/models.py`, and the `DLQ_*` settings are never read ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). There's no admin API for the DLQ.
+Retry policies are hardcoded in `app/dlq/models.py`. There's no admin API for the DLQ.
 
 ## Key files
 

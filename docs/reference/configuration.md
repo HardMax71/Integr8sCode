@@ -14,7 +14,7 @@ Settings(override_path="config.worker.toml")            # the worker
 
 `Settings` uses `extra="forbid"`, so a key that isn't a field below stops the process at startup. `OTEL_SERVICE_NAME`, `OTEL_SERVICE_VERSION` and `OTEL_RESOURCE_ATTRIBUTES` are not fields: put them in TOML and nothing starts.
 
-In the tables, the value is what applies with the shipped `config.toml`. The source says where it comes from: `config.toml`, the `Settings` default when the file doesn't set the key, or the environment. Keys marked unused are fields that no code reads, so changing them does nothing ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)).
+In the tables, the value is what applies with the shipped `config.toml`. The source says where it comes from: `config.toml`, the `Settings` default when the file doesn't set the key, or the environment.
 
 ## Secrets
 
@@ -60,10 +60,8 @@ For each secret, `Settings` takes the environment variable if it's set and non-e
 | `K8S_POD_CPU_REQUEST` | `200m` | config.toml | CPU request on every executor pod |
 | `K8S_POD_MEMORY_REQUEST` | `128Mi` | config.toml | Memory request on every executor pod |
 | `K8S_POD_RUNTIME_CLASS_NAME` | none | default | `runtimeClassName` for executor pods, for example `gvisor` |
-| `K8S_POD_PRIORITY_CLASS_NAME` | none | default | Unused |
 | `SUPPORTED_RUNTIMES` | from the registry | default | Built from `LANGUAGE_SPECS` in `app/runtime_registry.py` and returned by `/api/v1/k8s-limits`; leave it out of TOML |
 | `EXAMPLE_SCRIPTS` | from the registry | default | Returned by `/api/v1/example-scripts` |
-| `RATE_LIMITS` | `100/minute` | config.toml | Unused |
 | `SERVER_HOST` | `0.0.0.0` | config.toml | See [Server](#server) |
 
 Execution limits are not per request. CPU limit, memory limit and timeout are admin system settings stored in MongoDB, and every execution gets the current values. The first time any process reads the system settings and finds no document, it creates one from the three `K8S_POD_*` values above and `ACCESS_TOKEN_EXPIRE_MINUTES`. After that the stored document wins, so editing those TOML keys changes nothing until the document is removed. The TOML values are also the fallback when MongoDB can't be read. `max_concurrent_executions` starts at 10 and isn't in TOML. Each process caches the system settings for 60 seconds.
@@ -81,15 +79,6 @@ A language can raise its own pod's limits above the system settings. Go gets at 
 | `KAFKA_BOOTSTRAP_SERVERS` | `kafka:29092` | config.toml | Broker address |
 | `KAFKA_REQUEST_TIMEOUT_MS` | `40000` | config.toml | Broker request timeout |
 | `KAFKA_GRACEFUL_TIMEOUT` | `15.0` | default | Seconds FastStream waits for in-flight handlers on shutdown |
-| `KAFKA_CONSUMER_GROUP_ID` | `integr8scode-backend` | config.toml | Unused: group ids are literals in `app/events/handlers.py` |
-| `KAFKA_AUTO_OFFSET_RESET` | `earliest` | config.toml | Unused |
-| `KAFKA_ENABLE_AUTO_COMMIT` | `true` | config.toml | Unused |
-| `KAFKA_SESSION_TIMEOUT_MS` | `45000` | config.toml | Unused |
-| `KAFKA_HEARTBEAT_INTERVAL_MS` | `10000` | config.toml | Unused |
-| `KAFKA_MAX_POLL_RECORDS` | `500` | config.toml | Unused |
-| `KAFKA_MAX_POLL_INTERVAL_MS` | `300000` | default | Unused |
-| `ENABLE_EVENT_STREAMING` | `true` | config.toml | Unused |
-| `EVENT_RETENTION_DAYS` | `30` | config.toml | Unused: the 30 day event TTL is hardcoded in `EventDocument` |
 
 ## SSE
 
@@ -100,7 +89,6 @@ A language can raise its own pod's limits above the system settings. Go gets at 
 | Key | Value | Source | What it does |
 |-----|-------|--------|--------------|
 | `SSE_CONSUMER_POOL_SIZE` | `10` | config.toml | `max_workers` of the `sse-bridge-pool` subscriber: how many events one API process handles at once |
-| `SSE_HEARTBEAT_INTERVAL` | `30` | config.toml | Unused: the pings are hardcoded in the routes |
 
 ## Tracing, metrics and logs
 
@@ -125,23 +113,6 @@ A language can raise its own pod's limits above the system settings. Go gets at 
 
 Jaeger and the OTel collector only run with `./deploy.sh dev --observability` or `--debug`. Without them the exporters log connection errors and the app keeps working.
 
-## Dead letter queue
-
-```toml
---8<-- "backend/config.toml:dlq"
-```
-
-All six keys are unused. The DLQ's retry policies are hardcoded in `app/dlq/models.py`. See [Dead letter queue](../components/dead-letter-queue.md).
-
-| Key | Value | Source |
-|-----|-------|--------|
-| `DLQ_RETRY_MAX_ATTEMPTS` | `5` | config.toml |
-| `DLQ_RETRY_BASE_DELAY_SECONDS` | `60.0` | config.toml |
-| `DLQ_RETRY_MAX_DELAY_SECONDS` | `3600.0` | config.toml |
-| `DLQ_RETENTION_DAYS` | `7` | config.toml |
-| `DLQ_WARNING_THRESHOLD` | `100` | config.toml |
-| `DLQ_CRITICAL_THRESHOLD` | `1000` | config.toml |
-
 ## Server
 
 ```toml
@@ -155,7 +126,6 @@ In the container, the backend runs gunicorn from the Dockerfile's entrypoint, wh
 | `WEB_CONCURRENCY` | `2` | config.toml | Uvicorn workers under `python -m app.main` |
 | `WEB_TIMEOUT` | `60` | config.toml | Uvicorn keep-alive timeout under `python -m app.main` |
 | `WEB_BACKLOG` | `2048` | config.toml | Uvicorn backlog under `python -m app.main` |
-| `WEB_THREADS` | `4` | config.toml | Unused by the app; gunicorn reads the environment variable instead |
 | `SERVER_HOST` | `0.0.0.0` | config.toml | Bind address under `python -m app.main` |
 | `SERVER_PORT` | `443` | default | Port under `python -m app.main` |
 | `SSL_KEYFILE`, `SSL_CERTFILE` | `/app/certs/key/server.key`, `/app/certs/cert/server.crt` | default | TLS files under `python -m app.main`; the container's entrypoint makes them on first start |
@@ -173,17 +143,12 @@ These have no entry in `config.toml`, so the `Settings` default applies.
 | `REDIS_DECODE_RESPONSES` | `true` | Must stay true; the type only allows `true` |
 | `RATE_LIMIT_ENABLED` | `true` | `false` turns the rate limit middleware off |
 | `RATE_LIMIT_REDIS_PREFIX` | `rate_limit:` | Prefix for rate limit keys in Redis |
-| `RATE_LIMIT_DEFAULT_REQUESTS` | `100` | Unused |
-| `RATE_LIMIT_DEFAULT_WINDOW` | `60` | Unused |
-| `RATE_LIMIT_BURST_MULTIPLIER` | `1.5` | Unused |
-| `RATE_LIMIT_ALGORITHM` | `sliding_window` | Unused |
 | `NOTIF_THROTTLE_WINDOW_HOURS` | `1` | Notification throttle window |
 | `NOTIF_THROTTLE_MAX_PER_HOUR` | `5` | Notifications allowed per user per window |
 | `NOTIF_MAX_SCHEDULE_DAYS` | `25` | How far ahead a notification can be scheduled |
 | `DEVELOPMENT_MODE` | `false` | `true` serves `/openapi.json`, `/docs` and `/redoc` |
-| `SECURE_COOKIES` | `true` | Unused: auth cookies are always `Secure` |
 
-`APP_URL` (`https://localhost` in config.toml) is unused too. `CORS_ORIGINS` is the list in config.toml, which replaces the `Settings` default list.
+`CORS_ORIGINS` is the list in config.toml, and it replaces the `Settings` default list.
 
 ## Worker override
 
@@ -191,7 +156,7 @@ The worker loads `config.worker.toml` next to `config.toml`. It sets one key, `S
 
 ## Test configuration
 
-`config.test.toml` is a full config file that tests load with `Settings(config_path="config.test.toml")`. Compared to `config.toml` it sets `ENVIRONMENT = "test"`, turns rate limiting off, uses 4 bcrypt rounds, an SSE pool size of 1 and `WARNING` logs, and exports no traces, metrics or logs. It also lowers the Kafka timeouts, but of those only `KAFKA_REQUEST_TIMEOUT_MS` and `KAFKA_GRACEFUL_TIMEOUT` reach the broker.
+`config.test.toml` is a full config file that tests load with `Settings(config_path="config.test.toml")`. Compared to `config.toml` it sets `ENVIRONMENT = "test"`, turns rate limiting off, uses 4 bcrypt rounds, an SSE pool size of 1 and `WARNING` logs, and exports no traces, metrics or logs. It also lowers `KAFKA_REQUEST_TIMEOUT_MS` to 5000 and `KAFKA_GRACEFUL_TIMEOUT` to 5.0, so brokers stop faster when a test session ends.
 
 ## Compose environment
 

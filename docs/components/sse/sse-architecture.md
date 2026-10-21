@@ -40,7 +40,7 @@ All three need a logged-in user, and the replay stream needs an admin. The execu
 
 Redis pub/sub keeps nothing. An event published before the browser subscribes is gone, which is why the execution stream opens with a `status` event built from the execution document in MongoDB. The execution flow is described in [Execution SSE flow](execution-sse-flow.md).
 
-The execution and replay streams set no SSE event name, so every message arrives as the default `message` event. An execution payload names its type in the `event_type` field: an `EventType` value such as `execution_requested`, `pod_running` or `result_stored`, or `status` for the opening event. A replay payload carries the session's `status` instead. The notification stream sets the SSE event name to `notification` and pings every 30 seconds. The execution and replay streams ping every 15 seconds. `SSE_HEARTBEAT_INTERVAL` exists in Settings but nothing reads it ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)).
+The execution and replay streams set no SSE event name, so every message arrives as the default `message` event. An execution payload names its type in the `event_type` field: an `EventType` value such as `execution_requested`, `pod_running` or `result_stored`, or `status` for the opening event. A replay payload carries the session's `status` instead. The notification stream sets the SSE event name to `notification` and pings every 30 seconds. The execution and replay streams ping every 15 seconds.
 
 ## Scaling
 

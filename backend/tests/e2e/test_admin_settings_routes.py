@@ -25,9 +25,6 @@ class TestGetSystemSettings:
         assert settings.session_timeout_minutes >= 5
         assert settings.max_login_attempts >= 3
         assert settings.lockout_duration_minutes >= 5
-        assert settings.metrics_retention_days >= 7
-        assert settings.log_level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-        assert 0.0 <= settings.sampling_rate <= 1.0
 
     async def test_get_system_settings_forbidden_for_regular_user(self, test_user: AsyncClient) -> None:
         """Regular user cannot get system settings."""
@@ -43,14 +40,14 @@ class TestGetSystemSettings:
 class TestUpdateSystemSettings:
     """Tests for PUT /api/v1/admin/settings/.
 
-    Settings are global and every process reads them, so these tests change only the monitoring fields, which no
-    other test depends on, and send everything else back as it was.
+    Settings are global and every process reads them, so these tests change only the lockout duration, since no
+    other test depends on it, and send everything else back as it was.
     """
 
     async def test_update_system_settings(self, test_admin: AsyncClient) -> None:
         """A PUT stores the body and returns it."""
         current = (await test_admin.get("/api/v1/admin/settings/")).json()
-        body = {**current, "metrics_retention_days": 60, "log_level": "WARNING", "sampling_rate": 0.2}
+        body = {**current, "lockout_duration_minutes": 30}
 
         response = await test_admin.put("/api/v1/admin/settings/", json=body)
 
@@ -63,14 +60,6 @@ class TestUpdateSystemSettings:
         response = await test_admin.put(
             "/api/v1/admin/settings/",
             json={"max_timeout_seconds": 0},  # minimum is 1
-        )
-        assert response.status_code == 422
-
-    async def test_update_system_settings_invalid_log_level(self, test_admin: AsyncClient) -> None:
-        """Invalid log level is rejected."""
-        response = await test_admin.put(
-            "/api/v1/admin/settings/",
-            json={"log_level": "INVALID_LEVEL"},
         )
         assert response.status_code == 422
 
@@ -91,7 +80,7 @@ class TestResetSystemSettings:
         current = (await test_admin.get("/api/v1/admin/settings/")).json()
         await test_admin.put(
             "/api/v1/admin/settings/",
-            json={**current, "metrics_retention_days": 90, "log_level": "DEBUG", "enable_tracing": False},
+            json={**current, "lockout_duration_minutes": 45},
         )
 
         # Reset to defaults

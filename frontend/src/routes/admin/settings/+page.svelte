@@ -6,13 +6,12 @@
         getSystemSettingsApiV1AdminSettingsGetQueryKey,
         updateSystemSettingsApiV1AdminSettingsPutMutation,
         resetSystemSettingsApiV1AdminSettingsResetPostMutation,
-        LogLevel,
         type SystemSettingsSchemaInput,
         type SystemSettingsSchemaOutput,
         zSystemSettingsSchemaInput,
     } from '#lib/api/index.ts';
     import { apiForm } from '#lib/forms.ts';
-    import { fieldTitle, formatBoolean } from '#lib/formatters.ts';
+    import { fieldTitle } from '#lib/formatters.ts';
     import { toast } from 'svelte-sonner';
     import Spinner from '#components/Spinner.svelte';
 
@@ -59,33 +58,19 @@
     }
 </script>
 
-{#snippet setting(name: keyof SystemSettingsSchemaInput, type: 'number' | 'text' = 'number', step = 1)}
+{#snippet setting(name: keyof SystemSettingsSchemaInput, type: 'number' | 'text' = 'number')}
     <Field {form} {name}>
         <Control>
             {#snippet children({ props })}
                 <div class="field">
                     <Label>{fieldTitle(name)}</Label>
-                    {#if name === 'log_level'}
-                        <select {...props} bind:value={$formData.log_level} class="form-select-standard">
-                            {#each Object.values(LogLevel) as level (level)}
-                                <option value={level}>{level}</option>
-                            {/each}
-                        </select>
-                    {:else if name === 'enable_tracing'}
-                        <select {...props} bind:value={$formData.enable_tracing} class="form-select-standard">
-                            <option value={true}>{formatBoolean(true)}</option>
-                            <option value={false}>{formatBoolean(false)}</option>
-                        </select>
-                    {:else}
-                        <input
-                            {...props}
-                            {...$constraints[name]}
-                            {type}
-                            {step}
-                            bind:value={$formData[name]}
-                            class="form-input-standard"
-                        />
-                    {/if}
+                    <input
+                        {...props}
+                        {...$constraints[name]}
+                        {type}
+                        bind:value={$formData[name]}
+                        class="form-input-standard"
+                    />
                     <FieldErrors class="mt-1" />
                 </div>
             {/snippet}
@@ -126,16 +111,6 @@
                             {@render setting('session_timeout_minutes')}
                             {@render setting('max_login_attempts')}
                             {@render setting('lockout_duration_minutes')}
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 class="font-semibold mb-3">Monitoring Settings</h4>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {@render setting('metrics_retention_days')}
-                            {@render setting('log_level')}
-                            {@render setting('enable_tracing')}
-                            {@render setting('sampling_rate', 'number', 0.1)}
                         </div>
                     </div>
 

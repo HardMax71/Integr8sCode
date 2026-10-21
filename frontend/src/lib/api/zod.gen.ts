@@ -554,19 +554,6 @@ export const zLivenessResponse = z.object({
 });
 
 /**
- * LogLevel
- *
- * Log level options.
- */
-export const zLogLevel = z.enum([
-    'DEBUG',
-    'INFO',
-    'WARNING',
-    'ERROR',
-    'CRITICAL'
-]);
-
-/**
  * LoginMethod
  *
  * User login methods.
@@ -1830,11 +1817,7 @@ export const zSystemSettingsSchemaInput = z.object({
     password_min_length: z._default(z.optional(z.int().check(z.gte(8), z.lte(32))), 8),
     session_timeout_minutes: z._default(z.optional(z.int().check(z.gte(5), z.lte(1440))), 60),
     max_login_attempts: z._default(z.optional(z.int().check(z.gte(3), z.lte(10))), 5),
-    lockout_duration_minutes: z._default(z.optional(z.int().check(z.gte(5), z.lte(60))), 15),
-    metrics_retention_days: z._default(z.optional(z.int().check(z.gte(7), z.lte(90))), 30),
-    log_level: z._default(z.optional(zLogLevel), 'INFO'),
-    enable_tracing: z._default(z.optional(z.boolean()), true),
-    sampling_rate: z._default(z.optional(z.number().check(z.gte(0), z.lte(1))), 0.1)
+    lockout_duration_minutes: z._default(z.optional(z.int().check(z.gte(5), z.lte(60))), 15)
 });
 
 /**
@@ -1851,11 +1834,7 @@ export const zSystemSettingsSchemaOutput = z.object({
     password_min_length: z._default(z.int().check(z.gte(8), z.lte(32)), 8),
     session_timeout_minutes: z._default(z.int().check(z.gte(5), z.lte(1440)), 60),
     max_login_attempts: z._default(z.int().check(z.gte(3), z.lte(10)), 5),
-    lockout_duration_minutes: z._default(z.int().check(z.gte(5), z.lte(60)), 15),
-    metrics_retention_days: z._default(z.int().check(z.gte(7), z.lte(90)), 30),
-    log_level: z._default(zLogLevel, 'INFO'),
-    enable_tracing: z._default(z.boolean(), true),
-    sampling_rate: z._default(z.number().check(z.gte(0), z.lte(1)), 0.1)
+    lockout_duration_minutes: z._default(z.int().check(z.gte(5), z.lte(60)), 15)
 });
 
 /**

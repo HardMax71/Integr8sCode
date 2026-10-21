@@ -1793,26 +1793,6 @@ export type LivenessResponse = {
 };
 
 /**
- * LogLevel
- *
- * Log level options.
- */
-export const LogLevel = {
-    DEBUG: 'DEBUG',
-    INFO: 'INFO',
-    WARNING: 'WARNING',
-    ERROR: 'ERROR',
-    CRITICAL: 'CRITICAL'
-} as const;
-
-/**
- * LogLevel
- *
- * Log level options.
- */
-export type LogLevel = typeof LogLevel[keyof typeof LogLevel];
-
-/**
  * LoginMethod
  *
  * User login methods.
@@ -4282,19 +4262,6 @@ export type SystemSettingsSchemaInput = {
      * Lockout Duration Minutes
      */
     lockout_duration_minutes?: number;
-    /**
-     * Metrics Retention Days
-     */
-    metrics_retention_days?: number;
-    log_level?: LogLevel;
-    /**
-     * Enable Tracing
-     */
-    enable_tracing?: boolean;
-    /**
-     * Sampling Rate
-     */
-    sampling_rate?: number;
 };
 
 /**
@@ -4339,19 +4306,6 @@ export type SystemSettingsSchemaOutput = {
      * Lockout Duration Minutes
      */
     lockout_duration_minutes: number;
-    /**
-     * Metrics Retention Days
-     */
-    metrics_retention_days: number;
-    log_level: LogLevel;
-    /**
-     * Enable Tracing
-     */
-    enable_tracing: boolean;
-    /**
-     * Sampling Rate
-     */
-    sampling_rate: number;
 };
 
 /**

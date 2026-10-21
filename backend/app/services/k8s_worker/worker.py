@@ -198,7 +198,7 @@ exec "$@"
             namespace=pod.metadata.namespace,
             metadata=event.metadata,
         )
-        await self.producer.produce(event_to_produce=pod_created, key=event.execution_id)
+        await self.producer.produce_or_log(event_to_produce=pod_created, key=event.execution_id)
 
     async def ensure_namespace_security(self) -> None:
         """Create the executor namespace and apply its security controls at startup.

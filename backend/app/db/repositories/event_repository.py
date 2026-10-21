@@ -7,7 +7,7 @@ from beanie.odm.operators.find import BaseFindOperator
 from beanie.operators import GTE, LTE, Eq, In, Not, Or, RegEx
 from monggregate import Pipeline, S
 from opentelemetry import trace
-from pymongo.errors import DuplicateKeyError, PyMongoError
+from pymongo.errors import DuplicateKeyError
 
 from app.db.docs import EventDocument
 from app.domain.enums import EventType
@@ -57,15 +57,6 @@ class EventRepository:
             return event.event_id
         self.logger.debug("Stored event", event_id=event.event_id, event_type=event.event_type)
         return event.event_id
-
-    async def mark_publish_failed(self, event_id: str) -> None:
-        """Best-effort mark of an event as failed to publish. Never raises."""
-        try:
-            await EventDocument.find_one(
-                EventDocument.event_id == event_id,
-            ).update({"$set": {"publish_failed": True, "publish_failed_at": datetime.now(timezone.utc)}})
-        except PyMongoError as exc:
-            self.logger.warning("Could not mark event as publish-failed", event_id=event_id, error=str(exc))
 
     async def get_event(self, event_id: str) -> DomainEvent | None:
         doc = await EventDocument.find_one(EventDocument.event_id == event_id)

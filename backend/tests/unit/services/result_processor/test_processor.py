@@ -2,9 +2,12 @@ from unittest.mock import AsyncMock
 
 import pytest
 import structlog
+from aiokafka.errors import KafkaError
 from opentelemetry import trace
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from pymongo.errors import PyMongoError
 
+from app.db import EventRepository
 from app.db.docs import ExecutionDocument
 from app.domain.admin import SystemSettings
 from app.domain.enums import EventType, ExecutionErrorType, ExecutionStatus
@@ -18,6 +21,8 @@ from app.domain.events import (
     PodScheduledEvent,
     ResourceUsageDomain,
 )
+from app.events import UnifiedProducer
+from app.events.core.transport import KafkaEventTransport
 from app.runtime_registry import POD_RUNTIME_CONFIGS, parse_quantity
 from app.services.result_processor import ResultProcessor
 from app.services.runtime_settings import RuntimeSettingsLoader
@@ -33,7 +38,7 @@ _METADATA = EventMetadata(service_name="tests", service_version="1.0.0", user_id
 def _make_processor(
     tracer: trace.Tracer,
     exec_repo: AsyncMock | None = None,
-    producer: AsyncMock | None = None,
+    producer: UnifiedProducer | None = None,
     admin_memory_limit: str = "256Mi",
 ) -> ResultProcessor:
     settings_repo = AsyncMock()
@@ -64,6 +69,7 @@ class TestHandleExecutionCompleted:
 
         repo.write_terminal_result.assert_not_awaited()
         producer.produce.assert_not_awaited()
+        producer.produce_or_log.assert_not_awaited()
 
     async def test_stores_result_and_publishes(self, tracer: trace.Tracer, span_exporter: InMemorySpanExporter) -> None:
         repo = AsyncMock()
@@ -89,7 +95,7 @@ class TestHandleExecutionCompleted:
         assert result_arg.execution_id == "e1"
         assert result_arg.status == ExecutionStatus.COMPLETED
         assert result_arg.exit_code == 0
-        assert [c.kwargs["event_to_produce"].event_type for c in producer.produce.await_args_list] == [
+        assert [c.kwargs["event_to_produce"].event_type for c in producer.produce_or_log.await_args_list] == [
             EventType.EXECUTION_COMPLETED,
             EventType.RESULT_STORED,
         ]
@@ -161,7 +167,7 @@ class TestHandleExecutionFailed:
         assert result_arg.execution_id == "e2"
         assert result_arg.status == ExecutionStatus.FAILED
         assert result_arg.exit_code == 1
-        assert [c.kwargs["event_to_produce"].event_type for c in producer.produce.await_args_list] == [
+        assert [c.kwargs["event_to_produce"].event_type for c in producer.produce_or_log.await_args_list] == [
             EventType.EXECUTION_FAILED,
             EventType.RESULT_STORED,
         ]
@@ -193,7 +199,7 @@ class TestHandleExecutionTimeout:
         assert result_arg.execution_id == "e3"
         assert result_arg.status == ExecutionStatus.TIMEOUT
         assert result_arg.exit_code == -1
-        assert [c.kwargs["event_to_produce"].event_type for c in producer.produce.await_args_list] == [
+        assert [c.kwargs["event_to_produce"].event_type for c in producer.produce_or_log.await_args_list] == [
             EventType.EXECUTION_TIMEOUT,
             EventType.RESULT_STORED,
         ]
@@ -225,6 +231,7 @@ class TestResultForAFinishedExecution:
 
         repo.write_terminal_result.assert_awaited_once()
         producer.produce.assert_not_awaited()
+        producer.produce_or_log.assert_not_awaited()
 
 
 class TestHandleExecutionCancelled:
@@ -249,11 +256,58 @@ class TestHandleExecutionCancelled:
             ExecutionStatus.CANCELLED,
             None,
         )
-        assert [c.kwargs["event_to_produce"].event_type for c in producer.produce.await_args_list] == [
+        assert [c.kwargs["event_to_produce"].event_type for c in producer.produce_or_log.await_args_list] == [
             EventType.RESULT_STORED
         ]
         [span] = span_exporter.get_finished_spans()
         assert span.attributes == {"execution.status": "cancelled", "execution.lang_and_version": "python-3.11"}
+
+
+class TestKafkaOutage:
+    """After the write a Kafka error is only logged, so the pod monitor still deletes the pod and frees the slot."""
+
+    async def test_publish_failure_after_the_write_is_not_raised(self, tracer: trace.Tracer) -> None:
+        repo = AsyncMock()
+        repo.get_execution.return_value = ExecutionDocument(
+            script="x", execution_id="e6", lang="python", lang_version="3.11"
+        )
+        repo.write_terminal_result.return_value = True
+        transport = AsyncMock(spec=KafkaEventTransport)
+        transport.publish.side_effect = KafkaError("broker down")
+        producer = UnifiedProducer(AsyncMock(spec=EventRepository), transport, _test_logger, tracer)
+        processor = _make_processor(tracer, exec_repo=repo, producer=producer)
+
+        await processor.handle_execution_completed(
+            ExecutionCompletedEvent(
+                execution_id="e6", exit_code=0, resource_usage=ResourceUsageDomain(), metadata=_METADATA
+            )
+        )
+
+        repo.write_terminal_result.assert_awaited_once()
+        assert [c.args[1] for c in transport.publish.await_args_list] == [
+            EventType.EXECUTION_COMPLETED,
+            EventType.RESULT_STORED,
+        ]
+
+    async def test_failed_write_publishes_result_failed(self, tracer: trace.Tracer) -> None:
+        repo = AsyncMock()
+        repo.get_execution.return_value = ExecutionDocument(
+            script="x", execution_id="e7", lang="python", lang_version="3.11"
+        )
+        repo.write_terminal_result.side_effect = PyMongoError("mongo down")
+        producer = AsyncMock()
+        processor = _make_processor(tracer, exec_repo=repo, producer=producer)
+
+        await processor.handle_execution_completed(
+            ExecutionCompletedEvent(
+                execution_id="e7", exit_code=0, resource_usage=ResourceUsageDomain(), metadata=_METADATA
+            )
+        )
+
+        assert [c.kwargs["event_to_produce"].event_type for c in producer.produce.await_args_list] == [
+            EventType.RESULT_FAILED
+        ]
+        producer.produce_or_log.assert_not_awaited()
 
 
 class TestPodProgress:

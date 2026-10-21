@@ -8,7 +8,7 @@ Grafana runs under the `observability` compose profile. Everything it shows is p
 |------------------|------------|--------------------|----------------------------------------------------|
 | Victoria Metrics | prometheus | `victoria-metrics` | default; exemplar `trace_id` links to Jaeger       |
 | Jaeger           | jaeger     | `jaeger`           | needs Jaeger below 2.21, see [Tracing](tracing.md#jaeger) |
-| Loki             | loki       | `loki`             | `trace_id` derived field, broken today ([#294](https://github.com/HardMax71/Integr8sCode/issues/294)) |
+| Loki             | loki       | `loki`             | `trace_id` derived field links to Jaeger          |
 
 Grafana 13 downloads the prometheus and jaeger plugins on first start. `preinstall_sync` in grafana.ini makes it install them before provisioning runs, so the first start on a fresh volume needs to reach grafana.com.
 

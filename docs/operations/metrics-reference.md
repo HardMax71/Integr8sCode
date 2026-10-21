@@ -129,26 +129,21 @@ The status snapshot a stream sends first comes from the database, not Redis, and
 | `notifications_throttled_total` | counter | notification_category: general, system | `notification.throttled`: the per-user throttle; `system` for system broadcasts |
 | `notification_subscription_changes_total` | counter | notification_channel, notification_action: enabled, disabled, updated | `notification.subscription_change` |
 
-### Event replay (backend)
+### Event replay (worker)
 
-`EventReplayService`. The replay routes drive it inside backend. A TTL index in MongoDB drops finished sessions, so nothing outside the API touches them. Each step leaves a span where the service used to record a metric, and the API's scheduler runs `report_sessions` every 10 seconds for the two gauges.
+`EventReplayService` runs in the worker. The admin route counts a session when it schedules it, and the worker's job reports the stored sessions per status every 10 seconds for the gauge.
 
 | Metric | Type | Labels | Recorded from |
 |--------|------|--------|---------------|
-| `replay_sessions_created_total` | counter | replay_type, replay_target | span `replay.session_created` |
-| `replay_sessions_by_status` | gauge | replay_status | span `replay.sessions`, one per status with zeros, every 10 s: sessions the process holds in memory. Running plus paused is the active count |
+| `replay_sessions_created_total` | counter | none | span `replay.session_created`, from the API when it schedules a session |
+| `replay_sessions_by_status` | gauge | replay_status | span `replay.sessions`, one per status with zeros, every 10 s: the sessions in `replay_sessions` |
 | `replay_status_changes_total` | counter | replay_from_status, replay_to_status | span `replay.status_change` |
-| `replay_events_processed_total` | counter | replay_type, replay_event_type | span `replay.event` with `replay.result` `replayed` |
-| `replay_events_failed_total` | counter | replay_type, replay_event_type | the same span with `replay.result` `failed` |
-| `replay_event_processing_time_seconds` | histogram | replay_event_type | `replay.processing_seconds` on `replay.event`: dispatching one event |
-| `replay_duration_seconds` | histogram | replay_type | span `replay.session_completed`, completed sessions only |
-| `replay_throughput_event_per_second` | histogram | replay_type | events over duration on the same span |
-| `replay_batch_size` | histogram | replay_type | span `replay.batch` |
-| `replay_by_target_total` | counter | replay_target, replay_target_success | span `replay.target` |
-| `replay_target_errors_total` | counter | replay_target | the same span when the target failed |
-| `replay_speed_multiplier_x` | histogram | replay_type | span `replay.session_started`, one sample per session start |
-| `replay_delay_applied_seconds` | histogram | none | `replay.delay_seconds` on `replay.event`, one sample per delayed event |
-| `replay_queue_size` | gauge | none | `replay.queued_events` on span `replay.report`, every 10 s: loaded events still to send, over all sessions |
+| `replay_events_processed_total` | counter | replay_event_type | span `replay.event` with `replay.result` `replayed` |
+| `replay_events_failed_total` | counter | replay_event_type | the same span with `replay.result` `failed` |
+| `replay_event_processing_time_seconds` | histogram | replay_event_type | `replay.processing_seconds` on `replay.event`: sending one event |
+| `replay_duration_seconds` | histogram | none | span `replay.session_completed`, completed sessions only |
+| `replay_throughput_event_per_second` | histogram | none | events over duration on the same span |
+| `replay_batch_size` | histogram | none | span `replay.batch` |
 
 ### Authentication and authorization (backend)
 

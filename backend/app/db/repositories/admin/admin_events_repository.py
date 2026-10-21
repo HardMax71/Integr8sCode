@@ -25,7 +25,7 @@ from app.domain.events import (
     HourlyEventCount,
     UserEventCount,
 )
-from app.domain.replay import ReplayFilter, ReplaySessionChanges
+from app.domain.replay import ReplayFilter
 from app.domain.sse import DomainReplaySSEPayload
 
 
@@ -222,13 +222,6 @@ class AdminEventsRepository:
             Set(deletion),  # type: ignore[no-untyped-call]
             on_insert=archive_doc,
         )
-        return True
-
-    async def update_replay_session(self, session_id: str, changes: ReplaySessionChanges) -> bool:
-        doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
-        if not doc:
-            return False
-        await doc.update({"$set": changes})
         return True
 
     async def get_replay_session_doc(self, session_id: str) -> ReplaySessionDocument | None:

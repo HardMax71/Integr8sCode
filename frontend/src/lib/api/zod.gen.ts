@@ -43,16 +43,6 @@ export const zCancelResponse = z.object({
 });
 
 /**
- * CleanupResponse
- *
- * Response schema for cleanup operations
- */
-export const zCleanupResponse = z.object({
-    removed_sessions: z.int(),
-    message: z.string()
-});
-
-/**
  * ContainerStatusInfo
  *
  * Container status information from Kubernetes pod.
@@ -224,7 +214,6 @@ export const zEventReplayRequest = z.object({
     aggregate_id: z.nullish(z.string()),
     start_time: z.nullish(z.iso.datetime()),
     end_time: z.nullish(z.iso.datetime()),
-    target_service: z.nullish(z.string()),
     dry_run: z._default(z.optional(z.boolean()), true)
 });
 
@@ -1176,47 +1165,14 @@ export const zReplayError = z.object({
 });
 
 /**
- * ReplayFilter
- */
-export const zReplayFilter = z.object({
-    event_ids: z.nullish(z.array(z.string())),
-    execution_id: z.nullish(z.string()),
-    aggregate_id: z.nullish(z.string()),
-    event_types: z.nullish(z.array(zEventType)),
-    exclude_event_types: z.nullish(z.array(zEventType)),
-    start_time: z.nullish(z.iso.datetime()),
-    end_time: z.nullish(z.iso.datetime()),
-    user_id: z.nullish(z.string()),
-    service_name: z.nullish(z.string())
-});
-
-/**
- * ReplayFilterSchema
- */
-export const zReplayFilterSchema = z.object({
-    event_ids: z.nullable(z.array(z.string())),
-    execution_id: z.nullable(z.string()),
-    aggregate_id: z.nullable(z.string()),
-    event_types: z.nullable(z.array(zEventType)),
-    exclude_event_types: z.nullable(z.array(zEventType)),
-    start_time: z.nullable(z.iso.datetime()),
-    end_time: z.nullable(z.iso.datetime()),
-    user_id: z.nullable(z.string()),
-    service_name: z.nullable(z.string())
-});
-
-/**
  * ReplayStatus
  */
 export const zReplayStatus = z.enum([
     'preview',
     'scheduled',
-    'created',
     'running',
-    'paused',
     'completed',
-    'failed',
-    'cancelled'
+    'failed'
 ]);
 
 /**
@@ -1231,94 +1187,6 @@ export const zEventReplayResponse = z.object({
     session_id: z.nullable(z.string()),
     status: zReplayStatus,
     events_preview: z.nullable(z.array(zEventSummary))
-});
-
-/**
- * ReplayResponse
- *
- * Response schema for replay operations
- */
-export const zReplayResponse = z.object({
-    session_id: z.string(),
-    status: zReplayStatus,
-    message: z.string()
-});
-
-/**
- * ReplayTarget
- */
-export const zReplayTarget = z.enum([
-    'kafka',
-    'callback',
-    'file',
-    'test'
-]);
-
-/**
- * ReplayType
- */
-export const zReplayType = z.enum([
-    'execution',
-    'time_range',
-    'event_type',
-    'query',
-    'recovery'
-]);
-
-/**
- * ReplayConfigSchema
- */
-export const zReplayConfigSchema = z.object({
-    replay_type: zReplayType,
-    target: z._default(zReplayTarget, 'kafka'),
-    filter: zReplayFilterSchema,
-    speed_multiplier: z._default(z.number().check(z.gte(0.1), z.lte(100)), 1),
-    preserve_timestamps: z._default(z.boolean(), false),
-    batch_size: z._default(z.int().check(z.gte(1), z.lte(1000)), 100),
-    max_events: z.nullable(z.int().check(z.gte(1))),
-    target_file_path: z.nullable(z.string()),
-    skip_errors: z._default(z.boolean(), true),
-    retry_failed: z._default(z.boolean(), false),
-    retry_attempts: z._default(z.int(), 3),
-    enable_progress_tracking: z._default(z.boolean(), true)
-});
-
-/**
- * ReplayRequest
- *
- * Request schema for creating replay sessions
- */
-export const zReplayRequest = z.object({
-    replay_type: zReplayType,
-    target: z._default(z.optional(zReplayTarget), 'kafka'),
-    filter: z.optional(zReplayFilter),
-    speed_multiplier: z._default(z.optional(z.number().check(z.gte(0.1), z.lte(100))), 1),
-    preserve_timestamps: z._default(z.optional(z.boolean()), false),
-    batch_size: z._default(z.optional(z.int().check(z.gte(1), z.lte(1000))), 100),
-    max_events: z.nullish(z.int().check(z.gte(1))),
-    skip_errors: z._default(z.optional(z.boolean()), true),
-    target_file_path: z.nullish(z.string()),
-    retry_failed: z._default(z.optional(z.boolean()), false),
-    retry_attempts: z._default(z.optional(z.int().check(z.gte(1), z.lte(10))), 3),
-    enable_progress_tracking: z._default(z.optional(z.boolean()), true)
-});
-
-/**
- * ReplaySession
- */
-export const zReplaySession = z.object({
-    session_id: z.string(),
-    config: zReplayConfigSchema,
-    status: z._default(zReplayStatus, 'created'),
-    total_events: z._default(z.int(), 0),
-    replayed_events: z._default(z.int(), 0),
-    failed_events: z._default(z.int(), 0),
-    skipped_events: z._default(z.int(), 0),
-    created_at: z.iso.datetime(),
-    started_at: z.nullable(z.iso.datetime()),
-    completed_at: z.nullable(z.iso.datetime()),
-    last_event_at: z.nullable(z.iso.datetime()),
-    errors: z.array(zReplayError)
 });
 
 /**
@@ -1662,35 +1530,6 @@ export const zServiceUnhealthyEvent = z.object({
     service_name: z.optional(z.string()),
     health_check: z.optional(z.string()),
     reason: z.optional(z.string())
-});
-
-/**
- * SessionConfigSummary
- *
- * Lightweight config included in session listings.
- */
-export const zSessionConfigSummary = z.object({
-    replay_type: zReplayType,
-    target: zReplayTarget
-});
-
-/**
- * SessionSummary
- *
- * Summary information for replay sessions
- */
-export const zSessionSummary = z.object({
-    session_id: z.string(),
-    config: zSessionConfigSummary,
-    status: zReplayStatus,
-    total_events: z.int(),
-    replayed_events: z.int(),
-    failed_events: z.int(),
-    skipped_events: z.int(),
-    created_at: z.iso.datetime(),
-    started_at: z.nullable(z.iso.datetime()),
-    completed_at: z.nullable(z.iso.datetime()),
-    duration_seconds: z.nullable(z.number())
 });
 
 /**
@@ -2368,24 +2207,6 @@ export const zEventReplayStatusResponseWritable = z.object({
 });
 
 /**
- * SessionSummary
- *
- * Summary information for replay sessions
- */
-export const zSessionSummaryWritable = z.object({
-    session_id: z.string(),
-    config: zSessionConfigSummary,
-    status: zReplayStatus,
-    total_events: z.int(),
-    replayed_events: z.int(),
-    failed_events: z.int(),
-    skipped_events: z.int(),
-    created_at: z.iso.datetime(),
-    started_at: z.nullable(z.iso.datetime()),
-    completed_at: z.nullable(z.iso.datetime())
-});
-
-/**
  * UserCreate
  *
  * Model for creating a new user
@@ -2612,79 +2433,6 @@ export const zUpdateSavedScriptApiV1ScriptsScriptIdPutPath = z.object({
  * Successful Response
  */
 export const zUpdateSavedScriptApiV1ScriptsScriptIdPutResponse = zSavedScriptResponse;
-
-export const zListReplaySessionsApiV1ReplaySessionsGetQuery = z.object({
-    status: z.nullish(zReplayStatus),
-    limit: z._default(z.optional(z.int().check(z.gte(1), z.lte(1000))), 100)
-});
-
-/**
- * Response List Replay Sessions Api V1 Replay Sessions Get
- *
- * Successful Response
- */
-export const zListReplaySessionsApiV1ReplaySessionsGetResponse = z.array(zSessionSummary);
-
-export const zCreateReplaySessionApiV1ReplaySessionsPostBody = zReplayRequest;
-
-/**
- * Successful Response
- */
-export const zCreateReplaySessionApiV1ReplaySessionsPostResponse = zReplayResponse;
-
-export const zStartReplaySessionApiV1ReplaySessionsSessionIdStartPostPath = z.object({
-    session_id: z.string()
-});
-
-/**
- * Successful Response
- */
-export const zStartReplaySessionApiV1ReplaySessionsSessionIdStartPostResponse = zReplayResponse;
-
-export const zPauseReplaySessionApiV1ReplaySessionsSessionIdPausePostPath = z.object({
-    session_id: z.string()
-});
-
-/**
- * Successful Response
- */
-export const zPauseReplaySessionApiV1ReplaySessionsSessionIdPausePostResponse = zReplayResponse;
-
-export const zResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostPath = z.object({
-    session_id: z.string()
-});
-
-/**
- * Successful Response
- */
-export const zResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostResponse = zReplayResponse;
-
-export const zCancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostPath = z.object({
-    session_id: z.string()
-});
-
-/**
- * Successful Response
- */
-export const zCancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostResponse = zReplayResponse;
-
-export const zGetReplaySessionApiV1ReplaySessionsSessionIdGetPath = z.object({
-    session_id: z.string()
-});
-
-/**
- * Successful Response
- */
-export const zGetReplaySessionApiV1ReplaySessionsSessionIdGetResponse = zReplaySession;
-
-export const zCleanupOldSessionsApiV1ReplayCleanupPostQuery = z.object({
-    older_than_hours: z._default(z.optional(z.int().check(z.gte(1))), 24)
-});
-
-/**
- * Successful Response
- */
-export const zCleanupOldSessionsApiV1ReplayCleanupPostResponse = zCleanupResponse;
 
 /**
  * Successful Response

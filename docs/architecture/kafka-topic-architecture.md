@@ -49,15 +49,13 @@ If the worker is down, `execution_requested` and `execution_cancelled` wait in K
 
 ```mermaid
 graph LR
-    Admin[Admin API] --> ReplayService[EventReplayService]
-    ReplayService --> ReplayRepo[(ReplayRepository<br/>MongoDB)]
+    Admin[Admin API] -->|scheduled session| ReplayRepo[(ReplayRepository<br/>MongoDB)]
+    ReplayRepo --> ReplayService[Worker: EventReplayService]
     ReplayService --> Producer[UnifiedProducer]
     Producer --> Kafka[(Kafka)]
 ```
 
-`EventReplayService` reads stored events that match a filter from MongoDB in batches and publishes them again through `UnifiedProducer`, so each one goes back to the topic of its own type. The event store ignores the duplicate `event_id`, so a replay doesn't double the stored history. A session can also write events to a file instead, or go nowhere for a dry test, and the admin can pause, resume or cancel it.
-
-The service runs inside the API process, and a session's live state is kept in that process's memory. With more than one Gunicorn worker, a follow-up call for a session can land in a process that doesn't know it and get a 404. The `target_topics` field of a replay request is accepted and stored but never used. See [Event Replay](../components/event-replay.md).
+`EventReplayService` reads stored events that match a filter from MongoDB in batches and publishes them again through `UnifiedProducer`, so each one goes back to the topic of its own type. The event store ignores the duplicate `event_id`, so a replay doesn't double the stored history. The admin API only stores the session, and the worker runs it, so its state lives in MongoDB and any API process can report it. See [Event Replay](../components/event-replay.md).
 
 ## Dead letters
 

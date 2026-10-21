@@ -53,7 +53,6 @@ class TestAppInstance:
         "/api/v1/scripts",
         "/api/v1/user/settings/",
         "/api/v1/notifications",
-        "/api/v1/replay/sessions",
         "/api/v1/events/executions/{execution_id}",
         "/api/v1/admin/users/",
         "/api/v1/admin/settings/",

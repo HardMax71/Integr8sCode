@@ -54,7 +54,6 @@ def create_app_container(settings: Settings) -> AsyncContainer:
         UserServicesProvider(),
         RuntimeSettingsProvider(),
         AdminServicesProvider(),
-        EventReplayProvider(),
         BusinessServicesProvider(),
         FastapiProvider(),
         context={Settings: settings},
@@ -80,5 +79,7 @@ def create_worker_container(settings: Settings) -> AsyncContainer:
         PodMonitorProvider(),
         ResultProcessorProvider(),
         ExecutionSchedulerProvider(),
+        SSEProvider(),
+        EventReplayProvider(),
         context={Settings: settings},
     )

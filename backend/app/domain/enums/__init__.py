@@ -13,7 +13,7 @@ from app.domain.enums.notification import (
     NotificationSeverity,
     NotificationStatus,
 )
-from app.domain.enums.replay import REPLAY_TERMINAL, ReplayStatus, ReplayTarget, ReplayType
+from app.domain.enums.replay import REPLAY_TERMINAL, ReplayStatus
 from app.domain.enums.sse import SSEControlEvent
 from app.domain.enums.storage import ExecutionErrorType, StorageType
 from app.domain.enums.user import UserRole
@@ -43,8 +43,6 @@ __all__ = [
     # Replay
     "REPLAY_TERMINAL",
     "ReplayStatus",
-    "ReplayTarget",
-    "ReplayType",
     # SSE
     "SSEControlEvent",
     # Storage

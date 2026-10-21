@@ -8,7 +8,7 @@ graph LR
     Kafka -->|17 event types| Bridge["sse-bridge-pool subscriber<br/>(API process)"]
     Bridge -->|"sse:exec:{id}"| Redis[(Redis pub/sub)]
     Notif["NotificationService<br/>(API process)"] -->|"sse:notif:{user_id}"| Redis
-    Replay["EventReplayService<br/>(API process)"] -->|"sse:replay:{session_id}"| Redis
+    Replay["EventReplayService<br/>(worker)"] -->|"sse:replay:{session_id}"| Redis
     Redis --> SSE[SSEService]
     SSE -->|text/event-stream| Browser
 ```
@@ -34,7 +34,7 @@ The only pool is this subscriber. `SSE_CONSUMER_POOL_SIZE` (10 in config.toml) i
 |----------|---------|--------------|
 | `GET /api/v1/events/executions/{execution_id}` | `sse:exec:{execution_id}` | the Kafka bridge |
 | `GET /api/v1/events/notifications/stream` | `sse:notif:{user_id}` | `NotificationService` |
-| `GET /api/v1/admin/events/replay/{session_id}/status` | `sse:replay:{session_id}` | `EventReplayService` |
+| `GET /api/v1/admin/events/replay/{session_id}/status` | `sse:replay:{session_id}` | `EventReplayService` in the worker |
 
 All three need a logged-in user, and the replay stream needs an admin. The execution stream returns 404 for an unknown execution and 403 when the execution belongs to someone else, unless the caller is an admin. Those checks run before streaming starts, so they come back as normal HTTP errors.
 

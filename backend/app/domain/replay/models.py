@@ -1,25 +1,8 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, TypedDict
+from typing import Any
 
-from app.domain.enums import EventType, ReplayStatus, ReplayTarget, ReplayType
-
-
-@dataclass
-class ReplayOperationResult:
-    """Domain result for replay session operations."""
-
-    session_id: str
-    status: ReplayStatus
-    message: str
-
-
-@dataclass
-class CleanupResult:
-    """Domain result for cleanup operations."""
-
-    removed_sessions: int
-    message: str
+from app.domain.enums import EventType
 
 
 # --8<-- [start:ReplayError]
@@ -120,31 +103,7 @@ class ReplayFilter:
 
 @dataclass
 class ReplayConfig:
-    replay_type: ReplayType
-    target: ReplayTarget = ReplayTarget.KAFKA
-    filter: ReplayFilter = field(default_factory=ReplayFilter)
+    """What a replay session sends again: the stored events that match the filter, up to max_events."""
 
-    speed_multiplier: float = 1.0
-    preserve_timestamps: bool = False
-    batch_size: int = 100
-    max_events: int | None = None
-
-    target_file_path: str | None = None
-
-    skip_errors: bool = True
-    retry_failed: bool = False
-    retry_attempts: int = 3
-
-    enable_progress_tracking: bool = True
-
-
-class ReplaySessionChanges(TypedDict, total=False):
-    """Fields an update sets on a replay session; a missing key keeps the stored value."""
-
-    status: ReplayStatus
-    total_events: int
-    replayed_events: int
-    failed_events: int
-    skipped_events: int
-    replay_id: str
-    completed_at: datetime | None
+    filter: ReplayFilter
+    max_events: int

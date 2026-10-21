@@ -3,8 +3,8 @@
 import { type InfiniteData, infiniteQueryOptions, type MutationOptions, queryOptions } from '@tanstack/svelte-query';
 
 import { client } from '../client.gen';
-import { browseEventsApiV1AdminEventsBrowsePost, cancelExecutionApiV1ExecutionsExecutionIdCancelPost, cancelReplaySessionApiV1ReplaySessionsSessionIdCancelPost, cleanupOldSessionsApiV1ReplayCleanupPost, createExecutionApiV1ExecutePost, createReplaySessionApiV1ReplaySessionsPost, createSavedScriptApiV1ScriptsPost, createUserApiV1AdminUsersPost, deleteEventApiV1AdminEventsEventIdDelete, deleteExecutionApiV1ExecutionsExecutionIdDelete, deleteNotificationApiV1NotificationsNotificationIdDelete, deleteSavedScriptApiV1ScriptsScriptIdDelete, deleteUserApiV1AdminUsersUserIdDelete, exportEventsApiV1AdminEventsExportExportFormatGet, getCurrentUserProfileApiV1AuthMeGet, getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet, getEventDetailApiV1AdminEventsEventIdGet, getEventStatsApiV1AdminEventsStatsGet, getExampleScriptsApiV1ExampleScriptsGet, getExecutionEventsApiV1ExecutionsExecutionIdEventsGet, getK8sResourceLimitsApiV1K8sLimitsGet, getNotificationsApiV1NotificationsGet, getQueueStatusApiV1AdminExecutionsQueueGet, getReplaySessionApiV1ReplaySessionsSessionIdGet, getResultApiV1ExecutionsExecutionIdResultGet, getSavedScriptApiV1ScriptsScriptIdGet, getSettingsHistoryApiV1UserSettingsHistoryGet, getSubscriptionsApiV1NotificationsSubscriptionsGet, getSystemSettingsApiV1AdminSettingsGet, getUnreadCountApiV1NotificationsUnreadCountGet, getUserApiV1AdminUsersUserIdGet, getUserExecutionsApiV1UserExecutionsGet, getUserOverviewApiV1AdminUsersUserIdOverviewGet, getUserRateLimitsApiV1AdminRateLimitsUserIdGet, getUserSettingsApiV1UserSettingsGet, listExecutionsApiV1AdminExecutionsGet, listReplaySessionsApiV1ReplaySessionsGet, listSavedScriptsApiV1ScriptsGet, listUsersApiV1AdminUsersGet, livenessApiV1HealthLiveGet, loginApiV1AuthLoginPost, logoutApiV1AuthLogoutPost, markAllReadApiV1NotificationsMarkAllReadPost, markNotificationReadApiV1NotificationsNotificationIdReadPut, type Options, pauseReplaySessionApiV1ReplaySessionsSessionIdPausePost, registerApiV1AuthRegisterPost, replayEventsApiV1AdminEventsReplayPost, resetSystemSettingsApiV1AdminSettingsResetPost, resetUserPasswordApiV1AdminUsersUserIdResetPasswordPost, resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost, restoreSettingsApiV1UserSettingsRestorePost, resumeReplaySessionApiV1ReplaySessionsSessionIdResumePost, retryExecutionApiV1ExecutionsExecutionIdRetryPost, startReplaySessionApiV1ReplaySessionsSessionIdStartPost, unlockUserApiV1AdminUsersUserIdUnlockPost, updateCustomSettingApiV1UserSettingsCustomKeyPut, updateEditorSettingsApiV1UserSettingsEditorPut, updateNotificationSettingsApiV1UserSettingsNotificationsPut, updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut, updateSavedScriptApiV1ScriptsScriptIdPut, updateSubscriptionApiV1NotificationsSubscriptionsChannelPut, updateSystemSettingsApiV1AdminSettingsPut, updateThemeApiV1UserSettingsThemePut, updateUserApiV1AdminUsersUserIdPut, updateUserRateLimitsApiV1AdminRateLimitsUserIdPut, updateUserSettingsApiV1UserSettingsPut } from '../sdk.gen';
-import type { BrowseEventsApiV1AdminEventsBrowsePostData, BrowseEventsApiV1AdminEventsBrowsePostError, BrowseEventsApiV1AdminEventsBrowsePostResponse, CancelExecutionApiV1ExecutionsExecutionIdCancelPostData, CancelExecutionApiV1ExecutionsExecutionIdCancelPostError, CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponse, CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostData, CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostError, CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostResponse, CleanupOldSessionsApiV1ReplayCleanupPostData, CleanupOldSessionsApiV1ReplayCleanupPostError, CleanupOldSessionsApiV1ReplayCleanupPostResponse, CreateExecutionApiV1ExecutePostData, CreateExecutionApiV1ExecutePostError, CreateExecutionApiV1ExecutePostResponse, CreateReplaySessionApiV1ReplaySessionsPostData, CreateReplaySessionApiV1ReplaySessionsPostError, CreateReplaySessionApiV1ReplaySessionsPostResponse, CreateSavedScriptApiV1ScriptsPostData, CreateSavedScriptApiV1ScriptsPostError, CreateSavedScriptApiV1ScriptsPostResponse, CreateUserApiV1AdminUsersPostData, CreateUserApiV1AdminUsersPostError, CreateUserApiV1AdminUsersPostResponse, DeleteEventApiV1AdminEventsEventIdDeleteData, DeleteEventApiV1AdminEventsEventIdDeleteError, DeleteEventApiV1AdminEventsEventIdDeleteResponse, DeleteExecutionApiV1ExecutionsExecutionIdDeleteData, DeleteExecutionApiV1ExecutionsExecutionIdDeleteError, DeleteExecutionApiV1ExecutionsExecutionIdDeleteResponse, DeleteNotificationApiV1NotificationsNotificationIdDeleteData, DeleteNotificationApiV1NotificationsNotificationIdDeleteError, DeleteNotificationApiV1NotificationsNotificationIdDeleteResponse, DeleteSavedScriptApiV1ScriptsScriptIdDeleteData, DeleteSavedScriptApiV1ScriptsScriptIdDeleteError, DeleteSavedScriptApiV1ScriptsScriptIdDeleteResponse, DeleteUserApiV1AdminUsersUserIdDeleteData, DeleteUserApiV1AdminUsersUserIdDeleteError, DeleteUserApiV1AdminUsersUserIdDeleteResponse, ExportEventsApiV1AdminEventsExportExportFormatGetData, ExportEventsApiV1AdminEventsExportExportFormatGetError, GetCurrentUserProfileApiV1AuthMeGetData, GetCurrentUserProfileApiV1AuthMeGetError, GetCurrentUserProfileApiV1AuthMeGetResponse, GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetData, GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetError, GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetResponse, GetEventDetailApiV1AdminEventsEventIdGetData, GetEventDetailApiV1AdminEventsEventIdGetError, GetEventDetailApiV1AdminEventsEventIdGetResponse, GetEventStatsApiV1AdminEventsStatsGetData, GetEventStatsApiV1AdminEventsStatsGetError, GetEventStatsApiV1AdminEventsStatsGetResponse, GetExampleScriptsApiV1ExampleScriptsGetData, GetExampleScriptsApiV1ExampleScriptsGetError, GetExampleScriptsApiV1ExampleScriptsGetResponse, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetData, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetError, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponse, GetK8sResourceLimitsApiV1K8sLimitsGetData, GetK8sResourceLimitsApiV1K8sLimitsGetError, GetK8sResourceLimitsApiV1K8sLimitsGetResponse, GetNotificationsApiV1NotificationsGetData, GetNotificationsApiV1NotificationsGetError, GetNotificationsApiV1NotificationsGetResponse, GetQueueStatusApiV1AdminExecutionsQueueGetData, GetQueueStatusApiV1AdminExecutionsQueueGetError, GetQueueStatusApiV1AdminExecutionsQueueGetResponse, GetReplaySessionApiV1ReplaySessionsSessionIdGetData, GetReplaySessionApiV1ReplaySessionsSessionIdGetError, GetReplaySessionApiV1ReplaySessionsSessionIdGetResponse, GetResultApiV1ExecutionsExecutionIdResultGetData, GetResultApiV1ExecutionsExecutionIdResultGetError, GetResultApiV1ExecutionsExecutionIdResultGetResponse, GetSavedScriptApiV1ScriptsScriptIdGetData, GetSavedScriptApiV1ScriptsScriptIdGetError, GetSavedScriptApiV1ScriptsScriptIdGetResponse, GetSettingsHistoryApiV1UserSettingsHistoryGetData, GetSettingsHistoryApiV1UserSettingsHistoryGetError, GetSettingsHistoryApiV1UserSettingsHistoryGetResponse, GetSubscriptionsApiV1NotificationsSubscriptionsGetData, GetSubscriptionsApiV1NotificationsSubscriptionsGetError, GetSubscriptionsApiV1NotificationsSubscriptionsGetResponse, GetSystemSettingsApiV1AdminSettingsGetData, GetSystemSettingsApiV1AdminSettingsGetError, GetSystemSettingsApiV1AdminSettingsGetResponse, GetUnreadCountApiV1NotificationsUnreadCountGetData, GetUnreadCountApiV1NotificationsUnreadCountGetError, GetUnreadCountApiV1NotificationsUnreadCountGetResponse, GetUserApiV1AdminUsersUserIdGetData, GetUserApiV1AdminUsersUserIdGetError, GetUserApiV1AdminUsersUserIdGetResponse, GetUserExecutionsApiV1UserExecutionsGetData, GetUserExecutionsApiV1UserExecutionsGetError, GetUserExecutionsApiV1UserExecutionsGetResponse, GetUserOverviewApiV1AdminUsersUserIdOverviewGetData, GetUserOverviewApiV1AdminUsersUserIdOverviewGetError, GetUserOverviewApiV1AdminUsersUserIdOverviewGetResponse, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetData, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetError, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetResponse, GetUserSettingsApiV1UserSettingsGetData, GetUserSettingsApiV1UserSettingsGetError, GetUserSettingsApiV1UserSettingsGetResponse, ListExecutionsApiV1AdminExecutionsGetData, ListExecutionsApiV1AdminExecutionsGetError, ListExecutionsApiV1AdminExecutionsGetResponse, ListReplaySessionsApiV1ReplaySessionsGetData, ListReplaySessionsApiV1ReplaySessionsGetError, ListReplaySessionsApiV1ReplaySessionsGetResponse, ListSavedScriptsApiV1ScriptsGetData, ListSavedScriptsApiV1ScriptsGetError, ListSavedScriptsApiV1ScriptsGetResponse, ListUsersApiV1AdminUsersGetData, ListUsersApiV1AdminUsersGetError, ListUsersApiV1AdminUsersGetResponse, LivenessApiV1HealthLiveGetData, LivenessApiV1HealthLiveGetError, LivenessApiV1HealthLiveGetResponse, LoginApiV1AuthLoginPostData, LoginApiV1AuthLoginPostError, LoginApiV1AuthLoginPostResponse, LogoutApiV1AuthLogoutPostData, LogoutApiV1AuthLogoutPostError, LogoutApiV1AuthLogoutPostResponse, MarkAllReadApiV1NotificationsMarkAllReadPostData, MarkAllReadApiV1NotificationsMarkAllReadPostError, MarkAllReadApiV1NotificationsMarkAllReadPostResponse, MarkNotificationReadApiV1NotificationsNotificationIdReadPutData, MarkNotificationReadApiV1NotificationsNotificationIdReadPutError, MarkNotificationReadApiV1NotificationsNotificationIdReadPutResponse, PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostData, PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostError, PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostResponse, RegisterApiV1AuthRegisterPostData, RegisterApiV1AuthRegisterPostError, RegisterApiV1AuthRegisterPostResponse, ReplayEventsApiV1AdminEventsReplayPostData, ReplayEventsApiV1AdminEventsReplayPostError, ReplayEventsApiV1AdminEventsReplayPostResponse, ResetSystemSettingsApiV1AdminSettingsResetPostData, ResetSystemSettingsApiV1AdminSettingsResetPostError, ResetSystemSettingsApiV1AdminSettingsResetPostResponse, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostData, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostError, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostResponse, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostData, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostError, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostResponse, RestoreSettingsApiV1UserSettingsRestorePostData, RestoreSettingsApiV1UserSettingsRestorePostError, RestoreSettingsApiV1UserSettingsRestorePostResponse, ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostData, ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostError, ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostResponse, RetryExecutionApiV1ExecutionsExecutionIdRetryPostData, RetryExecutionApiV1ExecutionsExecutionIdRetryPostError, RetryExecutionApiV1ExecutionsExecutionIdRetryPostResponse, StartReplaySessionApiV1ReplaySessionsSessionIdStartPostData, StartReplaySessionApiV1ReplaySessionsSessionIdStartPostError, StartReplaySessionApiV1ReplaySessionsSessionIdStartPostResponse, UnlockUserApiV1AdminUsersUserIdUnlockPostData, UnlockUserApiV1AdminUsersUserIdUnlockPostError, UnlockUserApiV1AdminUsersUserIdUnlockPostResponse, UpdateCustomSettingApiV1UserSettingsCustomKeyPutData, UpdateCustomSettingApiV1UserSettingsCustomKeyPutError, UpdateCustomSettingApiV1UserSettingsCustomKeyPutResponse, UpdateEditorSettingsApiV1UserSettingsEditorPutData, UpdateEditorSettingsApiV1UserSettingsEditorPutError, UpdateEditorSettingsApiV1UserSettingsEditorPutResponse, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutData, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutError, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutResponse, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutData, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutError, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutResponse, UpdateSavedScriptApiV1ScriptsScriptIdPutData, UpdateSavedScriptApiV1ScriptsScriptIdPutError, UpdateSavedScriptApiV1ScriptsScriptIdPutResponse, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutData, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutError, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponse, UpdateSystemSettingsApiV1AdminSettingsPutData, UpdateSystemSettingsApiV1AdminSettingsPutError, UpdateSystemSettingsApiV1AdminSettingsPutResponse, UpdateThemeApiV1UserSettingsThemePutData, UpdateThemeApiV1UserSettingsThemePutError, UpdateThemeApiV1UserSettingsThemePutResponse, UpdateUserApiV1AdminUsersUserIdPutData, UpdateUserApiV1AdminUsersUserIdPutError, UpdateUserApiV1AdminUsersUserIdPutResponse, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutData, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutError, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutResponse, UpdateUserSettingsApiV1UserSettingsPutData, UpdateUserSettingsApiV1UserSettingsPutError, UpdateUserSettingsApiV1UserSettingsPutResponse } from '../types.gen';
+import { browseEventsApiV1AdminEventsBrowsePost, cancelExecutionApiV1ExecutionsExecutionIdCancelPost, createExecutionApiV1ExecutePost, createSavedScriptApiV1ScriptsPost, createUserApiV1AdminUsersPost, deleteEventApiV1AdminEventsEventIdDelete, deleteExecutionApiV1ExecutionsExecutionIdDelete, deleteNotificationApiV1NotificationsNotificationIdDelete, deleteSavedScriptApiV1ScriptsScriptIdDelete, deleteUserApiV1AdminUsersUserIdDelete, exportEventsApiV1AdminEventsExportExportFormatGet, getCurrentUserProfileApiV1AuthMeGet, getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet, getEventDetailApiV1AdminEventsEventIdGet, getEventStatsApiV1AdminEventsStatsGet, getExampleScriptsApiV1ExampleScriptsGet, getExecutionEventsApiV1ExecutionsExecutionIdEventsGet, getK8sResourceLimitsApiV1K8sLimitsGet, getNotificationsApiV1NotificationsGet, getQueueStatusApiV1AdminExecutionsQueueGet, getResultApiV1ExecutionsExecutionIdResultGet, getSavedScriptApiV1ScriptsScriptIdGet, getSettingsHistoryApiV1UserSettingsHistoryGet, getSubscriptionsApiV1NotificationsSubscriptionsGet, getSystemSettingsApiV1AdminSettingsGet, getUnreadCountApiV1NotificationsUnreadCountGet, getUserApiV1AdminUsersUserIdGet, getUserExecutionsApiV1UserExecutionsGet, getUserOverviewApiV1AdminUsersUserIdOverviewGet, getUserRateLimitsApiV1AdminRateLimitsUserIdGet, getUserSettingsApiV1UserSettingsGet, listExecutionsApiV1AdminExecutionsGet, listSavedScriptsApiV1ScriptsGet, listUsersApiV1AdminUsersGet, livenessApiV1HealthLiveGet, loginApiV1AuthLoginPost, logoutApiV1AuthLogoutPost, markAllReadApiV1NotificationsMarkAllReadPost, markNotificationReadApiV1NotificationsNotificationIdReadPut, type Options, registerApiV1AuthRegisterPost, replayEventsApiV1AdminEventsReplayPost, resetSystemSettingsApiV1AdminSettingsResetPost, resetUserPasswordApiV1AdminUsersUserIdResetPasswordPost, resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost, restoreSettingsApiV1UserSettingsRestorePost, retryExecutionApiV1ExecutionsExecutionIdRetryPost, unlockUserApiV1AdminUsersUserIdUnlockPost, updateCustomSettingApiV1UserSettingsCustomKeyPut, updateEditorSettingsApiV1UserSettingsEditorPut, updateNotificationSettingsApiV1UserSettingsNotificationsPut, updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut, updateSavedScriptApiV1ScriptsScriptIdPut, updateSubscriptionApiV1NotificationsSubscriptionsChannelPut, updateSystemSettingsApiV1AdminSettingsPut, updateThemeApiV1UserSettingsThemePut, updateUserApiV1AdminUsersUserIdPut, updateUserRateLimitsApiV1AdminRateLimitsUserIdPut, updateUserSettingsApiV1UserSettingsPut } from '../sdk.gen';
+import type { BrowseEventsApiV1AdminEventsBrowsePostData, BrowseEventsApiV1AdminEventsBrowsePostError, BrowseEventsApiV1AdminEventsBrowsePostResponse, CancelExecutionApiV1ExecutionsExecutionIdCancelPostData, CancelExecutionApiV1ExecutionsExecutionIdCancelPostError, CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponse, CreateExecutionApiV1ExecutePostData, CreateExecutionApiV1ExecutePostError, CreateExecutionApiV1ExecutePostResponse, CreateSavedScriptApiV1ScriptsPostData, CreateSavedScriptApiV1ScriptsPostError, CreateSavedScriptApiV1ScriptsPostResponse, CreateUserApiV1AdminUsersPostData, CreateUserApiV1AdminUsersPostError, CreateUserApiV1AdminUsersPostResponse, DeleteEventApiV1AdminEventsEventIdDeleteData, DeleteEventApiV1AdminEventsEventIdDeleteError, DeleteEventApiV1AdminEventsEventIdDeleteResponse, DeleteExecutionApiV1ExecutionsExecutionIdDeleteData, DeleteExecutionApiV1ExecutionsExecutionIdDeleteError, DeleteExecutionApiV1ExecutionsExecutionIdDeleteResponse, DeleteNotificationApiV1NotificationsNotificationIdDeleteData, DeleteNotificationApiV1NotificationsNotificationIdDeleteError, DeleteNotificationApiV1NotificationsNotificationIdDeleteResponse, DeleteSavedScriptApiV1ScriptsScriptIdDeleteData, DeleteSavedScriptApiV1ScriptsScriptIdDeleteError, DeleteSavedScriptApiV1ScriptsScriptIdDeleteResponse, DeleteUserApiV1AdminUsersUserIdDeleteData, DeleteUserApiV1AdminUsersUserIdDeleteError, DeleteUserApiV1AdminUsersUserIdDeleteResponse, ExportEventsApiV1AdminEventsExportExportFormatGetData, ExportEventsApiV1AdminEventsExportExportFormatGetError, GetCurrentUserProfileApiV1AuthMeGetData, GetCurrentUserProfileApiV1AuthMeGetError, GetCurrentUserProfileApiV1AuthMeGetResponse, GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetData, GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetError, GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetResponse, GetEventDetailApiV1AdminEventsEventIdGetData, GetEventDetailApiV1AdminEventsEventIdGetError, GetEventDetailApiV1AdminEventsEventIdGetResponse, GetEventStatsApiV1AdminEventsStatsGetData, GetEventStatsApiV1AdminEventsStatsGetError, GetEventStatsApiV1AdminEventsStatsGetResponse, GetExampleScriptsApiV1ExampleScriptsGetData, GetExampleScriptsApiV1ExampleScriptsGetError, GetExampleScriptsApiV1ExampleScriptsGetResponse, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetData, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetError, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponse, GetK8sResourceLimitsApiV1K8sLimitsGetData, GetK8sResourceLimitsApiV1K8sLimitsGetError, GetK8sResourceLimitsApiV1K8sLimitsGetResponse, GetNotificationsApiV1NotificationsGetData, GetNotificationsApiV1NotificationsGetError, GetNotificationsApiV1NotificationsGetResponse, GetQueueStatusApiV1AdminExecutionsQueueGetData, GetQueueStatusApiV1AdminExecutionsQueueGetError, GetQueueStatusApiV1AdminExecutionsQueueGetResponse, GetResultApiV1ExecutionsExecutionIdResultGetData, GetResultApiV1ExecutionsExecutionIdResultGetError, GetResultApiV1ExecutionsExecutionIdResultGetResponse, GetSavedScriptApiV1ScriptsScriptIdGetData, GetSavedScriptApiV1ScriptsScriptIdGetError, GetSavedScriptApiV1ScriptsScriptIdGetResponse, GetSettingsHistoryApiV1UserSettingsHistoryGetData, GetSettingsHistoryApiV1UserSettingsHistoryGetError, GetSettingsHistoryApiV1UserSettingsHistoryGetResponse, GetSubscriptionsApiV1NotificationsSubscriptionsGetData, GetSubscriptionsApiV1NotificationsSubscriptionsGetError, GetSubscriptionsApiV1NotificationsSubscriptionsGetResponse, GetSystemSettingsApiV1AdminSettingsGetData, GetSystemSettingsApiV1AdminSettingsGetError, GetSystemSettingsApiV1AdminSettingsGetResponse, GetUnreadCountApiV1NotificationsUnreadCountGetData, GetUnreadCountApiV1NotificationsUnreadCountGetError, GetUnreadCountApiV1NotificationsUnreadCountGetResponse, GetUserApiV1AdminUsersUserIdGetData, GetUserApiV1AdminUsersUserIdGetError, GetUserApiV1AdminUsersUserIdGetResponse, GetUserExecutionsApiV1UserExecutionsGetData, GetUserExecutionsApiV1UserExecutionsGetError, GetUserExecutionsApiV1UserExecutionsGetResponse, GetUserOverviewApiV1AdminUsersUserIdOverviewGetData, GetUserOverviewApiV1AdminUsersUserIdOverviewGetError, GetUserOverviewApiV1AdminUsersUserIdOverviewGetResponse, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetData, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetError, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetResponse, GetUserSettingsApiV1UserSettingsGetData, GetUserSettingsApiV1UserSettingsGetError, GetUserSettingsApiV1UserSettingsGetResponse, ListExecutionsApiV1AdminExecutionsGetData, ListExecutionsApiV1AdminExecutionsGetError, ListExecutionsApiV1AdminExecutionsGetResponse, ListSavedScriptsApiV1ScriptsGetData, ListSavedScriptsApiV1ScriptsGetError, ListSavedScriptsApiV1ScriptsGetResponse, ListUsersApiV1AdminUsersGetData, ListUsersApiV1AdminUsersGetError, ListUsersApiV1AdminUsersGetResponse, LivenessApiV1HealthLiveGetData, LivenessApiV1HealthLiveGetError, LivenessApiV1HealthLiveGetResponse, LoginApiV1AuthLoginPostData, LoginApiV1AuthLoginPostError, LoginApiV1AuthLoginPostResponse, LogoutApiV1AuthLogoutPostData, LogoutApiV1AuthLogoutPostError, LogoutApiV1AuthLogoutPostResponse, MarkAllReadApiV1NotificationsMarkAllReadPostData, MarkAllReadApiV1NotificationsMarkAllReadPostError, MarkAllReadApiV1NotificationsMarkAllReadPostResponse, MarkNotificationReadApiV1NotificationsNotificationIdReadPutData, MarkNotificationReadApiV1NotificationsNotificationIdReadPutError, MarkNotificationReadApiV1NotificationsNotificationIdReadPutResponse, RegisterApiV1AuthRegisterPostData, RegisterApiV1AuthRegisterPostError, RegisterApiV1AuthRegisterPostResponse, ReplayEventsApiV1AdminEventsReplayPostData, ReplayEventsApiV1AdminEventsReplayPostError, ReplayEventsApiV1AdminEventsReplayPostResponse, ResetSystemSettingsApiV1AdminSettingsResetPostData, ResetSystemSettingsApiV1AdminSettingsResetPostError, ResetSystemSettingsApiV1AdminSettingsResetPostResponse, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostData, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostError, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostResponse, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostData, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostError, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostResponse, RestoreSettingsApiV1UserSettingsRestorePostData, RestoreSettingsApiV1UserSettingsRestorePostError, RestoreSettingsApiV1UserSettingsRestorePostResponse, RetryExecutionApiV1ExecutionsExecutionIdRetryPostData, RetryExecutionApiV1ExecutionsExecutionIdRetryPostError, RetryExecutionApiV1ExecutionsExecutionIdRetryPostResponse, UnlockUserApiV1AdminUsersUserIdUnlockPostData, UnlockUserApiV1AdminUsersUserIdUnlockPostError, UnlockUserApiV1AdminUsersUserIdUnlockPostResponse, UpdateCustomSettingApiV1UserSettingsCustomKeyPutData, UpdateCustomSettingApiV1UserSettingsCustomKeyPutError, UpdateCustomSettingApiV1UserSettingsCustomKeyPutResponse, UpdateEditorSettingsApiV1UserSettingsEditorPutData, UpdateEditorSettingsApiV1UserSettingsEditorPutError, UpdateEditorSettingsApiV1UserSettingsEditorPutResponse, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutData, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutError, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutResponse, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutData, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutError, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutResponse, UpdateSavedScriptApiV1ScriptsScriptIdPutData, UpdateSavedScriptApiV1ScriptsScriptIdPutError, UpdateSavedScriptApiV1ScriptsScriptIdPutResponse, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutData, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutError, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponse, UpdateSystemSettingsApiV1AdminSettingsPutData, UpdateSystemSettingsApiV1AdminSettingsPutError, UpdateSystemSettingsApiV1AdminSettingsPutResponse, UpdateThemeApiV1UserSettingsThemePutData, UpdateThemeApiV1UserSettingsThemePutError, UpdateThemeApiV1UserSettingsThemePutResponse, UpdateUserApiV1AdminUsersUserIdPutData, UpdateUserApiV1AdminUsersUserIdPutError, UpdateUserApiV1AdminUsersUserIdPutResponse, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutData, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutError, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutResponse, UpdateUserSettingsApiV1UserSettingsPutData, UpdateUserSettingsApiV1UserSettingsPutError, UpdateUserSettingsApiV1UserSettingsPutResponse } from '../types.gen';
 
 /**
  * Login
@@ -389,160 +389,6 @@ export const updateSavedScriptApiV1ScriptsScriptIdPutMutation = (options?: Parti
     return mutationOptions;
 };
 
-export const listReplaySessionsApiV1ReplaySessionsGetQueryKey = (options?: Options<ListReplaySessionsApiV1ReplaySessionsGetData>) => createQueryKey('listReplaySessionsApiV1ReplaySessionsGet', options);
-
-/**
- * List Replay Sessions
- *
- * List replay sessions with optional status filtering.
- */
-export const listReplaySessionsApiV1ReplaySessionsGetOptions = (options?: Options<ListReplaySessionsApiV1ReplaySessionsGetData>) => queryOptions<ListReplaySessionsApiV1ReplaySessionsGetResponse, ListReplaySessionsApiV1ReplaySessionsGetError, ListReplaySessionsApiV1ReplaySessionsGetResponse, ReturnType<typeof listReplaySessionsApiV1ReplaySessionsGetQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await listReplaySessionsApiV1ReplaySessionsGet({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: listReplaySessionsApiV1ReplaySessionsGetQueryKey(options)
-});
-
-/**
- * Create Replay Session
- *
- * Create a new event replay session from a configuration.
- */
-export const createReplaySessionApiV1ReplaySessionsPostMutation = (options?: Partial<Options<CreateReplaySessionApiV1ReplaySessionsPostData>>): MutationOptions<CreateReplaySessionApiV1ReplaySessionsPostResponse, CreateReplaySessionApiV1ReplaySessionsPostError, Options<CreateReplaySessionApiV1ReplaySessionsPostData>> => {
-    const mutationOptions: MutationOptions<CreateReplaySessionApiV1ReplaySessionsPostResponse, CreateReplaySessionApiV1ReplaySessionsPostError, Options<CreateReplaySessionApiV1ReplaySessionsPostData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await createReplaySessionApiV1ReplaySessionsPost({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Start Replay Session
- *
- * Start a previously created replay session.
- */
-export const startReplaySessionApiV1ReplaySessionsSessionIdStartPostMutation = (options?: Partial<Options<StartReplaySessionApiV1ReplaySessionsSessionIdStartPostData>>): MutationOptions<StartReplaySessionApiV1ReplaySessionsSessionIdStartPostResponse, StartReplaySessionApiV1ReplaySessionsSessionIdStartPostError, Options<StartReplaySessionApiV1ReplaySessionsSessionIdStartPostData>> => {
-    const mutationOptions: MutationOptions<StartReplaySessionApiV1ReplaySessionsSessionIdStartPostResponse, StartReplaySessionApiV1ReplaySessionsSessionIdStartPostError, Options<StartReplaySessionApiV1ReplaySessionsSessionIdStartPostData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await startReplaySessionApiV1ReplaySessionsSessionIdStartPost({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Pause Replay Session
- *
- * Pause a running replay session.
- */
-export const pauseReplaySessionApiV1ReplaySessionsSessionIdPausePostMutation = (options?: Partial<Options<PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostData>>): MutationOptions<PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostResponse, PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostError, Options<PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostData>> => {
-    const mutationOptions: MutationOptions<PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostResponse, PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostError, Options<PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await pauseReplaySessionApiV1ReplaySessionsSessionIdPausePost({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Resume Replay Session
- *
- * Resume a paused replay session.
- */
-export const resumeReplaySessionApiV1ReplaySessionsSessionIdResumePostMutation = (options?: Partial<Options<ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostData>>): MutationOptions<ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostResponse, ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostError, Options<ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostData>> => {
-    const mutationOptions: MutationOptions<ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostResponse, ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostError, Options<ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await resumeReplaySessionApiV1ReplaySessionsSessionIdResumePost({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Cancel Replay Session
- *
- * Cancel and stop a replay session.
- */
-export const cancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostMutation = (options?: Partial<Options<CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostData>>): MutationOptions<CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostResponse, CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostError, Options<CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostData>> => {
-    const mutationOptions: MutationOptions<CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostResponse, CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostError, Options<CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await cancelReplaySessionApiV1ReplaySessionsSessionIdCancelPost({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const getReplaySessionApiV1ReplaySessionsSessionIdGetQueryKey = (options: Options<GetReplaySessionApiV1ReplaySessionsSessionIdGetData>) => createQueryKey('getReplaySessionApiV1ReplaySessionsSessionIdGet', options);
-
-/**
- * Get Replay Session
- *
- * Get full details of a replay session.
- */
-export const getReplaySessionApiV1ReplaySessionsSessionIdGetOptions = (options: Options<GetReplaySessionApiV1ReplaySessionsSessionIdGetData>) => queryOptions<GetReplaySessionApiV1ReplaySessionsSessionIdGetResponse, GetReplaySessionApiV1ReplaySessionsSessionIdGetError, GetReplaySessionApiV1ReplaySessionsSessionIdGetResponse, ReturnType<typeof getReplaySessionApiV1ReplaySessionsSessionIdGetQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await getReplaySessionApiV1ReplaySessionsSessionIdGet({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: getReplaySessionApiV1ReplaySessionsSessionIdGetQueryKey(options)
-});
-
-/**
- * Cleanup Old Sessions
- *
- * Remove replay sessions older than the specified threshold.
- */
-export const cleanupOldSessionsApiV1ReplayCleanupPostMutation = (options?: Partial<Options<CleanupOldSessionsApiV1ReplayCleanupPostData>>): MutationOptions<CleanupOldSessionsApiV1ReplayCleanupPostResponse, CleanupOldSessionsApiV1ReplayCleanupPostError, Options<CleanupOldSessionsApiV1ReplayCleanupPostData>> => {
-    const mutationOptions: MutationOptions<CleanupOldSessionsApiV1ReplayCleanupPostResponse, CleanupOldSessionsApiV1ReplayCleanupPostError, Options<CleanupOldSessionsApiV1ReplayCleanupPostData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await cleanupOldSessionsApiV1ReplayCleanupPost({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
 export const livenessApiV1HealthLiveGetQueryKey = (options?: Options<LivenessApiV1HealthLiveGetData>) => createQueryKey('livenessApiV1HealthLiveGet', options);
 
 /**
@@ -665,7 +511,7 @@ export const getEventDetailApiV1AdminEventsEventIdGetOptions = (options: Options
 /**
  * Replay Events
  *
- * Replay events by filter criteria, with optional dry-run mode.
+ * Preview the events a filter matches, or schedule a replay that the worker sends to Kafka.
  */
 export const replayEventsApiV1AdminEventsReplayPostMutation = (options?: Partial<Options<ReplayEventsApiV1AdminEventsReplayPostData>>): MutationOptions<ReplayEventsApiV1AdminEventsReplayPostResponse, ReplayEventsApiV1AdminEventsReplayPostError, Options<ReplayEventsApiV1AdminEventsReplayPostData>> => {
     const mutationOptions: MutationOptions<ReplayEventsApiV1AdminEventsReplayPostResponse, ReplayEventsApiV1AdminEventsReplayPostError, Options<ReplayEventsApiV1AdminEventsReplayPostData>> = {

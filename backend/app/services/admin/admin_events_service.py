@@ -6,10 +6,12 @@ from io import StringIO
 from typing import Any
 
 import structlog
+from opentelemetry import trace
 
-from app.db import AdminEventsRepository
+from app.db import AdminEventsRepository, ReplayRepository
+from app.db.docs import ReplaySessionDocument
 from app.domain.admin import ReplaySessionData
-from app.domain.enums import ExportFormat, ReplayStatus, ReplayTarget, ReplayType
+from app.domain.enums import ExportFormat, ReplayStatus
 from app.domain.events import (
     EventBrowseResult,
     EventDetail,
@@ -20,9 +22,8 @@ from app.domain.events import (
     EventSummary,
 )
 from app.domain.exceptions import NotFoundError, ValidationError
-from app.domain.replay import ReplayConfig, ReplayFilter, ReplaySessionChanges, ReplaySessionNotFoundError
+from app.domain.replay import ReplayConfig, ReplayFilter, ReplaySessionNotFoundError
 from app.domain.sse import DomainReplaySSEPayload
-from app.services.event_replay import EventReplayService
 
 
 def _export_row_to_dict(row: EventExportRow) -> dict[str, str]:
@@ -92,12 +93,14 @@ class AdminEventsService:
     def __init__(
         self,
         repository: AdminEventsRepository,
-        replay_service: EventReplayService,
+        replay_repository: ReplayRepository,
         logger: structlog.stdlib.BoundLogger,
+        tracer: trace.Tracer,
     ) -> None:
         self._repo = repository
-        self._replay_service = replay_service
+        self._replay_repository = replay_repository
         self.logger = logger
+        self._tracer = tracer
 
     async def browse_events(
         self,
@@ -124,7 +127,6 @@ class AdminEventsService:
         replay_filter: ReplayFilter,
         dry_run: bool,
         replay_id: str,
-        target_service: str | None,
     ) -> AdminReplayResult:
         if replay_filter.is_empty():
             raise ValidationError("Must specify at least one filter for replay")
@@ -170,36 +172,20 @@ class AdminEventsService:
             )
             return result
 
-        # Build config for actual replay - filter is already unified, just pass it
-        config = ReplayConfig(
-            replay_type=ReplayType.QUERY,
-            target=ReplayTarget.KAFKA if target_service else ReplayTarget.TEST,
-            filter=replay_filter,
-            speed_multiplier=1.0,
-            preserve_timestamps=False,
-            batch_size=100,
-            max_events=1000,
-            skip_errors=True,
+        # The worker's replay job picks the session up and sends the events to Kafka
+        session = ReplaySessionDocument(
+            config=ReplayConfig(filter=replay_filter, max_events=max_events),
+            total_events=event_count,
+            replay_id=replay_id,
         )
-
-        op = await self._replay_service.create_session_from_config(config)
-        session_id = op.session_id
-
-        # Persist additional metadata to the admin replay session record
-        await self._repo.update_replay_session(
-            session_id=session_id,
-            changes=ReplaySessionChanges(
-                total_events=session_data.total_events,
-                replay_id=replay_id,
-                status=ReplayStatus.SCHEDULED,
-            ),
-        )
+        await self._replay_repository.create_session(session)
+        self._tracer.start_span("replay.session_created").end()
 
         result = AdminReplayResult(
             dry_run=False,
-            total_events=session_data.total_events,
+            total_events=event_count,
             replay_id=replay_id,
-            session_id=session_id,
+            session_id=session.session_id,
             status=ReplayStatus.SCHEDULED,
         )
         self.logger.info(
@@ -209,9 +195,6 @@ class AdminEventsService:
             replay_id=result.replay_id,
         )
         return result
-
-    async def start_replay_session(self, session_id: str) -> None:
-        await self._replay_service.start_session(session_id)
 
     async def get_replay_sse_status(self, session_id: str) -> DomainReplaySSEPayload:
         status = await self._repo.get_replay_session_sse_status(session_id)

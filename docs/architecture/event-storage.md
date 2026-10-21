@@ -43,7 +43,7 @@ Several repositories read the same collection:
 |---|---|
 | `EventRepository` | Execution event lists, user event history, statistics, aggregate replay info |
 | `AdminEventsRepository` | Admin browse, detail, stats, export, replay preview |
-| `ReplayRepository` | Counting and streaming events for replay sessions |
+| `ReplayRepository` | Replay sessions, and streaming the events they send |
 | `UserSettingsRepository` | Rebuilding settings from `user_settings_updated` events |
 
 ## Filters

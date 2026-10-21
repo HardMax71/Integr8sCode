@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sse_starlette.sse import EventSourceResponse
 
@@ -107,10 +107,8 @@ async def get_event_detail(event_id: str, service: FromDishka[AdminEventsService
         422: {"model": ErrorResponse, "description": "Empty filter or too many events to replay"},
     },
 )
-async def replay_events(
-    request: EventReplayRequest, background_tasks: BackgroundTasks, service: FromDishka[AdminEventsService]
-) -> EventReplayResponse:
-    """Replay events by filter criteria, with optional dry-run mode."""
+async def replay_events(request: EventReplayRequest, service: FromDishka[AdminEventsService]) -> EventReplayResponse:
+    """Preview the events a filter matches, or schedule a replay that the worker sends to Kafka."""
     replay_id = f"replay-{uuid4().hex}"
     result = await service.prepare_or_schedule_replay(
         replay_filter=ReplayFilter(
@@ -121,12 +119,7 @@ async def replay_events(
         ),
         dry_run=request.dry_run,
         replay_id=replay_id,
-        target_service=request.target_service,
     )
-
-    if not result.dry_run and result.session_id:
-        background_tasks.add_task(service.start_replay_session, result.session_id)
-
     return EventReplayResponse.model_validate(result)
 
 

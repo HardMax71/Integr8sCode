@@ -149,7 +149,7 @@ Notifications use the same bus on `sse:notif:{user_id}` through `GET /api/v1/eve
 
 ## Kafka and replay
 
-Kafka carries all asynchronous work, with [one topic per event type](kafka-topic-architecture.md). The [replay system](../components/event-replay.md) lets admins re-publish stored events. A failed handler's event goes to the [dead letter queue](../components/dead-letter-queue.md) and is retried for the consumer group that failed.
+Kafka carries all asynchronous work, with [one topic per event type](kafka-topic-architecture.md). The [replay system](../components/event-replay.md) lets admins re-publish stored events; the worker sends them. A failed handler's event goes to the [dead letter queue](../components/dead-letter-queue.md) and is retried for the consumer group that failed.
 
 ## Notifications
 
@@ -167,4 +167,4 @@ graph TD
 
 ## API surface
 
-The public surface is the REST and SSE endpoints under `/api/v1/`. MongoDB, Redis, Kafka, the Kubernetes API and the worker stay internal. The frontend talks to the backend with fetch and EventSource and [cookie-based auth](authentication.md). The [admin routes](../operations/admin-api.md) under `/api/v1/admin/` and the replay routes under `/api/v1/replay/` require the admin role. The OpenAPI schema and the Swagger UI are served only when `DEVELOPMENT_MODE` is on. See the [API Reference](../reference/api-reference.md) for the full list.
+The public surface is the REST and SSE endpoints under `/api/v1/`. MongoDB, Redis, Kafka, the Kubernetes API and the worker stay internal. The frontend talks to the backend with fetch and EventSource and [cookie-based auth](authentication.md). The [admin routes](../operations/admin-api.md) under `/api/v1/admin/` require the admin role. The OpenAPI schema and the Swagger UI are served only when `DEVELOPMENT_MODE` is on. See the [API Reference](../reference/api-reference.md) for the full list.

@@ -35,7 +35,6 @@ class EventReplayRequest(BaseModel):
     aggregate_id: str | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
-    target_service: str | None = None
     dry_run: bool = True
 
 

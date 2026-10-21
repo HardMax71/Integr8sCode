@@ -9,8 +9,8 @@ from httpx2 import AsyncClient
 
 from app.db.docs import EventArchiveDocument
 from app.db.repositories import AdminEventsRepository, EventRepository
-from app.domain.enums import EventType, ReplayStatus
-from app.domain.events import DomainEvent
+from app.domain.enums import EventType, LoginMethod, ReplayStatus
+from app.domain.events import DomainEvent, EventMetadata, UserLoggedInEvent
 from app.schemas_pydantic.admin_events import (
     EventBrowseRequest,
     EventBrowseResponse,
@@ -32,6 +32,20 @@ pytestmark = [pytest.mark.e2e]
 async def stored_event(event_repository: EventRepository) -> DomainEvent:
     """Insert a test event directly into DB - no Kafka/waiting needed."""
     event = make_execution_requested_event(execution_id=f"e-{uuid.uuid4().hex[:8]}")
+    await event_repository.store_event(event)
+    return event
+
+
+@pytest_asyncio.fixture
+async def stored_login_event(event_repository: EventRepository) -> DomainEvent:
+    """A stored event that no consumer acts on, so a real replay of it changes nothing."""
+    user_id = f"replay-{uuid.uuid4().hex[:8]}"
+    event = UserLoggedInEvent(
+        user_id=user_id,
+        login_method=LoginMethod.PASSWORD,
+        aggregate_id=user_id,
+        metadata=EventMetadata(service_name="tests", service_version="1.0.0", user_id=user_id),
+    )
     await event_repository.store_event(event)
     return event
 
@@ -313,11 +327,11 @@ class TestStreamReplayStatus:
         }
 
     async def test_stream_replay_status_after_replay(
-        self, app: FastAPI, test_admin: AsyncClient, stored_event: DomainEvent
+        self, app: FastAPI, test_admin: AsyncClient, stored_login_event: DomainEvent
     ) -> None:
         """Replay creates a session whose status stream opens with the session's status."""
         request = EventReplayRequest(
-            aggregate_id=stored_event.aggregate_id,
+            aggregate_id=stored_login_event.aggregate_id,
             dry_run=False,
         )
         replay_response = await test_admin.post("/api/v1/admin/events/replay", json=request.model_dump())
@@ -336,15 +350,27 @@ class TestStreamReplayStatus:
         assert "progress_percentage" in json.loads(first_event.data)
         status = EventReplayStatusResponse.model_validate_json(first_event.data)
         assert status.session_id == replay_result.session_id
-        assert status.status in (
-            ReplayStatus.SCHEDULED,
-            ReplayStatus.CREATED,
-            ReplayStatus.RUNNING,
-            ReplayStatus.COMPLETED,
-        )
-        assert status.total_events >= 1
-        assert status.replayed_events >= 0
+        assert status.status in (ReplayStatus.SCHEDULED, ReplayStatus.RUNNING, ReplayStatus.COMPLETED)
+        assert status.total_events == 1
         assert status.progress_percentage >= 0.0
+
+    async def test_worker_runs_a_scheduled_replay(
+        self, test_admin: AsyncClient, stored_login_event: DomainEvent, admin_events_repository: AdminEventsRepository
+    ) -> None:
+        """The API only schedules a replay; the worker picks it up, sends the event and completes the session."""
+        request = EventReplayRequest(aggregate_id=stored_login_event.aggregate_id, dry_run=False)
+        response = await test_admin.post("/api/v1/admin/events/replay", json=request.model_dump())
+        result = EventReplayResponse.model_validate(response.json())
+        assert (response.status_code, result.status, result.total_events) == (200, ReplayStatus.SCHEDULED, 1)
+        assert result.session_id is not None
+
+        session = None
+        async with asyncio.timeout(30):
+            while session is None or not session.status.is_terminal:
+                await asyncio.sleep(0.2)
+                session = await admin_events_repository.get_replay_session_doc(result.session_id)
+
+        assert (session.status, session.replayed_events, session.failed_events) == (ReplayStatus.COMPLETED, 1, 0)
 
     async def test_stream_replay_status_forbidden_for_regular_user(self, test_user: AsyncClient) -> None:
         """Regular user cannot stream replay status."""

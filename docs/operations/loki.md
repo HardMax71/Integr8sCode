@@ -41,10 +41,6 @@ Single instance with filesystem storage, TSDB index and schema v13. Structured m
 
 The container has a 256m memory limit, keeps data in the `loki_data` volume and listens on `127.0.0.1:3100`. Its image is distroless, so there's no healthcheck; Grafana and the collector start once the container has started.
 
-## Known problems
-
-One thing doesn't work as intended today ([#294](https://github.com/HardMax71/Integr8sCode/issues/294)). The Loki datasource has a derived field that should link `trace_id` to Jaeger, but its regex is `"trace_id":"(\w+)"` and structlog writes `"trace_id": "..."` with a space after the colon. The link never appears.
-
 ## Queries
 
 Open Grafana Explore at `http://localhost:3000/explore` and pick the Loki datasource.
@@ -66,4 +62,4 @@ Open Grafana Explore at `http://localhost:3000/explore` and pick the Loki dataso
 {service_namespace="integr8scode"} | trace_id="0af7651916cd43dd8448eb211c80319c"
 ```
 
-Until the derived field is fixed, copy the `trace_id` into the Jaeger datasource by hand.
+Expand a line logged inside a span and its Links section has a `TraceID` button that opens the trace in Jaeger. The datasource's derived field reads the `trace_id` structured metadata, not the JSON line, so third-party records logged inside a span get the link too.

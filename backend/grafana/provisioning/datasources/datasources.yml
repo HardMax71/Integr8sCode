@@ -31,8 +31,10 @@ datasources:
     url: http://loki:3100
     editable: true
     jsonData:
+      # Loki keeps the OTLP record's trace_id as structured metadata, so the link matches that field, not the line
       derivedFields:
         - datasourceUid: jaeger
-          matcherRegex: '"trace_id":"(\w+)"'
+          matcherType: label
+          matcherRegex: trace_id
           name: TraceID
           url: '$${__value.raw}'

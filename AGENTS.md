@@ -817,7 +817,7 @@ async with (
 ```
 
 Isolation: every xdist process, the API it runs and the real `worker` container share one MongoDB, one Redis database and one Kafka, so tests isolate by unique ids (uuid usernames, keys and Redis prefixes, fresh executions) and never by separate databases. Rules that keep the parallel run race-free:
-- System settings are global and every process reads them, so tests change only the monitoring fields (`metrics_retention_days`, `log_level`, `enable_tracing`, `sampling_rate`), starting from the current settings; the two settings files share `xdist_group("system_settings")` so they don't race each other over the one document. That is the only xdist group
+- System settings are global and every process reads them, so tests change only `lockout_duration_minutes`, starting from the current settings; the two settings files share `xdist_group("system_settings")` so they don't race each other over the one document. That is the only xdist group
 - Wait on what the producer stored, not on Redis pub/sub: `wait_for_event(execution_id, *types)` polls the events collection, which the producer writes before it publishes, so an event that happened first still counts
 - A test that needs an execution row and not a pod uses `store_execution` (or the repository), since real executions share the global concurrency limit
 - Anything a test leaves in a shared place that the worker acts on (DLQ rows, replay sessions that publish) is removed by the fixture that created it

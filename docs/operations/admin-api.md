@@ -6,7 +6,7 @@ Five routers under `/api/v1/admin/` make up the admin API. Each one has the `adm
 |---------------|------------------------------|------------------------------------------------------------------------------|
 | users         | `/admin/users`               | list with search and role filter, create, read, overview, update, delete (cascading by default), reset password, unlock |
 | events        | `/admin/events`              | browse, stats, CSV or JSON export, detail, delete, replay, replay status over SSE |
-| settings      | `/admin/settings`            | read, replace and reset the system settings (execution limits, login lockout, log level, sampling) |
+| settings      | `/admin/settings`            | read, replace and reset the system settings (execution limits, login lockout) |
 | executions    | `/admin/executions`          | list executions by status, priority or user, change an execution's priority, queue status |
 | rate-limits   | `/admin/rate-limits`         | default rules, and per-user limits: read, update, reset                      |
 

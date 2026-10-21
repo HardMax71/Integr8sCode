@@ -7329,18 +7329,6 @@
         "title": "LivenessResponse",
         "description": "Response model for liveness probe."
       },
-      "LogLevel": {
-        "type": "string",
-        "enum": [
-          "DEBUG",
-          "INFO",
-          "WARNING",
-          "ERROR",
-          "CRITICAL"
-        ],
-        "title": "LogLevel",
-        "description": "Log level options."
-      },
       "LoginMethod": {
         "type": "string",
         "enum": [
@@ -11224,29 +11212,6 @@
             "minimum": 5.0,
             "title": "Lockout Duration Minutes",
             "default": 15
-          },
-          "metrics_retention_days": {
-            "type": "integer",
-            "maximum": 90.0,
-            "minimum": 7.0,
-            "title": "Metrics Retention Days",
-            "default": 30
-          },
-          "log_level": {
-            "$ref": "#/components/schemas/LogLevel",
-            "default": "INFO"
-          },
-          "enable_tracing": {
-            "type": "boolean",
-            "title": "Enable Tracing",
-            "default": true
-          },
-          "sampling_rate": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Sampling Rate",
-            "default": 0.1
           }
         },
         "type": "object",
@@ -11313,29 +11278,6 @@
             "minimum": 5.0,
             "title": "Lockout Duration Minutes",
             "default": 15
-          },
-          "metrics_retention_days": {
-            "type": "integer",
-            "maximum": 90.0,
-            "minimum": 7.0,
-            "title": "Metrics Retention Days",
-            "default": 30
-          },
-          "log_level": {
-            "$ref": "#/components/schemas/LogLevel",
-            "default": "INFO"
-          },
-          "enable_tracing": {
-            "type": "boolean",
-            "title": "Enable Tracing",
-            "default": true
-          },
-          "sampling_rate": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Sampling Rate",
-            "default": 0.1
           }
         },
         "type": "object",
@@ -11348,11 +11290,7 @@
           "password_min_length",
           "session_timeout_minutes",
           "max_login_attempts",
-          "lockout_duration_minutes",
-          "metrics_retention_days",
-          "log_level",
-          "enable_tracing",
-          "sampling_rate"
+          "lockout_duration_minutes"
         ],
         "title": "SystemSettingsSchema",
         "description": "API schema for system settings with validation."

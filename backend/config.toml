@@ -22,29 +22,18 @@ K8S_POD_MEMORY_REQUEST = "128Mi"
 K8S_POD_EXECUTION_TIMEOUT = 5
 K8S_NAMESPACE = "integr8scode"
 
-RATE_LIMITS = "100/minute"
-
 SERVER_HOST = "0.0.0.0"
 # --8<-- [end:kubernetes]
 
 # --8<-- [start:kafka]
 # Kafka
 KAFKA_BOOTSTRAP_SERVERS = "kafka:29092"
-ENABLE_EVENT_STREAMING = true
-EVENT_RETENTION_DAYS = 30
-KAFKA_CONSUMER_GROUP_ID = "integr8scode-backend"
-KAFKA_AUTO_OFFSET_RESET = "earliest"
-KAFKA_ENABLE_AUTO_COMMIT = true
-KAFKA_SESSION_TIMEOUT_MS = 45000
-KAFKA_HEARTBEAT_INTERVAL_MS = 10000
 KAFKA_REQUEST_TIMEOUT_MS = 40000
-KAFKA_MAX_POLL_RECORDS = 500
 # --8<-- [end:kafka]
 
 # --8<-- [start:sse]
 # SSE
 SSE_CONSUMER_POOL_SIZE = 10
-SSE_HEARTBEAT_INTERVAL = 30
 # --8<-- [end:sse]
 
 LOG_LEVEL = "INFO"
@@ -54,18 +43,6 @@ LOG_LEVEL = "INFO"
 OTLP_TRACES_ENDPOINT = "http://otel-collector:4317"
 TRACING_SAMPLING_RATE = 1.0
 # --8<-- [end:tracing]
-
-# --8<-- [start:dlq]
-# DLQ
-DLQ_RETRY_MAX_ATTEMPTS = 5
-DLQ_RETRY_BASE_DELAY_SECONDS = 60.0
-DLQ_RETRY_MAX_DELAY_SECONDS = 3600.0
-DLQ_RETENTION_DAYS = 7
-DLQ_WARNING_THRESHOLD = 100
-DLQ_CRITICAL_THRESHOLD = 1000
-# --8<-- [end:dlq]
-
-APP_URL = "https://localhost"
 
 CORS_ORIGINS = [
     "https://app.integr8scode.cc",
@@ -89,7 +66,6 @@ OTEL_EXPORTER_OTLP_ENDPOINT = "http://otel-collector:4317"
 # --8<-- [start:server]
 # Gunicorn / Uvicorn
 WEB_CONCURRENCY = 2
-WEB_THREADS = 4
 WEB_TIMEOUT = 60
 WEB_BACKLOG = 2048
 

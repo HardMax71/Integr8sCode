@@ -61,7 +61,7 @@ Replay uses `ReplayFilter`, which builds a raw Mongo query itself:
 
 ## Retention
 
-Each event expires 30 days after it's stored. `ttl_expires_at` defaults to now plus 30 days, and the `idx_ttl` index with `expireAfterSeconds=0` lets MongoDB delete the document at that time. The 30 days are hardcoded in `EventDocument`. `EVENT_RETENTION_DAYS` exists in settings but nothing reads it ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)).
+Each event expires 30 days after it's stored. `ttl_expires_at` defaults to now plus 30 days, and the `idx_ttl` index with `expireAfterSeconds=0` lets MongoDB delete the document at that time. The 30 days are hardcoded in `EventDocument`.
 
 TTL expiry doesn't archive anything. Archiving only happens when an admin deletes an event through `DELETE /api/v1/admin/events/{event_id}`: `AdminEventsService.delete_event()` copies it into `events_archive` (`EventArchiveDocument`, same fields plus `deleted_at`, `deleted_by` and `deletion_reason`) and then deletes the original. The archive collection has no TTL index.
 

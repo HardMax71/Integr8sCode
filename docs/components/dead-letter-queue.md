@@ -41,7 +41,7 @@ A row is one event in one consumer group. The unique index is on `event.event_id
 
 A database created before consumer groups were added still has the old unique index `idx_dlq_event_id` on `event.event_id` alone, and Beanie never drops indexes. Until someone runs `db.dlq_messages.dropIndex("idx_dlq_event_id")` once, a second group that fails on the same event can't save its row.
 
-The `DLQ_*` keys in config.toml (`DLQ_RETRY_MAX_ATTEMPTS`, `DLQ_RETRY_BASE_DELAY_SECONDS`, `DLQ_RETRY_MAX_DELAY_SECONDS`, `DLQ_RETENTION_DAYS`, `DLQ_WARNING_THRESHOLD`, `DLQ_CRITICAL_THRESHOLD`) are loaded and validated by `Settings`, but no code uses them ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). There's no HTTP API for the DLQ.
+The retry policies and the 7 day TTL are set in code, and config.toml has no DLQ keys. There's no HTTP API for the DLQ.
 
 ## Key files
 

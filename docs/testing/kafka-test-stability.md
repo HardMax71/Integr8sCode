@@ -19,7 +19,7 @@ When a consumer stops, aiokafka sends a `LeaveGroupRequest` and waits for it up 
 | `KAFKA_REQUEST_TIMEOUT_MS` | 40000         | 5000               | `request_timeout_ms` |
 | `KAFKA_GRACEFUL_TIMEOUT`   | 15.0 (default) | 5.0               | `graceful_timeout`   |
 
-config.test.toml also lowers `KAFKA_SESSION_TIMEOUT_MS` to 6000 and `KAFKA_HEARTBEAT_INTERVAL_MS` to 2000, but nothing reads either setting, so they have no effect ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). Per-subscriber options such as `ack_policy`, `auto_offset_reset` and `max_poll_records` are set in `app/events/handlers.py`, not in config.
+Session timeout and heartbeat stay at aiokafka's defaults, 10 and 3 seconds, in tests and in production. Per-subscriber options such as `ack_policy`, `auto_offset_reset` and `max_poll_records` are set in `app/events/handlers.py`, not in config.
 
 `SSE_CONSUMER_POOL_SIZE` is 1 in tests (10 in config.toml). It sets `max_workers` on the SSE subscriber.
 

@@ -27,7 +27,7 @@ When the producer first publishes them, execution, pod and result events are key
 
 ## Consumer groups
 
-Group IDs are string literals in `app/events/handlers.py`. The `KAFKA_CONSUMER_GROUP_ID` setting in config.toml isn't read anywhere ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)).
+Group IDs are string literals in `app/events/handlers.py`.
 
 | Group | Runs in | Topics |
 |-------|---------|--------|

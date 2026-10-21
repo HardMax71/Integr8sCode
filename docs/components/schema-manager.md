@@ -15,7 +15,7 @@ Four collections expire documents on their own:
 | `dlq_messages` | 7 days after `created_at` |
 | `replay_sessions` | 48 hours after `completed_at`; a session that hasn't finished has none and stays |
 
-The 30 days for events is hardcoded in the document. `EVENT_RETENTION_DAYS` in config.toml is never read ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). Everything else stays until something deletes it. That includes `executions`.
+The 30 days for events is hardcoded in the document. Everything else stays until something deletes it. That includes `executions`.
 
 ## Unique indexes the code relies on
 

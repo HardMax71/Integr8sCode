@@ -80,7 +80,6 @@ class Settings(BaseModel):
     KUBERNETES_CONFIG_PATH: str = "~/.kube/config"
     # k3s writes 127.0.0.1 into its kubeconfig; a container reaches the same API through the host
     KUBERNETES_API_SERVER: str = "https://host.docker.internal:6443"
-    RATE_LIMITS: str = "100/minute"
     RATE_LIMIT_ENABLED: bool = True  # Set to False to disable rate limiting entirely
 
     SSL_KEYFILE: str = "/app/certs/key/server.key"
@@ -101,7 +100,6 @@ class Settings(BaseModel):
     K8S_POD_CPU_REQUEST: str = "1000m"
     K8S_POD_MEMORY_REQUEST: str = "128Mi"
     K8S_POD_EXECUTION_TIMEOUT: int = 300  # in seconds
-    K8S_POD_PRIORITY_CLASS_NAME: str | None = None
     K8S_POD_RUNTIME_CLASS_NAME: str | None = None  # e.g. "gvisor" for sandboxed execution
 
     SUPPORTED_RUNTIMES: dict[str, LanguageInfoDomain] = Field(default_factory=_supported_runtimes)
@@ -113,21 +111,11 @@ class Settings(BaseModel):
 
     # Event-Driven Design Configuration
     KAFKA_BOOTSTRAP_SERVERS: str = "kafka:29092"
-    ENABLE_EVENT_STREAMING: bool = False
-    EVENT_RETENTION_DAYS: int = 30
-    KAFKA_CONSUMER_GROUP_ID: str = "integr8scode-backend"
-    KAFKA_AUTO_OFFSET_RESET: str = "earliest"
-    KAFKA_ENABLE_AUTO_COMMIT: bool = True
-    KAFKA_SESSION_TIMEOUT_MS: int = 45000
-    KAFKA_HEARTBEAT_INTERVAL_MS: int = 10000
-    KAFKA_MAX_POLL_INTERVAL_MS: int = 300000
-    KAFKA_MAX_POLL_RECORDS: int = 500
     KAFKA_REQUEST_TIMEOUT_MS: int = 40000
     KAFKA_GRACEFUL_TIMEOUT: float = 15.0
 
     # SSE Configuration
     SSE_CONSUMER_POOL_SIZE: int = 10  # Number of consumers in the partitioned pool
-    SSE_HEARTBEAT_INTERVAL: int = 30  # Heartbeat interval in seconds for SSE - keep connection alive
 
     # Notification configuration
     NOTIF_THROTTLE_WINDOW_HOURS: int = 1
@@ -142,16 +130,6 @@ class Settings(BaseModel):
         le=1.0,
         description="Sampling rate for distributed tracing (0.0 to 1.0)",
     )
-    # Dead Letter Queue Configuration
-    DLQ_RETRY_MAX_ATTEMPTS: int = 5
-    DLQ_RETRY_BASE_DELAY_SECONDS: float = 60.0
-    DLQ_RETRY_MAX_DELAY_SECONDS: float = 3600.0
-    DLQ_RETENTION_DAYS: int = 7
-    DLQ_WARNING_THRESHOLD: int = 100
-    DLQ_CRITICAL_THRESHOLD: int = 1000
-
-    # App URL for notification links
-    APP_URL: str = "https://integr8scode.cc"
 
     # Redis Configuration
     REDIS_HOST: str = "redis"
@@ -163,11 +141,7 @@ class Settings(BaseModel):
     REDIS_DECODE_RESPONSES: Literal[True] = True
 
     # Rate Limiting Configuration
-    RATE_LIMIT_DEFAULT_REQUESTS: int = 100
-    RATE_LIMIT_DEFAULT_WINDOW: int = 60  # seconds
-    RATE_LIMIT_BURST_MULTIPLIER: float = 1.5
     RATE_LIMIT_REDIS_PREFIX: str = "rate_limit:"
-    RATE_LIMIT_ALGORITHM: str = "sliding_window"  # sliding_window or token_bucket
 
     # Service metadata
     SERVICE_NAME: str = "integr8scode-backend"
@@ -180,13 +154,11 @@ class Settings(BaseModel):
 
     # Web server (Gunicorn/Uvicorn) concurrency settings
     WEB_CONCURRENCY: int = 4
-    WEB_THREADS: int = 1
     WEB_TIMEOUT: int = 60
     WEB_BACKLOG: int = 2048
 
     # Development mode detection
     DEVELOPMENT_MODE: bool = False
-    SECURE_COOKIES: bool = True
 
     # CORS allowed origins (overridable via config.toml)
     CORS_ORIGINS: list[str] = Field(

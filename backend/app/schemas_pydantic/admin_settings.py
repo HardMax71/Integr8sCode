@@ -2,8 +2,6 @@ import re
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.domain.admin.settings_models import LogLevel
-
 _MEMORY_PATTERN = re.compile(r"^[1-9]\d*(Mi|Gi|Ki)$")
 _CPU_PATTERN = re.compile(r"^[1-9]\d*m$")
 
@@ -23,11 +21,6 @@ class SystemSettingsSchema(BaseModel):
     session_timeout_minutes: int = Field(default=60, ge=5, le=1440)
     max_login_attempts: int = Field(default=5, ge=3, le=10)
     lockout_duration_minutes: int = Field(default=15, ge=5, le=60)
-
-    metrics_retention_days: int = Field(default=30, ge=7, le=90)
-    log_level: LogLevel = LogLevel.INFO
-    enable_tracing: bool = True
-    sampling_rate: float = Field(default=0.1, ge=0.0, le=1.0)
 
     @field_validator("memory_limit")
     @classmethod

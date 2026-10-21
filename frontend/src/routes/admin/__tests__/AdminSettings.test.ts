@@ -20,7 +20,7 @@ function createMockSystemSettings() {
     return zSystemSettingsSchemaOutput.parse({
         max_timeout_seconds: 60,
         session_timeout_minutes: 30,
-        sampling_rate: 0.5,
+        lockout_duration_minutes: 20,
     });
 }
 
@@ -50,7 +50,7 @@ describe('AdminSettings', () => {
         it.each(Object.entries(createMockSystemSettings()))('field %s is populated with %s', async (key, value) => {
             renderWithQueryClient(AdminSettings);
             await waitFor(() => {
-                const input = screen.getByLabelText(fieldTitle(key)) as HTMLInputElement | HTMLSelectElement;
+                const input = screen.getByLabelText(fieldTitle(key)) as HTMLInputElement;
                 expect(input.value).toBe(String(value));
             });
         });
@@ -118,10 +118,6 @@ describe('AdminSettings', () => {
                 password_min_length: 10,
                 max_login_attempts: 3,
                 lockout_duration_minutes: 10,
-                metrics_retention_days: 7,
-                log_level: 'WARNING',
-                enable_tracing: false,
-                sampling_rate: 1.0,
             });
             mockApi(resetSystemSettingsApiV1AdminSettingsResetPost).ok(resetData);
 

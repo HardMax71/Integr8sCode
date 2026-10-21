@@ -38,7 +38,6 @@ class TestBoundaryValidation:
             ("session_timeout_minutes", 4, 1441),
             ("max_login_attempts", 2, 11),
             ("lockout_duration_minutes", 4, 61),
-            ("metrics_retention_days", 6, 91),
         ],
     )
     def test_rejects_out_of_range(self, field: str, too_low: int, too_high: int) -> None:
@@ -46,25 +45,6 @@ class TestBoundaryValidation:
             SystemSettingsSchema.model_validate({field: too_low})
         with pytest.raises(ValidationError):
             SystemSettingsSchema.model_validate({field: too_high})
-
-    def test_sampling_rate_boundaries(self) -> None:
-        assert SystemSettingsSchema(sampling_rate=0.0).sampling_rate == 0.0
-        assert SystemSettingsSchema(sampling_rate=1.0).sampling_rate == 1.0
-        with pytest.raises(ValidationError):
-            SystemSettingsSchema(sampling_rate=-0.1)
-        with pytest.raises(ValidationError):
-            SystemSettingsSchema(sampling_rate=1.1)
-
-
-class TestLogLevel:
-    @pytest.mark.parametrize("level", ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
-    def test_valid_log_levels(self, level: str) -> None:
-        s = SystemSettingsSchema.model_validate({"log_level": level})
-        assert s.log_level == level
-
-    def test_invalid_log_level(self) -> None:
-        with pytest.raises(ValidationError):
-            SystemSettingsSchema(log_level="TRACE")  # type: ignore[arg-type]
 
 
 class TestExtraFieldsIgnored:

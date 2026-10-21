@@ -14,7 +14,7 @@ pytestmark = [pytest.mark.e2e, pytest.mark.xdist_group("system_settings")]
 
 @pytest.fixture(autouse=True)
 async def _drop_global_settings(admin_settings_repository: AdminSettingsRepository) -> AsyncIterator[None]:
-    # Every process reads these settings, so tests change only monitoring fields and leave the TOML defaults behind
+    # Every process reads these settings, so tests change only the lockout duration and leave the TOML defaults behind
     yield
     await admin_settings_repository.reset_system_settings(user_id="test")
 
@@ -57,7 +57,7 @@ async def test_get_seeds_with_provided_defaults(
 async def test_update_persists_values(
     admin_settings_repository: AdminSettingsRepository, toml_defaults: SystemSettings
 ) -> None:
-    updated = dataclasses.replace(toml_defaults, metrics_retention_days=42)
+    updated = dataclasses.replace(toml_defaults, lockout_duration_minutes=42)
     assert await admin_settings_repository.update_system_settings(updated, user_id="u1") == updated
     assert await admin_settings_repository.get_system_settings(defaults=toml_defaults) == updated
 
@@ -74,7 +74,7 @@ async def test_reset_deletes_doc_and_returns_defaults(
     admin_settings_repository: AdminSettingsRepository, toml_defaults: SystemSettings
 ) -> None:
     await admin_settings_repository.update_system_settings(
-        dataclasses.replace(toml_defaults, metrics_retention_days=90), user_id="u1"
+        dataclasses.replace(toml_defaults, lockout_duration_minutes=60), user_id="u1"
     )
     result = await admin_settings_repository.reset_system_settings(user_id="u1")
     assert result == SystemSettings()
@@ -110,7 +110,7 @@ async def test_update_racing_first_read_keeps_one_document(
     admin_settings_repository: AdminSettingsRepository, toml_defaults: SystemSettings
 ) -> None:
     await SystemSettingsDocument.find(SystemSettingsDocument.settings_id == "global").delete()
-    updated = dataclasses.replace(toml_defaults, metrics_retention_days=42)
+    updated = dataclasses.replace(toml_defaults, lockout_duration_minutes=42)
 
     await asyncio.gather(
         admin_settings_repository.update_system_settings(updated, user_id="test"),

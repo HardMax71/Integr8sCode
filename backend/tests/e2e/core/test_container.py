@@ -7,7 +7,6 @@ from fastapi import FastAPI
 from app.core.security import SecurityService
 from app.db.docs import UserDocument
 from app.services.admin import AdminUserService
-from app.services.event_replay import EventReplayService
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.notification_service import NotificationService
@@ -103,11 +102,6 @@ class TestBusinessServices:
         service = await scope.get(RateLimitService)
 
         assert isinstance(service, RateLimitService)
-
-    async def test_resolves_replay_service(self, event_replay_service: EventReplayService) -> None:
-        """Container resolves EventReplayService."""
-
-        assert isinstance(event_replay_service, EventReplayService)
 
 
 class TestServiceDependencies:

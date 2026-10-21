@@ -16,6 +16,7 @@ from app.core.metrics import setup_metrics
 from app.db.docs import ALL_DOCUMENTS
 from app.dlq.manager import DLQManager
 from app.events.handlers import scheduler_router
+from app.services.event_replay import EventReplayService
 from app.services.execution_scheduler import ExecutionScheduler
 from app.services.idempotency import IdempotencyManager
 from app.services.k8s_worker import KubernetesWorker
@@ -50,7 +51,7 @@ async def run(settings: Settings, logger: structlog.stdlib.BoundLogger) -> None:
 
 
 async def start_jobs(container: AsyncContainer) -> AsyncIOScheduler:
-    """Prepare the cluster, then schedule the pod watch, the queue check, DLQ retries and the idempotency key count."""
+    """Prepare the cluster, fail the replays a restart cut off, then schedule the worker's jobs."""
     k8s_worker = await container.get(KubernetesWorker)
     await k8s_worker.ensure_namespace_security()
     await k8s_worker.ensure_image_pre_puller_daemonset()
@@ -59,12 +60,16 @@ async def start_jobs(container: AsyncContainer) -> AsyncIOScheduler:
     execution_scheduler = await container.get(ExecutionScheduler)
     dlq_manager = await container.get(DLQManager)
     idempotency = await container.get(IdempotencyManager)
+    replay_service = await container.get(EventReplayService)
+    await replay_service.fail_interrupted_sessions()
 
     scheduler = AsyncIOScheduler()
     jobs = (
         ("pod_monitor_watch", monitor.watch_cycle, 5, 60),
         # A slot freed by its Redis deadline sends no event, so the queue is checked on a timer too
         ("execution_schedule_pending", execution_scheduler.schedule_pending, 10, 30),
+        ("replay_run_next_session", replay_service.run_next_session, 2, 30),
+        ("replay_report_sessions", replay_service.report_sessions, 10, 30),
         ("dlq_monitor_retries", dlq_manager.process_monitoring_cycle, 10, 60),
         ("idempotency_report_keys", idempotency.report_active_keys, 30, 60),
     )

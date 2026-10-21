@@ -9,7 +9,6 @@ from app.api.routes import (
     execution,
     health,
     notifications,
-    replay,
     saved_scripts,
     sse,
     user_settings,
@@ -123,7 +122,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth.router, prefix=settings.API_V1_STR)
     app.include_router(execution.router, prefix=settings.API_V1_STR)
     app.include_router(saved_scripts.router, prefix=settings.API_V1_STR)
-    app.include_router(replay.router, prefix=settings.API_V1_STR)
     # Lightweight health endpoints for liveness/readiness
     app.include_router(health.router, prefix=settings.API_V1_STR)
     app.include_router(sse.router, prefix=settings.API_V1_STR)

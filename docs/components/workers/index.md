@@ -1,6 +1,6 @@
 # Worker
 
-One background process runs next to the API: `python -m app.worker`, in the `worker` container built from the backend image. It runs executions: it takes them from the queue when a slot is free, creates their pods, watches the pods and stores what they print. A DLQ job retries events whose handler failed.
+One background process runs next to the API: `python -m app.worker`, in the `worker` container built from the backend image. It runs executions: it takes them from the queue when a slot is free, creates their pods, watches the pods and stores what they print. A DLQ job retries events whose handler failed, and a replay job runs the replay sessions admins schedule.
 
 The parts are plain services in one process, and they call each other directly. Only the requests come in over Kafka: `execution_requested` and `execution_cancelled`, in the `saga-orchestrator` consumer group. The group keeps the name from before the saga was removed, so its committed offsets carried over. Everything the worker learns goes out as events for the API's SSE stream, its notifications and the event history. MongoDB holds the executions and Redis holds the queue and idempotency keys.
 
@@ -24,10 +24,9 @@ graph LR
 | [Pod monitor](pod_monitor.md) | Watches executor pods, hands what they report to the result processor, deletes finished pods | watch cycle every 5s |
 | [Result processor](result_processor.md) | Writes the status and result onto the execution document, then publishes the events | called by the pod monitor and the scheduler |
 | [DLQ processor](dlq_processor.md) | Republishes DLQ rows whose retry time has come | job every 10s |
+| [Event replay](../event-replay.md) | Sends the events of the oldest scheduled replay session to Kafka again | job every 2s; at startup it fails sessions a restart cut off |
 
-The entry point is [`backend/app/worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/worker.py). It loads `config.toml` plus the `config.worker.toml` override, initializes Beanie, builds the container with `create_worker_container`, registers the scheduler's router and starts the FastStream app. On startup it applies the executor namespace, NetworkPolicy, ResourceQuota and the image pre-puller DaemonSet, then starts the scheduled jobs.
-
-Replays run in the API, not here. See [Event replay](../event-replay.md).
+The entry point is [`backend/app/worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/worker.py). It loads `config.toml` plus the `config.worker.toml` override, initializes Beanie, builds the container with `create_worker_container`, registers the scheduler's router and starts the FastStream app. On startup it applies the executor namespace, NetworkPolicy, ResourceQuota and the image pre-puller DaemonSet, fails the replay sessions a restart cut off, then starts the scheduled jobs.
 
 ## Running locally
 

@@ -12,15 +12,11 @@ from app.domain.replay import ReplayConfig, ReplayError, ReplayFilter
 
 
 class ReplaySessionDocument(Document):
-    """Domain replay session model stored in database.
+    """A replay session: the API stores it as scheduled, and the worker runs it and records its progress."""
 
-    Single source of truth for replay sessions. Used by both
-    ReplayService and AdminEventsRepository.
-    """
-
-    session_id: Annotated[str, Indexed(unique=True)]
+    session_id: Annotated[str, Indexed(unique=True)] = Field(default_factory=lambda: str(uuid4()))
     config: ReplayConfig
-    status: ReplayStatus = ReplayStatus.CREATED  # Indexed via Settings.indexes
+    status: ReplayStatus = ReplayStatus.SCHEDULED  # Indexed via Settings.indexes
 
     total_events: int = 0
     replayed_events: int = 0
@@ -30,24 +26,12 @@ class ReplaySessionDocument(Document):
     created_at: Annotated[datetime, Indexed()] = Field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: datetime | None = None
     completed_at: datetime | None = None
-    last_event_at: datetime | None = None
 
     errors: list[ReplayError] = Field(default_factory=list)
 
-    # Tracking and admin fields
     replay_id: str = Field(default_factory=lambda: str(uuid4()))
-    created_by: str | None = None
-    target_service: str | None = None
-    dry_run: bool = False
-    triggered_executions: list[str] = Field(default_factory=list)
-    error: str | None = None  # Single error message for admin display
 
     model_config = ConfigDict(from_attributes=True)
-
-    @property
-    def is_running(self) -> bool:
-        """Check if session is running."""
-        return self.status == ReplayStatus.RUNNING
 
     class Settings:
         name = "replay_sessions"

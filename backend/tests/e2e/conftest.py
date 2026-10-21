@@ -33,7 +33,6 @@ from app.schemas_pydantic.notification import NotificationListResponse, Notifica
 from app.schemas_pydantic.saved_script import SavedScriptCreateRequest
 from app.schemas_pydantic.user import UserCreate
 from app.services.admin import AdminUserService
-from app.services.event_replay import EventReplayService
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.idempotency import IdempotencyManager
@@ -173,11 +172,6 @@ async def execution_service(scope: AsyncContainer) -> ExecutionService:
 @pytest.fixture
 async def saved_script_service(scope: AsyncContainer) -> SavedScriptService:
     return await scope.get(SavedScriptService)
-
-
-@pytest.fixture
-async def event_replay_service(scope: AsyncContainer) -> EventReplayService:
-    return await scope.get(EventReplayService)
 
 
 @pytest.fixture

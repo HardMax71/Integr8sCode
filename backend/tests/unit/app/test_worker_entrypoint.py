@@ -44,9 +44,12 @@ async def test_start_jobs_prepares_the_cluster_and_schedules_the_jobs(monkeypatc
 
     dependency.ensure_namespace_security.assert_awaited_once()
     dependency.ensure_image_pre_puller_daemonset.assert_awaited_once()
+    dependency.fail_interrupted_sessions.assert_awaited_once()
     assert [(c.kwargs["id"], c.args[0]) for c in scheduler.add_job.call_args_list] == [
         ("pod_monitor_watch", dependency.watch_cycle),
         ("execution_schedule_pending", dependency.schedule_pending),
+        ("replay_run_next_session", dependency.run_next_session),
+        ("replay_report_sessions", dependency.report_sessions),
         ("dlq_monitor_retries", dependency.process_monitoring_cycle),
         ("idempotency_report_keys", dependency.report_active_keys),
     ]

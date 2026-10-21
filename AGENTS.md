@@ -571,9 +571,10 @@ Everything outside the API runs in one process, `python -m app.worker` (`backend
 | k8s_worker | Creates executor pods and ConfigMaps and deletes cancelled pods when the scheduler calls it; applies the executor namespace, NetworkPolicy and ResourceQuota on startup |
 | pod_monitor | Watches executor pods (watch cycle every 5s), publishes pod events, hands finished executions to the result processor, deletes the pod and tells the scheduler |
 | result_processor | Stores the status and result, then publishes the terminal event and result_stored or result_failed; publishes nothing for an execution that already ended |
+| event_replay | Runs the replay session the API scheduled, oldest first (job every 2s): sends the matching stored events to Kafka again; fails sessions a restart cut off when the worker starts |
 | dlq_processor | APScheduler only (no Kafka consumer), retries due DLQ rows every 10s for the consumer group that failed |
 
-Inside the worker the parts call each other directly; Kafka only brings the requests in and carries what happened out. New background work goes into this process: a router in `app/events/handlers.py` included next to the scheduler's, or one more APScheduler job. Run one worker replica: the pod watch and the jobs would run once per replica. Replays run in the API, and a TTL index on `completed_at` drops finished replay sessions after 48 hours.
+Inside the worker the parts call each other directly; Kafka only brings the requests in and carries what happened out. New background work goes into this process: a router in `app/events/handlers.py` included next to the scheduler's, or one more APScheduler job. Run one worker replica: the pod watch and the jobs would run once per replica. A TTL index on `completed_at` drops finished replay sessions after 48 hours.
 
 The API process consumes too: `sse-bridge-pool` and `notification-service` are registered in `app/core/dishka_lifespan.py`.
 
@@ -820,7 +821,7 @@ Isolation: every xdist process, the API it runs and the real `worker` container 
 - System settings are global and every process reads them, so tests change only `lockout_duration_minutes`, starting from the current settings; the two settings files share `xdist_group("system_settings")` so they don't race each other over the one document. That is the only xdist group
 - Wait on what the producer stored, not on Redis pub/sub: `wait_for_event(execution_id, *types)` polls the events collection, which the producer writes before it publishes, so an event that happened first still counts
 - A test that needs an execution row and not a pod uses `store_execution` (or the repository), since real executions share the global concurrency limit
-- Anything a test leaves in a shared place that the worker acts on (DLQ rows, replay sessions that publish) is removed by the fixture that created it
+- Anything a test leaves in a shared place that the worker acts on (DLQ rows) is removed by the fixture that created it, and a test that schedules a real replay picks events no consumer acts on (a stored `user_logged_in`), since the worker sends them to Kafka
 
 ### Frontend (Vitest)
 

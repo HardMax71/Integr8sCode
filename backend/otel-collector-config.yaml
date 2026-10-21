@@ -485,11 +485,8 @@ connectors:
           value: "1"
           monotonic: true
       - name: replay.sessions.created
-        description: Replay sessions created
+        description: Replay sessions scheduled
         unit: "{session}"
-        attributes:
-          - key: replay.type
-          - key: replay.target
         conditions:
           - span.name == "replay.session_created"
         sum:
@@ -510,7 +507,6 @@ connectors:
         description: Events replayed
         unit: "{event}"
         attributes:
-          - key: replay.type
           - key: replay.event_type
         conditions:
           - span.name == "replay.event" and span.attributes["replay.result"] == "replayed"
@@ -521,7 +517,6 @@ connectors:
         description: Events that failed to replay
         unit: "{event}"
         attributes:
-          - key: replay.type
           - key: replay.event_type
         conditions:
           - span.name == "replay.event" and span.attributes["replay.result"] == "failed"
@@ -529,7 +524,7 @@ connectors:
           value: "1"
           monotonic: true
       - name: replay.event.processing.time
-        description: Time to replay one event, retries included
+        description: Time to replay one event
         unit: s
         attributes:
           - key: replay.event_type
@@ -538,19 +533,9 @@ connectors:
         histogram:
           buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5]
           value: Double(span.attributes["replay.processing_seconds"])
-      - name: replay.delay.applied
-        description: Wait before the next event, from the original gap over the speed multiplier
-        unit: s
-        conditions:
-          - span.name == "replay.event" and span.attributes["replay.delay_seconds"] != nil
-        histogram:
-          buckets: [0.01, 0.1, 0.5, 1, 5, 10, 30, 60, 300]
-          value: Double(span.attributes["replay.delay_seconds"])
       - name: replay.batch.size
         description: Events loaded per batch
         unit: "{event}"
-        attributes:
-          - key: replay.type
         conditions:
           - span.name == "replay.batch"
         histogram:
@@ -559,8 +544,6 @@ connectors:
       - name: replay.duration
         description: Time from start to completion of a completed session
         unit: s
-        attributes:
-          - key: replay.type
         conditions:
           - span.name == "replay.session_completed"
         histogram:
@@ -569,47 +552,14 @@ connectors:
       - name: replay.throughput
         description: Events per second of a completed session
         unit: event/s
-        attributes:
-          - key: replay.type
         conditions:
           - span.name == "replay.session_completed" and span.attributes["replay.throughput"] != nil
         histogram:
           buckets: [1, 5, 10, 50, 100, 500, 1000, 5000]
           value: Double(span.attributes["replay.throughput"])
-      - name: replay.speed.multiplier
-        description: Speed multiplier of each started session
-        unit: x
-        attributes:
-          - key: replay.type
-        conditions:
-          - span.name == "replay.session_started"
-        histogram:
-          buckets: [0.5, 1, 2, 5, 10, 50, 100]
-          value: Double(span.attributes["replay.speed_multiplier"])
-      - name: replay.by.target
-        description: Events sent to each replay target, by success
-        unit: "{event}"
-        attributes:
-          - key: replay.target
-          - key: replay.target_success
-        conditions:
-          - span.name == "replay.target"
-        sum:
-          value: "1"
-          monotonic: true
-      - name: replay.target.errors
-        description: Events a replay target failed to take
-        unit: "{event}"
-        attributes:
-          - key: replay.target
-        conditions:
-          - span.name == "replay.target" and span.attributes["replay.target_success"] == false
-        sum:
-          value: "1"
-          monotonic: true
-      # The API reports these every 10 s from the sessions it holds in memory
+      # The worker reports these every 10 s from the replay_sessions collection
       - name: replay.sessions.by.status
-        description: Replay sessions the API holds, by status
+        description: Stored replay sessions, by status
         unit: "{session}"
         attributes:
           - key: replay.status
@@ -617,13 +567,6 @@ connectors:
           - span.name == "replay.sessions"
         gauge:
           value: Int(span.attributes["replay.sessions"])
-      - name: replay.queue.size
-        description: Loaded events still to send, over all sessions
-        unit: "{event}"
-        conditions:
-          - span.name == "replay.report"
-        gauge:
-          value: Int(span.attributes["replay.queued_events"])
       - name: authentication.attempts
         description: Password logins, by success
         unit: "{attempt}"

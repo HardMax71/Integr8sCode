@@ -13,7 +13,7 @@ Route handlers get these from Dishka. They hold the business logic, talk to Mong
 | `execution_queue.py` | `ExecutionQueueService`, the Redis priority queue the execution scheduler starts executions from. See [Execution Queue](execution-queue.md). |
 | `execution_scheduler.py` | `ExecutionScheduler`, which starts queued executions while slots are free, cancels them and frees their slots. |
 | `event_service.py` | Reading stored events. Publishing goes through `UnifiedProducer` directly. |
-| `event_replay/` | `EventReplayService`, which re-publishes stored events for admins. |
+| `event_replay/` | `EventReplayService`, which runs admin replay sessions in the worker and sends their events to Kafka again. |
 | `sse/` | `SSERedisBus` and `SSEService`. See [SSE](../components/sse/sse-architecture.md). |
 | `notification_service.py`, `notification_scheduler.py` | Notifications for finished executions, delivery, subscriptions, and the job that sends scheduled ones. |
 | `user_settings_service.py` | Settings stored as events with snapshots, rebuilt on every read. See [User Settings Events](user-settings-events.md). |
@@ -46,7 +46,7 @@ The pod monitor lists and then watches pods labelled `app=integr8s,component=exe
 
 The result processor writes the final status, output and resource usage to MongoDB, records execution metrics and only then publishes the terminal event. If the execution already ended, a cancel for example, it publishes nothing. It doesn't touch Kubernetes.
 
-Replay sessions run inside the API process, which owns the `EventReplayService` the admin routes use. MongoDB drops finished sessions 48 hours after they complete.
+Replay sessions run in the worker. The admin route stores a scheduled session, and the worker's `EventReplayService` runs it. MongoDB drops finished sessions 48 hours after they complete.
 
 The DLQ processor runs `process_monitoring_cycle` every 10 seconds, which republishes due messages from the `dlq_messages` collection to their original topic for the consumer group that failed on them. The execution scheduler and notification routers save their failed events there. See [Dead Letter Queue](../components/dead-letter-queue.md).
 

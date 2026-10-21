@@ -393,10 +393,11 @@ class AdminServicesProvider(Provider):
     def get_admin_events_service(
         self,
         admin_events_repository: AdminEventsRepository,
-        event_replay_service: EventReplayService,
+        replay_repository: ReplayRepository,
         logger: structlog.stdlib.BoundLogger,
+        tracer: trace.Tracer,
     ) -> AdminEventsService:
-        return AdminEventsService(admin_events_repository, event_replay_service, logger)
+        return AdminEventsService(admin_events_repository, replay_repository, logger, tracer)
 
     @provide
     def get_admin_settings_service(
@@ -637,14 +638,8 @@ class EventReplayProvider(Provider):
         self,
         replay_repository: ReplayRepository,
         kafka_producer: UnifiedProducer,
-        tracer: trace.Tracer,
-        logger: structlog.stdlib.BoundLogger,
         sse_bus: SSERedisBus,
+        logger: structlog.stdlib.BoundLogger,
+        tracer: trace.Tracer,
     ) -> EventReplayService:
-        return EventReplayService(
-            repository=replay_repository,
-            producer=kafka_producer,
-            tracer=tracer,
-            logger=logger,
-            sse_bus=sse_bus,
-        )
+        return EventReplayService(replay_repository, kafka_producer, sse_bus, logger, tracer)

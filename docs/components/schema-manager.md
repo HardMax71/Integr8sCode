@@ -13,7 +13,7 @@ Four collections expire documents on their own:
 | `events` | at `ttl_expires_at`, which `EventDocument` sets to 30 days after the event is created |
 | `notifications` | 30 days after `created_at` |
 | `dlq_messages` | 7 days after `created_at` |
-| `replay_sessions` | 48 hours after `completed_at`; a session that hasn't finished has none and stays |
+| `replay_sessions` | 48 hours after `completed_at`; the worker finishes or fails every session, so none stays without one |
 
 The 30 days for events is hardcoded in the document. Everything else stays until something deletes it. That includes `executions`.
 

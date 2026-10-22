@@ -78,7 +78,7 @@ Every long-running service except Kafdrop has a `mem_limit`.
 | Frontend             | 128m        |                                                             |
 | Worker               | 256m        | idles near 150 MiB                                          |
 | Grafana              | 512m        | Grafana 13 idles near 300 MiB                               |
-| Jaeger               | 256m        | in-memory storage                                           |
+| Jaeger               | 256m        | in-memory storage, at most 50 000 traces                    |
 | Loki                 | 256m        |                                                             |
 | Victoria Metrics     | 256m        | `--retentionPeriod=30d`                                     |
 | OTel Collector       | 192m        | `memory_limiter` at 150 MiB                                 |
@@ -98,6 +98,19 @@ The collector's docker_stats receiver reads every container's CPU, memory, netwo
 Grafana starts through a small entrypoint. It resets the admin password from `GF_SECURITY_ADMIN_PASSWORD`, starts Grafana without the alert rules, waits until the dashboard provider has created the `integr8scode` folder, then copies the rules back and calls the alerting reload API. Loaded first, the rules would create their own folder with a random UID. See [Grafana integration](grafana-integration.md).
 
 The frontend gets `GRAFANA_PUBLIC_URL` from `GRAFANA_ROOT_URL` (default `http://localhost:3000/`), which is where `/grafana` on the app host redirects.
+
+### Retention and sampling
+
+How long each store keeps its data, and how much of it gets there, is set in the container that holds it:
+
+| What | Where | Value |
+|---|---|---|
+| Metrics | `--retentionPeriod` of `victoria-metrics` in docker-compose.yaml | 30 days |
+| Logs | `retention_period` in backend/loki/loki-config.yaml | 720h, 30 days |
+| Traces | `max_traces` in the `--set` flag of `jaeger` in docker-compose.yaml | 50 000, about 4 days at 12 600 a day; in memory, so a restart empties it |
+| Trace sampling | `tail_sampling` in backend/otel-collector-config.yaml | every trace with an error, every trace over 1 s, 10% of the rest |
+
+Jaeger's built-in config would keep 100 000 traces. At about 2.3 KB each in memory that's around 260 MiB, over its 256m limit, so it would be OOM-killed after about a week and lose them all. The backend and the worker send every span (`TRACING_SAMPLING_RATE = 1.0` in config.toml) because the collector makes the app's metrics from spans; sampling happens only on the way to Jaeger. A change takes effect at the next release: compose recreates `victoria-metrics` and `jaeger` when their command changes, and the deploy restarts `loki` and `otel-collector` when their config file changes.
 
 ## Image versions
 

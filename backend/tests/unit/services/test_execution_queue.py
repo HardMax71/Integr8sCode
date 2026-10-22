@@ -8,6 +8,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from app.domain.enums import QueuePriority
+from app.domain.execution import QueuedRequestLostError
 from app.services.execution_queue import (
     _EVENT_TTL,
     _PENDING_KEYS,
@@ -121,15 +122,16 @@ async def test_try_schedule_returns_event(
 async def test_try_schedule_event_data_expired(
     queue_service: ExecutionQueueService, mock_redis: AsyncMock, span_exporter: InMemorySpanExporter
 ) -> None:
-    """When the event JSON has expired from Redis, try_schedule frees the running slot and returns None."""
+    """When the event JSON has expired from Redis, try_schedule frees the running slot and raises."""
     script = AsyncMock(return_value=[b"e-gone", str(time.time()).encode(), 2])
     mock_redis.register_script = MagicMock(return_value=script)
     mock_redis.get = AsyncMock(return_value=None)
     queue_service._schedule_script = None
 
-    result = await queue_service.try_schedule(5)
+    with pytest.raises(QueuedRequestLostError) as lost:
+        await queue_service.try_schedule(5)
 
-    assert result is None
+    assert lost.value.execution_id == "e-gone"
     mock_redis.zrem.assert_awaited_once_with(_RUNNING_KEY, "e-gone")
     mock_redis.get.assert_any_await(_owner_key("e-gone"))
     [span] = span_exporter.get_finished_spans()

@@ -100,6 +100,25 @@ class ResultProcessor:
             )
             await self._store(result, event.metadata, event.aggregate_id, announce=(event,))
 
+    async def handle_lost_request(self, execution_id: str) -> None:
+        """Fail an execution whose queued request expired before a slot freed up, so it doesn't stay queued."""
+        exec_obj = await self._execution_repo.get_execution(execution_id)
+        if exec_obj is None:
+            self.logger.warning("Execution deleted before its lost request was failed", execution_id=execution_id)
+            return
+        await self.handle_execution_failed(
+            ExecutionFailedEvent(
+                execution_id=execution_id,
+                aggregate_id=execution_id,
+                error_type=ExecutionErrorType.SYSTEM_ERROR,
+                exit_code=-1,
+                stderr="The execution waited in the queue until its request expired. Run it again.",
+                metadata=EventMetadata(
+                    service_name="execution-scheduler", service_version="1.0.0", user_id=exec_obj.user_id or ""
+                ),
+            )
+        )
+
     async def handle_execution_timeout(self, event: ExecutionTimeoutEvent) -> None:
         """Store a timed-out execution's result, then publish the event and result_stored."""
         exec_obj = await self._execution_repo.get_execution(event.execution_id)

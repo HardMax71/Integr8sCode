@@ -310,6 +310,38 @@ class TestKafkaOutage:
         producer.produce_or_log.assert_not_awaited()
 
 
+class TestLostRequest:
+    async def test_stores_a_system_error_for_the_owner(self, tracer: trace.Tracer) -> None:
+        repo = AsyncMock()
+        repo.get_execution.return_value = ExecutionDocument(
+            script="x", execution_id="e8", lang="python", lang_version="3.11", user_id="owner"
+        )
+        repo.write_terminal_result.return_value = True
+        producer = AsyncMock()
+        processor = _make_processor(tracer, exec_repo=repo, producer=producer)
+
+        await processor.handle_lost_request("e8")
+
+        result = repo.write_terminal_result.call_args[0][0]
+        assert (result.status, result.error_type, result.exit_code) == (
+            ExecutionStatus.FAILED,
+            ExecutionErrorType.SYSTEM_ERROR,
+            -1,
+        )
+        [failed, stored] = [c.kwargs["event_to_produce"] for c in producer.produce_or_log.await_args_list]
+        assert (failed.event_type, failed.metadata.user_id) == (EventType.EXECUTION_FAILED, "owner")
+        assert stored.event_type == EventType.RESULT_STORED
+
+    async def test_skips_a_deleted_execution(self, tracer: trace.Tracer) -> None:
+        repo = AsyncMock()
+        repo.get_execution.return_value = None
+        processor = _make_processor(tracer, exec_repo=repo)
+
+        await processor.handle_lost_request("gone")
+
+        repo.write_terminal_result.assert_not_awaited()
+
+
 class TestPodProgress:
     """Pod events move the stored execution status forward."""
 

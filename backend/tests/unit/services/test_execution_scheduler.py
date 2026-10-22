@@ -8,6 +8,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from app.domain.admin import SystemSettings
 from app.domain.enums import ExecutionErrorType
 from app.domain.events import EventMetadata, ExecutionCancelledEvent, ExecutionFailedEvent, ExecutionRequestedEvent
+from app.domain.execution import QueuedRequestLostError
 from app.services.execution_queue import ExecutionQueueService
 from app.services.execution_scheduler import ExecutionScheduler
 from app.services.k8s_worker import KubernetesWorker
@@ -120,3 +121,14 @@ async def test_finish_frees_the_slots_and_starts_the_next_execution(tracer: trac
     calls.queue.release.assert_awaited_once_with("e1")
     calls.queue.release_user_slot.assert_awaited_once_with("e1")
     calls.k8s.create_pod.assert_awaited_once_with(waiting)
+
+
+async def test_a_lost_request_fails_its_execution_and_the_queue_goes_on(tracer: trace.Tracer) -> None:
+    fine = _requested("e2")
+    scheduler, calls = _scheduler(tracer, [fine])
+    calls.queue.try_schedule.side_effect = [QueuedRequestLostError("e1"), ("e2", fine), None]
+
+    await scheduler.schedule_pending()
+
+    calls.results.handle_lost_request.assert_awaited_once_with("e1")
+    calls.k8s.create_pod.assert_awaited_once_with(fine)

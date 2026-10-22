@@ -41,7 +41,7 @@ A reservation lasts 24 hours, as long as a queued event does. The scheduler give
 
 Once the service has loaded the event, the slot gets the execution's own pod deadline plus 300 seconds: the timeout the execution was submitted with, raised to its language's minimum. The user's reservation moves to the same deadline, so a job that waited long in the queue keeps its place in the user's count while it runs. Until the event is loaded, the slot assumes the longest timeout an admin can set. A normal run releases the slot long before it expires, so expiry only matters when a release got lost, for example a pod deleted by hand while the worker was down.
 
-The service then loads the stored event. If that key already expired, the execution is lost: the id leaves the running set and its user's reservation, `queue.event_data_lost` goes up and nothing is scheduled.
+The service then loads the stored event. If that key already expired, the request can't run: the id leaves the running set and its user's reservation, `queue.event_data_lost` goes up, and the scheduler has the result processor store the execution as `failed` with error type `system_error`, then moves on to the next one.
 
 `schedule_pending` reads `max_concurrent_executions` from the admin system settings (default 10, admins can set 1 to 100, cached for 60 seconds by `RuntimeSettingsLoader`). It calls `try_schedule` in a loop and has the k8s worker create the pod for each id it gets, until the queue is empty, the cap is reached or it pops an id whose event expired. That last case ends the pass even with entries still pending, and the next pass picks them up.
 

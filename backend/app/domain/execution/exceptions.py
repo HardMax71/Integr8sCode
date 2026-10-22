@@ -1,5 +1,12 @@
 from app.domain.enums import ExecutionStatus
-from app.domain.exceptions import ForbiddenError, InvalidStateError, NotFoundError, ThrottledError, ValidationError
+from app.domain.exceptions import (
+    ForbiddenError,
+    InfrastructureError,
+    InvalidStateError,
+    NotFoundError,
+    ThrottledError,
+    ValidationError,
+)
 
 
 class ExecutionNotFoundError(NotFoundError):
@@ -54,3 +61,11 @@ class ExecutionTerminalError(InvalidStateError):
         self.execution_id = execution_id
         self.status = status
         super().__init__(f"Cannot cancel execution in {status} state")
+
+
+class QueuedRequestLostError(InfrastructureError):
+    """Raised when a queued execution's request expired from Redis before a slot freed up for it."""
+
+    def __init__(self, execution_id: str) -> None:
+        self.execution_id = execution_id
+        super().__init__(f"The queued request of execution '{execution_id}' expired before it could start")

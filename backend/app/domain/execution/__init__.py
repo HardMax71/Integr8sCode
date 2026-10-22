@@ -4,6 +4,7 @@ from .exceptions import (
     ExecutionNotFoundError,
     ExecutionNotRetryableError,
     ExecutionTerminalError,
+    QueuedRequestLostError,
     RuntimeNotSupportedError,
 )
 from .models import (
@@ -18,6 +19,7 @@ __all__ = [
     "CancelResult",
     "ExecutionResultDomain",
     "ExecutionTerminalError",
+    "QueuedRequestLostError",
     "LanguageInfoDomain",
     "LanguageLimitsDomain",
     "ResourceLimitsDomain",

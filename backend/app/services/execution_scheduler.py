@@ -3,6 +3,7 @@ from opentelemetry import trace
 
 from app.domain.enums import ExecutionErrorType
 from app.domain.events import ExecutionCancelledEvent, ExecutionFailedEvent, ExecutionRequestedEvent
+from app.domain.execution import QueuedRequestLostError
 from app.services.execution_queue import ExecutionQueueService
 from app.services.k8s_worker import KubernetesWorker
 from app.services.result_processor import ResultProcessor
@@ -54,7 +55,14 @@ class ExecutionScheduler:
         """Start queued executions while slots are free, and report the queue's depth and active slots on the span."""
         with self._tracer.start_as_current_span("queue.schedule_pending") as span:
             settings = await self._runtime_settings.get_effective_settings()
-            while (scheduled := await self._queue.try_schedule(settings.max_concurrent_executions)) is not None:
+            while True:
+                try:
+                    scheduled = await self._queue.try_schedule(settings.max_concurrent_executions)
+                except QueuedRequestLostError as e:
+                    await self._results.handle_lost_request(e.execution_id)
+                    continue
+                if scheduled is None:
+                    break
                 execution_id, event = scheduled
                 try:
                     await self._k8s_worker.create_pod(event)

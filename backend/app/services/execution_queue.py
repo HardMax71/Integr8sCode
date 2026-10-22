@@ -10,6 +10,7 @@ from redis.exceptions import RedisError
 
 from app.domain.enums import QueuePriority
 from app.domain.events import ExecutionRequestedEvent
+from app.domain.execution import QueuedRequestLostError
 from app.runtime_registry import POD_RUNTIME_CONFIGS, PodRuntimeConfig
 
 PRIORITY_ORDER: list[QueuePriority] = [
@@ -185,7 +186,11 @@ class ExecutionQueueService:
         return position
 
     async def try_schedule(self, max_active: int) -> tuple[str, ExecutionRequestedEvent] | None:
-        """Move the next pending execution into a running slot that expires shortly after its pod deadline."""
+        """Move the next pending execution into a running slot that expires shortly after its pod deadline.
+
+        Raises:
+            QueuedRequestLostError: The execution's stored request expired; its slots are already freed.
+        """
         script = await self._get_schedule_script()
         now = time.time()
         result = await script(
@@ -209,7 +214,7 @@ class ExecutionQueueService:
                 await self._redis.zrem(_RUNNING_KEY, execution_id)
                 await self.release_user_slot(execution_id)
                 span.set_attribute("queue.outcome", "event_data_lost")
-                return None
+                raise QueuedRequestLostError(execution_id)
 
             event_str = event_json if isinstance(event_json, str) else event_json.decode()
             event = ExecutionRequestedEvent.model_validate_json(event_str)

@@ -52,7 +52,7 @@ The counter key is `rate_limit:sw:<user id>:<path>`, or `rate_limit:sw:ip:<addr>
 
 ## Algorithms
 
-The sliding window keeps one sorted-set entry per request, with the timestamp as both member and score. Two requests with the exact same timestamp therefore share one entry and count once. Each check drops entries older than the window, adds the current one, counts, and refreshes the TTL to twice the window:
+The sliding window keeps one sorted-set entry per request, scored by its timestamp. The member is the timestamp plus a random suffix, so two requests in the same instant still count twice. Each check drops entries older than the window, adds the current one, counts, and refreshes the TTL to twice the window:
 
 ```python
 --8<-- "backend/app/services/rate_limit_service.py:check_sliding_window"

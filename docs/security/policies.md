@@ -49,7 +49,7 @@ The worker reaches the cluster with k3s's own kubeconfig, mounted read-only from
 
 ## Quota
 
-The `executor-quota` ResourceQuota caps the total CPU and memory that pods in the namespace request, not what they use: a default pod requests 200m CPU but may use up to its 1000m limit. The worker applies it with `requests.cpu` from `K8S_NAMESPACE_CPU_QUOTA` (32) and `requests.memory` from `K8S_NAMESPACE_MEMORY_QUOTA` (4Gi). The API server refuses a pod that would go over it with `403 Forbidden`, and the worker publishes `pod_creation_failed` for its execution.
+The `executor-quota` ResourceQuota caps the total CPU and memory that pods in the namespace request, not what they use: a default pod requests 200m CPU but may use up to its 1000m limit. The worker applies it with `requests.cpu` from `K8S_NAMESPACE_CPU_QUOTA` (32) and `requests.memory` from `K8S_NAMESPACE_MEMORY_QUOTA` (4Gi). The API server refuses a pod that would go over it with `403 Forbidden`, and the execution scheduler stores that execution as `failed` with error type `system_error`.
 
 How many executions run at once is decided by the execution scheduler's queue (`max_concurrent_executions`, 10 by default). Every pod requests 200m CPU and 128Mi, Go's included, since Go raises only its limits, so 10 executions request 2 CPU and 1.25Gi. The memory quota fills at 32 pods, which makes it a backstop that refuses pods only when the admin settings allow more than that at once.
 

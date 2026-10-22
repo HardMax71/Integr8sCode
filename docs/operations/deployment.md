@@ -169,7 +169,9 @@ docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
 docker image prune -af
 ```
 
-Pruning before the pull and after the deploy keeps only the images the running stack uses. To roll back by hand, check out an older CalVer tag, set `IMAGE_TAG` in `.env` to it and run the same `pull` and `up`; the old images come back from GHCR.
+Between `up` and the prune it restarts the collector, VictoriaMetrics, Loki or Grafana when the release changed a config file that service mounts, comparing the new tag with the commit the server ran before. They read their config only when they start, and compose recreates a container only when its service definition changes, never for a new file behind a mount. Without the restart, a release that changes only `otel-collector-config.yaml` keeps running the old one; release 2026.10.28 ran 2.5 hours like that, without its new span metrics. Grafana re-reads its dashboards every 10 seconds by itself, so a dashboard change doesn't restart it.
+
+Pruning before the pull and after the deploy keeps only the images the running stack uses. To roll back by hand, check out an older CalVer tag, set `IMAGE_TAG` in `.env` to it and run the same `pull` and `up`, plus `docker compose restart` for any of those four whose config the rollback changes; the old images come back from GHCR.
 
 The images on GHCR are public, so the server pulls them without logging in. To set up the server and the repository secrets, see [Required secrets](cicd.md#required-secrets).
 

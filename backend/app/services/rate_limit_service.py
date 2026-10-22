@@ -6,6 +6,7 @@ import re
 import time
 from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 import redis.asyncio as redis
 import structlog
@@ -151,7 +152,7 @@ class RateLimitService:
         # --8<-- [start:check_sliding_window]
         pipe = self.redis.pipeline()
         pipe.zremrangebyscore(key, 0, window_start)
-        pipe.zadd(key, {str(now): now})
+        pipe.zadd(key, {f"{now}:{uuid4().hex}": now})
         pipe.zcard(key)
         pipe.expire(key, window_seconds * 2)
         results = await pipe.execute()

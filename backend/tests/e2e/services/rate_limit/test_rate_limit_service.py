@@ -13,6 +13,7 @@ from app.domain.rate_limit import (
     RateLimitRule,
     UserRateLimit,
 )
+from app.services import rate_limit_service
 from app.services.rate_limit_service import RateLimitService
 from app.settings import Settings
 
@@ -68,6 +69,25 @@ async def test_sliding_window_allowed_and_rejected(svc: RateLimitService) -> Non
     await svc.update_config(RateLimitConfig(default_rules=[rule], global_enabled=False))
     res_disabled = await svc.check_rate_limit("u", "/api/v1/x")
     assert res_disabled.allowed is True
+
+
+async def test_sliding_window_counts_two_requests_in_the_same_instant(
+    svc: RateLimitService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rule = RateLimitRule(
+        endpoint_pattern=r"^/api/v1/same",
+        group=EndpointGroup.API,
+        requests=1,
+        window_seconds=5,
+        algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
+    )
+    await svc.update_config(RateLimitConfig(default_rules=[rule]))
+    monkeypatch.setattr(rate_limit_service, "time", MagicMock(time=MagicMock(return_value=1_000_000_000.0)))
+
+    first = await svc.check_rate_limit("u", "/api/v1/same")
+    second = await svc.check_rate_limit("u", "/api/v1/same")
+
+    assert (first.allowed, second.allowed) == (True, False)
 
 
 async def test_token_bucket_paths(svc: RateLimitService) -> None:

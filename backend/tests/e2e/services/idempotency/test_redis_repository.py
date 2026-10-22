@@ -135,6 +135,30 @@ async def test_update_record_when_missing(
     assert res == 0
 
 
+async def test_update_keeps_a_sub_second_expiry(
+    repository: RedisIdempotencyRepository, redis_client: redis.Redis, sample_record: IdempotencyRecord
+) -> None:
+    """TTL rounds a key with under half a second left down to 0, and a rewrite must not drop its expiry."""
+    await repository.insert_processing(sample_record)
+    key = repository._full_key(sample_record.key)
+    await redis_client.pexpire(key, 400)
+
+    sample_record.status = IdempotencyStatus.COMPLETED
+    assert await repository.update_record(sample_record) == 1
+
+    assert 0 < await redis_client.pttl(key) <= 400
+
+
+async def test_update_does_not_bring_back_an_expired_key(
+    repository: RedisIdempotencyRepository, redis_client: redis.Redis, sample_record: IdempotencyRecord
+) -> None:
+    await repository.insert_processing(sample_record)
+    await repository.delete_key(sample_record.key)
+
+    assert await repository.update_record(sample_record) == 0
+    assert await redis_client.exists(repository._full_key(sample_record.key)) == 0
+
+
 async def test_count_keys_counts_only_its_own_prefix(redis_client: redis.Redis) -> None:
     prefix = f"count-{uuid4().hex[:8]}"
     repository = RedisIdempotencyRepository(redis_client, key_prefix=prefix)

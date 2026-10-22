@@ -104,22 +104,10 @@ class RedisIdempotencyRepository:
     # --8<-- [end:insert_processing]
 
     async def update_record(self, record: IdempotencyRecord) -> int:
-        k = self._full_key(record.key)
-        # Read-modify-write while preserving TTL
-        pipe = self._r.pipeline()
-        pipe.ttl(k)
-        pipe.get(k)
-        ttl_val, raw = await pipe.execute()
-        if not raw:
-            return 0
-        doc = self._record_to_doc(record)
-        # Write back, keep TTL if positive
-        payload = json.dumps(doc, default=_json_default)
-        if isinstance(ttl_val, int) and ttl_val > 0:
-            await self._r.set(k, payload, ex=ttl_val)
-        else:
-            await self._r.set(k, payload)
-        return 1
+        """Overwrite a record that still exists and keep its expiry; a key that already expired stays gone."""
+        payload = json.dumps(self._record_to_doc(record), default=_json_default)
+        written = await self._r.set(self._full_key(record.key), payload, xx=True, keepttl=True)
+        return 1 if written else 0
 
     async def delete_key(self, key: str) -> int:
         return int(await self._r.delete(self._full_key(key)))

@@ -53,7 +53,7 @@ A record has one of three states:
 --8<-- "backend/app/services/idempotency/redis_repository.py:insert_processing"
 ```
 
-When `SET NX` loses, the repository raises pymongo's `DuplicateKeyError`, odd for a Redis store but it's what the manager catches. Each record is a JSON document with the status, the event type and id, timestamps, processing duration, the error and an optional cached result. Updates keep the key's remaining TTL, read with `TTL` in whole seconds. If that reads 0 because the key is about to expire, the rewrite sets no expiry at all and the key stays until something deletes it.
+When `SET NX` loses, the repository raises pymongo's `DuplicateKeyError`, odd for a Redis store but it's what the manager catches. Each record is a JSON document with the status, the event type and id, timestamps, processing duration, the error and an optional cached result. An update is one `SET XX KEEPTTL`: it overwrites only a key that still exists and keeps its remaining lifetime, so a rewrite never brings back an expired key or drops an expiry.
 
 A `processing` record older than `processing_timeout_seconds` (300) is taken to be a crashed consumer. The manager resets its `created_at` and lets the new caller run. `completed` and `failed` records both count as duplicates until the key expires. Neither the Kafka middleware nor the HTTP path writes `failed` today: both release the key when the work raises.
 

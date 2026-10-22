@@ -170,15 +170,13 @@ class TestUpdateNotificationSettings:
 
         notification_settings = DomainNotificationSettings(
             execution_completed=True,
-            execution_failed=True,
-            system_updates=False,
+            execution_failed=False,
         )
         result = await user_settings_service.update_notification_settings(user_id, notification_settings)
 
         assert result.notifications is not None
         assert result.notifications.execution_completed is True
-        assert result.notifications.execution_failed is True
-        assert result.notifications.system_updates is False
+        assert result.notifications.execution_failed is False
 
     async def test_disable_all_notifications(self, user_settings_service: UserSettingsService) -> None:
         """Disable all notifications."""
@@ -187,8 +185,6 @@ class TestUpdateNotificationSettings:
         notification_settings = DomainNotificationSettings(
             execution_completed=False,
             execution_failed=False,
-            system_updates=False,
-            security_alerts=False,
         )
         result = await user_settings_service.update_notification_settings(user_id, notification_settings)
 

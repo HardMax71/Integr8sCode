@@ -12,6 +12,7 @@ from app.db.docs import NotificationDocument
 from app.events import UnifiedProducer
 from app.services.notification_service import NotificationService
 from app.services.sse import SSERedisBus
+from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit
@@ -24,6 +25,7 @@ def _service(test_settings: Settings, tracer: trace.Tracer, bus: SSERedisBus) ->
         notification_repository=repo,
         producer=AsyncMock(spec=UnifiedProducer),
         sse_bus=bus,
+        user_settings=AsyncMock(spec=UserSettingsService),
         settings=test_settings,
         logger=structlog.get_logger("test.notification_delivery_metrics"),
         tracer=tracer,

@@ -2221,14 +2221,6 @@ export type NotificationSettingsInput = {
      * Execution Failed
      */
     execution_failed?: boolean;
-    /**
-     * System Updates
-     */
-    system_updates?: boolean;
-    /**
-     * Security Alerts
-     */
-    security_alerts?: boolean;
 };
 
 /**
@@ -2245,14 +2237,6 @@ export type NotificationSettingsOutput = {
      * Execution Failed
      */
     execution_failed: boolean;
-    /**
-     * System Updates
-     */
-    system_updates: boolean;
-    /**
-     * Security Alerts
-     */
-    security_alerts: boolean;
 };
 
 /**

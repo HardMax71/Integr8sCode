@@ -15,8 +15,6 @@ function createMockSettings(): UserSettings {
         notifications: {
             execution_completed: true,
             execution_failed: false,
-            system_updates: true,
-            security_alerts: false,
         },
         editor: {
             font_size: 16,

@@ -46,8 +46,6 @@ class TestUpdateUserSettings:
             notifications=NotificationSettings(
                 execution_completed=True,
                 execution_failed=True,
-                system_updates=False,
-                security_alerts=True,
             ),
             editor=EditorSettings(
                 tab_size=4,
@@ -118,8 +116,6 @@ class TestUpdateNotificationSettings:
         request = NotificationSettings(
             execution_completed=True,
             execution_failed=True,
-            system_updates=True,
-            security_alerts=True,
         )
         response = await test_user.put(
             "/api/v1/user/settings/notifications",
@@ -130,8 +126,6 @@ class TestUpdateNotificationSettings:
         settings = UserSettings.model_validate(response.json())
         assert settings.notifications.execution_completed is True
         assert settings.notifications.execution_failed is True
-        assert settings.notifications.system_updates is True
-        assert settings.notifications.security_alerts is True
 
 
 class TestUpdateEditorSettings:

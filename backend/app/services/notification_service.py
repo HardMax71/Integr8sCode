@@ -26,6 +26,7 @@ from app.domain.notification import (
 from app.domain.sse import DomainNotificationSSEPayload
 from app.events import PRODUCE_ERRORS, UnifiedProducer
 from app.services.sse import SSERedisBus
+from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
 
 # Constants
@@ -93,12 +94,14 @@ class NotificationService:
         notification_repository: NotificationRepository,
         producer: UnifiedProducer,
         sse_bus: SSERedisBus,
+        user_settings: UserSettingsService,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
         tracer: trace.Tracer,
         retry_wait: wait_base = DELIVERY_RETRY_WAIT,
     ) -> None:
         self.repository = notification_repository
+        self._user_settings = user_settings
         self._retry_wait = retry_wait
         self._producer = producer
         self._tracer = tracer
@@ -185,6 +188,9 @@ class NotificationService:
     async def handle_execution_timeout(self, event: ExecutionTimeoutEvent) -> None:
         """Handle execution timeout event."""
         user_id = event.metadata.user_id
+        if not (await self._user_settings.get_user_settings(user_id)).notifications.execution_failed:
+            self.logger.info("Notification switched off by the user", user_id=user_id, event_type=event.event_type)
+            return
 
         title = f"Execution Timeout: {event.execution_id}"
         body = f"Your execution timed out after {event.timeout_seconds}s."
@@ -201,6 +207,9 @@ class NotificationService:
     async def handle_execution_completed(self, event: ExecutionCompletedEvent) -> None:
         """Handle execution completed event."""
         user_id = event.metadata.user_id
+        if not (await self._user_settings.get_user_settings(user_id)).notifications.execution_completed:
+            self.logger.info("Notification switched off by the user", user_id=user_id, event_type=event.event_type)
+            return
 
         title = f"Execution Completed: {event.execution_id}"
         duration = event.resource_usage.execution_time_wall_seconds
@@ -218,6 +227,9 @@ class NotificationService:
     async def handle_execution_failed(self, event: ExecutionFailedEvent) -> None:
         """Handle execution failed event."""
         user_id = event.metadata.user_id
+        if not (await self._user_settings.get_user_settings(user_id)).notifications.execution_failed:
+            self.logger.info("Notification switched off by the user", user_id=user_id, event_type=event.event_type)
+            return
 
         event_data = event.model_dump()
 

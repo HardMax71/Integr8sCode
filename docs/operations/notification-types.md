@@ -11,7 +11,7 @@ flowchart LR
 
 ## Where they come from
 
-`dishka_lifespan` includes `notification_router`, which subscribes to `execution_completed`, `execution_failed` and `execution_timeout` in the consumer group `notification-service`, starting from the latest offset. Each handler turns the event into a notification for the execution's owner.
+`dishka_lifespan` includes `notification_router`, which subscribes to `execution_completed`, `execution_failed` and `execution_timeout` in the consumer group `notification-service`, starting from the latest offset. Each handler turns the event into a notification for the execution's owner, unless the owner switched it off in their settings: `execution_completed` covers completed runs, and `execution_failed` covers failed and timed-out ones.
 
 | Event                 | Subject                         | Severity | Tags                                                           |
 |-----------------------|---------------------------------|----------|----------------------------------------------------------------|

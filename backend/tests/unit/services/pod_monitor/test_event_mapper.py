@@ -23,6 +23,7 @@ _test_logger = structlog.get_logger("test.services.pod_monitor.event_mapper")
 
 _TERM_MSG = "exit_code=0\ncpu_jiffies=100\nclk_tck=100\npeak_memory_kb=1024\nwall_seconds=0.5\n"
 _TERM_MSG_EMPTY = "exit_code=0\ncpu_jiffies=0\nclk_tck=100\npeak_memory_kb=0\nwall_seconds=0\n"
+_UNREADABLE = "The output couldn't be read from the pod's log."
 
 
 def _framed(stdout: str | bytes = "", stderr: str | bytes = "") -> bytes:
@@ -184,11 +185,6 @@ def test_extract_id_and_metadata_priority_and_duplicates() -> None:
     p3 = make_pod(name="exec-XYZ", phase="Pending")
     assert pem._extract_execution_id(p3) == "XYZ"
 
-    # Duplicate detection caches phase
-    pem._event_cache.clear()
-    assert pem._is_duplicate("n1", "Running") is False
-    assert pem._is_duplicate("n1", "Running") is True
-
 
 async def test_scheduled_requires_condition() -> None:
     pem = PodEventMapper(k8s_api=_make_mock_api(), logger=_test_logger)
@@ -320,34 +316,27 @@ async def test_extract_logs_malformed_framing_returns_empty() -> None:
     assert result.stderr == ""
 
 
-async def test_extract_logs_error_paths() -> None:
-    """Without a K8s API client there are no logs to extract."""
-    pod = make_pod(
-        name="p",
-        phase="Succeeded",
-        container_statuses=[make_container_status(terminated_exit_code=0)],
-    )
-
-    pem_no_api = PodEventMapper(k8s_api=None, logger=_test_logger)
-    assert await pem_no_api._extract_logs(pod) is None
-
-
 @pytest.mark.parametrize(
     "error",
     [ApiException(status=500, reason="boom"), aiohttp.ClientConnectionError("boom"), TimeoutError("boom")],
 )
-async def test_extract_logs_returns_none_on_api_failure(error: Exception) -> None:
+async def test_unreadable_log_leaves_a_note_and_keeps_the_result(error: Exception) -> None:
     pod = make_pod(
         name="p",
         phase="Succeeded",
-        container_statuses=[make_container_status(terminated_exit_code=0)],
+        container_statuses=[make_container_status(terminated_exit_code=0, terminated_message=_TERM_MSG)],
     )
     mock_err = MagicMock()
     mock_err.read_namespaced_pod_log = AsyncMock(side_effect=error)
-    assert await PodEventMapper(k8s_api=mock_err, logger=_test_logger)._extract_logs(pod) is None
+
+    logs = await PodEventMapper(k8s_api=mock_err, logger=_test_logger)._extract_logs(pod)
+
+    assert logs is not None
+    assert (logs.stdout, logs.stderr, logs.exit_code) == ("", _UNREADABLE, 0)
+    assert logs.resource_usage.cpu_time_jiffies == 100
 
 
-async def test_extract_logs_returns_none_on_http_error_status() -> None:
+async def test_an_http_error_status_counts_as_unreadable() -> None:
     """A raw response does not raise on its own, so an error status must still be caught."""
     pod = make_pod(
         name="p",
@@ -358,7 +347,82 @@ async def test_extract_logs_returns_none_on_http_error_status() -> None:
     api.read_namespaced_pod_log.return_value.raise_for_status.side_effect = aiohttp.ClientResponseError(
         request_info=MagicMock(), history=(), status=404
     )
-    assert await PodEventMapper(k8s_api=api, logger=_test_logger)._extract_logs(pod) is None
+
+    logs = await PodEventMapper(k8s_api=api, logger=_test_logger)._extract_logs(pod)
+
+    assert logs is not None and logs.stderr == _UNREADABLE
+
+
+def _failing_log_api() -> MagicMock:
+    api = MagicMock()
+    api.read_namespaced_pod_log = AsyncMock(side_effect=ApiException(status=403, reason="Forbidden"))
+    return api
+
+
+async def test_succeeded_pod_with_unreadable_log_still_completes_once() -> None:
+    pem = PodEventMapper(k8s_api=_failing_log_api(), logger=_test_logger)
+    pod = make_pod(
+        name="p",
+        phase="Succeeded",
+        labels={"execution-id": "e1"},
+        container_statuses=[make_container_status(terminated_exit_code=0, terminated_message=_TERM_MSG)],
+    )
+
+    [event] = await pem.map_pod_event(pod, WatchEventType.MODIFIED)
+
+    assert isinstance(event, ExecutionCompletedEvent)
+    assert (event.exit_code, event.stdout, event.stderr) == (0, "", _UNREADABLE)
+    assert await pem.map_pod_event(pod, WatchEventType.MODIFIED) == []
+
+
+async def test_timed_out_pod_with_unreadable_log_is_a_timeout() -> None:
+    pem = PodEventMapper(k8s_api=_failing_log_api(), logger=_test_logger)
+    pod = make_pod(
+        name="p",
+        phase="Failed",
+        labels={"execution-id": "e1"},
+        container_statuses=[make_container_status(terminated_exit_code=137)],
+        reason="DeadlineExceeded",
+        active_deadline_seconds=5,
+    )
+
+    [event] = await pem.map_pod_event(pod, WatchEventType.MODIFIED)
+
+    assert isinstance(event, ExecutionTimeoutEvent)
+    assert (event.timeout_seconds, event.stderr) == (5, _UNREADABLE)
+
+
+async def test_a_phase_without_an_event_is_tried_again() -> None:
+    """The first Pending event often comes before the scheduler placed the pod."""
+    pem = PodEventMapper(k8s_api=_make_mock_api(), logger=_test_logger)
+    unplaced = make_pod(name="p", phase="Pending", labels={"execution-id": "e1"})
+    placed = make_pod(
+        name="p",
+        phase="Pending",
+        labels={"execution-id": "e1"},
+        node_name="n",
+        conditions=[V1PodCondition(type="PodScheduled", status="True")],
+    )
+
+    assert await pem.map_pod_event(unplaced, WatchEventType.ADDED) == []
+    assert [e.event_type for e in await pem.map_pod_event(placed, WatchEventType.MODIFIED)] == [EventType.POD_SCHEDULED]
+    assert await pem.map_pod_event(placed, WatchEventType.MODIFIED) == []
+
+
+async def test_deleting_a_finished_pod_sends_pod_terminated_and_forgets_it() -> None:
+    pem = PodEventMapper(k8s_api=_make_mock_api(_framed("ok", "")), logger=_test_logger)
+    pod = make_pod(
+        name="p",
+        phase="Succeeded",
+        labels={"execution-id": "e1"},
+        container_statuses=[make_container_status(terminated_exit_code=0, terminated_message=_TERM_MSG)],
+    )
+    await pem.map_pod_event(pod, WatchEventType.MODIFIED)
+
+    deleted = await pem.map_pod_event(pod, WatchEventType.DELETED)
+
+    assert [e.event_type for e in deleted] == [EventType.POD_TERMINATED]
+    assert "p" not in pem._event_cache
 
 
 def test_analyze_failure_variants() -> None:

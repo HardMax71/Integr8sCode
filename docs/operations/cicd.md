@@ -1,6 +1,6 @@
 # CI/CD pipeline
 
-CI is seven GitHub Actions workflows, two composite actions and a Dependabot config. Three of the workflows form the release chain: CI checks the code and builds and tests the images, Docker Scan & Promote scans them and moves `latest`, and Release & Deploy tags a CalVer release and deploys it. The first two run on every merge to `main`, so `latest` is always the newest build that passed both. Release & Deploy doesn't follow them: it runs once a day at 23:00 Europe/Berlin, or by hand, and releases whatever `latest` is then. A manual run of Docker Scan & Promote or Release & Deploy starts partway along the chain, without the steps before it.
+CI is eight GitHub Actions workflows, two composite actions and a Dependabot config. Three of the workflows form the release chain: CI checks the code and builds and tests the images, Docker Scan & Promote scans them and moves `latest`, and Release & Deploy tags a CalVer release and deploys it. The first two run on every merge to `main`, so `latest` is always the newest build that passed both. Release & Deploy doesn't follow them: it runs once a day at 23:00 Europe/Berlin, or by hand, and releases whatever `latest` is then. A manual run of Docker Scan & Promote or Release & Deploy starts partway along the chain, without the steps before it.
 
 ```mermaid
 graph LR
@@ -28,13 +28,14 @@ graph LR
 | Docker Scan & Promote          | docker.yml           | after CI completes; manual with an optional SHA                         |
 | Release & Deploy               | release-deploy.yml   | daily at 23:00 Europe/Berlin; manual on `main` with `skip_deploy`       |
 | SBOM & Supply Chain Security   | sbom-compliance.yml  | push to `main`; PRs to `main` that change a dependency manifest; Sundays at midnight |
+| Registry Cleanup               | registry-cleanup.yml | Sundays at 03:00 UTC; manual, a dry run unless you untick it            |
 | Labels                         | labels.yml           | PRs opened or updated (`pull_request_target`), issues opened or edited  |
 | Label Sync                     | label-sync.yml       | push and PRs to `main` touching the label files or issue forms; Mondays at 03:00; manual |
 | Dependabot Auto-merge          | dependabot-auto-merge.yml | Dependabot's PRs to `main`                                         |
 
 Besides the tests, CI runs one job per check. Ruff runs `ruff check`. MyPy runs `mypy --strict` with `SECRET_KEY` from the `TEST_SECRET_KEY` secret. Grimp runs `python -m scripts.check_orphan_modules`, which fails on any module nothing imports except `app.main` and `__init__.py` files that hold only a docstring. Security Scanning runs `uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/ -ll`. Bandit parses with the Python it runs on, so on anything older it skips the files that use 3.14 syntax such as `except A, B:` without failing. The frontend job runs ESLint, Stylelint, the Prettier check, `svelte-check --fail-on-warnings` and a production build. The SBOM workflow generates SPDX SBOMs for backend and frontend with `anchore/sbom-action`, scans them with Grype through `anchore/scan-action` (cutoff `high`, `fail-build: false`) and uploads SARIF to the Security tab.
 
-The docs job installs the backend dependencies, runs `./deploy.sh openapi` and builds with `mkdocs build --strict`. On pushes to `main`, Deploy Docs publishes the result to GitHub Pages.
+The docs job installs the backend dependencies, runs `./deploy.sh openapi` and builds with `mkdocs build --strict`. On pushes to `main`, Deploy Docs publishes the result to GitHub Pages and then deletes the `github-pages` deployments before it, so the repository lists only the live one.
 
 Labels adds `area:` labels. On a PR, `actions/labeler` matches the changed paths against `.github/labeler.yml`; it runs on `pull_request_target` so fork PRs can be labeled too, and it never checks out the PR's code. On an issue, `github/issue-labeler` matches the Component answer of the issue form against `.github/issue-labeler.yml` and adds the label. It never removes one, so labels added by hand stay.
 
@@ -89,9 +90,11 @@ The jobs run only when CI succeeded on `main`, or on a manual run. A matrix scan
 
 ## Release & Deploy
 
-The release job first finds the commit `latest` was built from, by matching the digest of `backend:latest` against the `sha-` tags of the last 100 commits on `main`. That commit can be behind `main`'s head when a later merge is still in CI or failed it. If the commit already has a CalVer tag, nothing new passed since the last release: a scheduled run stops there, and a manual run deploys that release again. Otherwise the job computes a CalVer version `YYYY.M.PATCH`, where `PATCH` is one more than the highest tag of the current month, starting at 0. It copies the commit's `sha-` images to that tag for both images with crane, pushes an annotated git tag on that commit and creates a GitHub release with generated notes.
+The release job first finds the commit `latest` was built from, by matching the digest of `backend:latest` against the `sha-` tags of the last 100 commits on `main`. That commit can be behind `main`'s head when a later merge is still in CI or failed it. If the commit already has a CalVer tag, nothing new passed since the last release: a scheduled run stops there, and a manual run deploys that release again. Otherwise the job computes a CalVer version `YYYY.M.PATCH`, where `PATCH` is one more than the highest tag of the current month, starting at 0. It copies the commit's `sha-` images to that tag for both images with crane, pushes an annotated git tag on that commit and creates a GitHub release with generated notes. Then it deletes every release older than the newest 3, with its git tag, so the newest release and two to roll back to are left.
 
 The deploy job runs `appleboy/ssh-action` against the production server. It's skipped on a manual run with `skip_deploy`, and on a scheduled run with nothing new. What it runs on the server is in [Deployment](deployment.md#production).
+
+Registry Cleanup deletes old versions of the backend and frontend images on GHCR with [ghcr-cleanup-action](https://github.com/dataaxiom/ghcr-cleanup-action). It keeps `latest`, the images of the 3 releases that still exist, everything pushed in the last 7 days, and the 3 newest tagged images before that, so a week without merges deletes nothing new. A multi-arch or attested image goes with its platform and attestation children, never apart from them. A manual run is a dry run unless you untick `dry_run`; the schedule deletes for real.
 
 ### Required secrets
 

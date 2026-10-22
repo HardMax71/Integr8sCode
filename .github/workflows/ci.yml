@@ -294,6 +294,7 @@ jobs:
     permissions:
       pages: write
       id-token: write
+      deployments: write
     concurrency:
       group: pages
       cancel-in-progress: false
@@ -304,6 +305,16 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346  # v5.0.1
+
+      # GitHub deletes only inactive deployments, so each older one is marked inactive first
+      - name: Delete the previous docs deployments
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for id in $(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=github-pages&per_page=100" --jq 'sort_by(.created_at) | reverse | .[1:][].id'); do
+            gh api -X POST "repos/$GITHUB_REPOSITORY/deployments/$id/statuses" -f state=inactive > /dev/null
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/deployments/$id" > /dev/null
+          done
 
   # Fast unit tests (no infrastructure needed)
   backend-unit:

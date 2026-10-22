@@ -1,0 +1,40 @@
+name: Registry Cleanup
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'List what would be deleted and delete nothing'
+        required: false
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  cleanup:
+    name: Delete old image versions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Find the releases to keep
+        id: releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "tags=$(gh release list -R "$GITHUB_REPOSITORY" --limit 3 --json tagName --jq '[.[].tagName] | join(",")')" >> "$GITHUB_OUTPUT"
+
+      # Every image from the last 7 days stays, and so do the 3 newest tagged ones before that, so a quiet week deletes nothing new
+      - name: Delete old versions of the backend and frontend images
+        uses: dataaxiom/ghcr-cleanup-action@d52806a0dc70b430571a37da1fde39733ffd640f  # v1.2.2
+        with:
+          packages: integr8scode/backend,integr8scode/frontend
+          exclude-tags: latest,${{ steps.releases.outputs.tags }}
+          older-than: 7 days
+          keep-n-tagged: 3
+          delete-untagged: true
+          validate: true
+          dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}

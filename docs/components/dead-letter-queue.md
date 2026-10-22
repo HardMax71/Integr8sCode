@@ -24,16 +24,7 @@ Every consumer group on that topic receives the retried event, so the publish ca
 
 The row is marked before the publish on purpose. A retry can fail and save its new failure within milliseconds, and marking afterwards would overwrite that with `retried`.
 
-Retry policies are hardcoded in `app/dlq/models.py`, chosen by event type:
-
-| Event types | Strategy | Max retries | Base delay | Max delay |
-|-------------|----------|-------------|------------|-----------|
-| Execution events and commands | Exponential, x2 | 5 | 30 s | 300 s |
-| Pod events | Exponential, x3 | 3 | 60 s | 600 s |
-| `result_stored`, `result_failed` | Immediate | 3 | | |
-| Everything else | Exponential, x2.5 | 4 | 60 s | 1800 s |
-
-Exponential delays get 10% jitter. A message whose `retry_count` has reached the limit is discarded with reason `max_retries_exceeded`, and `dlq_message_discarded` goes out.
+One retry policy, `RETRY_POLICY` in `app/dlq/models.py`, covers every row, since only consumers of execution events save to the DLQ. The wait starts at 30 seconds and doubles with each failed attempt, up to 300 seconds, with 10% jitter. A message whose `retry_count` has reached 5 is discarded with reason `max_retries_exceeded`, and `dlq_message_discarded` goes out.
 
 ## Storage
 
@@ -41,7 +32,7 @@ A row is one event in one consumer group. The unique index is on `event.event_id
 
 A database created before consumer groups were added still has the old unique index `idx_dlq_event_id` on `event.event_id` alone, and Beanie never drops indexes. Until someone runs `db.dlq_messages.dropIndex("idx_dlq_event_id")` once, a second group that fails on the same event can't save its row.
 
-The retry policies and the 7 day TTL are set in code, and config.toml has no DLQ keys. There's no HTTP API for the DLQ.
+The retry policy and the 7 day TTL are set in code, and config.toml has no DLQ keys. There's no HTTP API for the DLQ.
 
 ## Key files
 
@@ -49,6 +40,6 @@ The retry policies and the 7 day TTL are set in code, and config.toml has no DLQ
 |------|---------|
 | [`middlewares.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/events/middlewares.py) | `DeadLetterMiddleware` and `RetryTargetMiddleware` |
 | [`manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/dlq/manager.py) | Intake, retry, discard |
-| [`models.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/dlq/models.py) | Statuses, retry policies and the two headers |
+| [`models.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/dlq/models.py) | Statuses, the retry policy and the two headers |
 | [`dlq.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/docs/dlq.py) | `dlq_messages` document and indexes |
 | [`worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/worker.py) | Worker entry point, schedules the retry job |

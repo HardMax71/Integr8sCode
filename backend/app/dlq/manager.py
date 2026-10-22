@@ -10,10 +10,9 @@ from app.db.docs import DLQMessageDocument
 from app.dlq.models import (
     DLQ_GROUP_HEADER,
     DLQ_RETRY_HEADER,
+    RETRY_POLICY,
     DLQMessageChanges,
     DLQMessageStatus,
-    RetryStrategy,
-    retry_policy_for,
 )
 from app.domain.enums import EventType
 from app.domain.events import (
@@ -114,21 +113,16 @@ class DLQManager:
                 topic=EventType.DLQ_MESSAGE_RECEIVED,
             )
 
-            retry_policy = retry_policy_for(message.event.event_type)
-
-            if not retry_policy.should_retry(message.retry_count):
+            if message.retry_count >= RETRY_POLICY.max_retries:
                 await self.discard_message(message, "max_retries_exceeded")
                 return
 
-            next_retry = retry_policy.get_next_retry_time(message.retry_count)
+            next_retry = RETRY_POLICY.get_next_retry_time(message.retry_count)
             await self.repository.update_status(
                 message.event.event_id,
                 message.consumer_group,
                 DLQMessageChanges(status=DLQMessageStatus.SCHEDULED, next_retry_at=next_retry),
             )
-
-            if retry_policy.strategy == RetryStrategy.IMMEDIATE:
-                await self.retry_message(message)
 
     async def retry_message(self, message: DLQMessageDocument) -> None:
         """Republish a DLQ message to its original topic for the consumer group that failed on it.

@@ -1,3 +1,4 @@
+import random
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import NotRequired, TypedDict
@@ -34,16 +35,6 @@ class DLQMessageStatus(StringEnum):
 DLQ_TERMINAL = frozenset(s for s in DLQMessageStatus if s.is_terminal)
 
 
-class RetryStrategy(StringEnum):
-    """Retry strategies for DLQ messages."""
-
-    IMMEDIATE = "immediate"
-    EXPONENTIAL_BACKOFF = "exponential_backoff"
-    FIXED_INTERVAL = "fixed_interval"
-    SCHEDULED = "scheduled"
-    MANUAL = "manual"
-
-
 class DLQMessageChanges(TypedDict):
     """Fields a status change sets on a DLQ row; a missing key keeps the stored value."""
 
@@ -64,80 +55,26 @@ class DLQMessageFilter:
     event_type: EventType | None = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class RetryPolicy:
-    """Retry policy configuration for DLQ messages."""
+    """When a failed event is retried: exponential backoff with jitter, up to max_retries attempts."""
 
-    strategy: RetryStrategy
     max_retries: int = 5
-    base_delay_seconds: float = 60.0
-    max_delay_seconds: float = 3600.0
+    base_delay_seconds: float = 30.0
+    max_delay_seconds: float = 300.0
     retry_multiplier: float = 2.0
     jitter_factor: float = 0.1
 
-    def should_retry(self, retry_count: int) -> bool:
-        """Check if a message retried this many times should be retried again."""
-        if self.strategy == RetryStrategy.MANUAL:
-            return False
-        return retry_count < self.max_retries
-
     def get_next_retry_time(self, retry_count: int) -> datetime:
-        """Calculate next retry time based on strategy."""
-        import random
-
-        if self.strategy == RetryStrategy.IMMEDIATE:
-            return datetime.now(timezone.utc)
-
-        if self.strategy == RetryStrategy.FIXED_INTERVAL:
-            delay = self.base_delay_seconds
-
-        elif self.strategy == RetryStrategy.EXPONENTIAL_BACKOFF:
-            delay = min(self.base_delay_seconds * (self.retry_multiplier**retry_count), self.max_delay_seconds)
-            # Add jitter to avoid thundering herd
-            jitter = delay * self.jitter_factor * (2 * random.random() - 1)
-            delay = max(0, delay + jitter)
-
-        else:  # SCHEDULED or custom
-            delay = self.base_delay_seconds
-
-        return datetime.now(timezone.utc) + timedelta(seconds=delay)
+        """The time of the next attempt after retry_count failed ones."""
+        delay = min(self.base_delay_seconds * (self.retry_multiplier**retry_count), self.max_delay_seconds)
+        # Jitter spreads out events that failed together, so their retries don't all land at once
+        jitter = delay * self.jitter_factor * (2 * random.random() - 1)
+        return datetime.now(timezone.utc) + timedelta(seconds=max(0, delay + jitter))
 
 
-AGGRESSIVE_RETRY = RetryPolicy(
-    strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
-    max_retries=5,
-    base_delay_seconds=30,
-    max_delay_seconds=300,
-    retry_multiplier=2.0,
-)
-CAUTIOUS_RETRY = RetryPolicy(
-    strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
-    max_retries=3,
-    base_delay_seconds=60,
-    max_delay_seconds=600,
-    retry_multiplier=3.0,
-)
-IMMEDIATE_RETRY = RetryPolicy(strategy=RetryStrategy.IMMEDIATE, max_retries=3)
-DEFAULT_RETRY = RetryPolicy(
-    strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
-    max_retries=4,
-    base_delay_seconds=60,
-    max_delay_seconds=1800,
-    retry_multiplier=2.5,
-)
-
-
-def retry_policy_for(event_type: EventType) -> RetryPolicy:
-    """Determine retry policy from event type using category sets."""
-    from app.infrastructure.kafka.topics import EXECUTION_TYPES, POD_TYPES, RESULT_TYPES
-
-    if event_type in EXECUTION_TYPES:
-        return AGGRESSIVE_RETRY
-    if event_type in POD_TYPES:
-        return CAUTIOUS_RETRY
-    if event_type in RESULT_TYPES:
-        return IMMEDIATE_RETRY
-    return DEFAULT_RETRY
+# Only consumers of execution events save to the DLQ, so one policy covers every row
+RETRY_POLICY = RetryPolicy()
 
 
 @dataclass

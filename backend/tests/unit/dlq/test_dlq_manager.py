@@ -11,6 +11,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from app.db import DLQRepository
 from app.db.docs import DLQMessageDocument
 from app.dlq.manager import DLQManager
+from app.dlq.models import RETRY_POLICY
 from app.domain.events import EventMetadata, UserRegisteredEvent
 from app.settings import Settings
 
@@ -79,7 +80,7 @@ async def test_filtered_message_is_not_stored(
 async def test_message_out_of_retries_is_discarded_inside_the_handle_span(
     manager: DLQManager, span_exporter: InMemorySpanExporter
 ) -> None:
-    await manager.handle_message(_message(retry_count=4))
+    await manager.handle_message(_message(retry_count=RETRY_POLICY.max_retries))
 
     discard, handle = span_exporter.get_finished_spans()
     assert discard.parent is not None
@@ -142,3 +143,10 @@ async def test_monitoring_cycle_reports_each_topic_size(
         ("dlq.queue_size", {"dlq.original_topic": "user_registered", "dlq.size": 1}),
     ]
     assert all(s.parent is not None and s.parent.span_id == cycle.context.span_id for s in sizes)
+
+
+@pytest.mark.parametrize(("retry_count", "low", "high"), [(0, 27, 33), (2, 108, 132), (10, 270, 330)])
+def test_retry_delay_grows_and_is_capped(retry_count: int, low: float, high: float) -> None:
+    """30 s doubles per failed attempt up to 300 s, give or take the 10% jitter."""
+    delay = (RETRY_POLICY.get_next_retry_time(retry_count) - datetime.now(timezone.utc)).total_seconds()
+    assert low - 1 < delay <= high

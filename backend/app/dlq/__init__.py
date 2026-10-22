@@ -12,14 +12,12 @@ from .models import (
     DLQMessageStatus,
     DLQTopicSummary,
     RetryPolicy,
-    RetryStrategy,
 )
 
 __all__ = [
     "DLQ_GROUP_HEADER",
     "DLQ_RETRY_HEADER",
     "DLQMessageStatus",
-    "RetryStrategy",
     "DLQMessageChanges",
     "DLQMessageFilter",
     "RetryPolicy",

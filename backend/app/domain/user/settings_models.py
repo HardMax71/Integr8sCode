@@ -9,8 +9,6 @@ from app.domain.enums import EventType, Theme
 class DomainNotificationSettings:
     execution_completed: bool = True
     execution_failed: bool = True
-    system_updates: bool = True
-    security_alerts: bool = True
 
 
 @dataclass

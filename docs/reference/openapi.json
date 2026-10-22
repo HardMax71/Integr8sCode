@@ -7506,16 +7506,6 @@
             "type": "boolean",
             "title": "Execution Failed",
             "default": true
-          },
-          "system_updates": {
-            "type": "boolean",
-            "title": "System Updates",
-            "default": true
-          },
-          "security_alerts": {
-            "type": "boolean",
-            "title": "Security Alerts",
-            "default": true
           }
         },
         "type": "object",
@@ -7533,24 +7523,12 @@
             "type": "boolean",
             "title": "Execution Failed",
             "default": true
-          },
-          "system_updates": {
-            "type": "boolean",
-            "title": "System Updates",
-            "default": true
-          },
-          "security_alerts": {
-            "type": "boolean",
-            "title": "Security Alerts",
-            "default": true
           }
         },
         "type": "object",
         "required": [
           "execution_completed",
-          "execution_failed",
-          "system_updates",
-          "security_alerts"
+          "execution_failed"
         ],
         "title": "NotificationSettings",
         "description": "User notification preferences"

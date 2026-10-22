@@ -47,8 +47,6 @@
     const notificationToggles = [
         'execution_completed',
         'execution_failed',
-        'system_updates',
-        'security_alerts',
     ] as const satisfies (keyof NotificationSettingsOutput)[];
 
     const queryClient = useQueryClient();

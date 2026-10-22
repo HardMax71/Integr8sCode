@@ -28,7 +28,7 @@ test('the theme picker offers every theme and applies the pick at once', async (
 
 const TOGGLES = {
     editor: ['use_tabs', 'word_wrap', 'show_line_numbers'],
-    notifications: ['execution_completed', 'execution_failed', 'system_updates', 'security_alerts'],
+    notifications: ['execution_completed', 'execution_failed'],
 };
 
 for (const [tab, keys] of Object.entries(TOGGLES)) {

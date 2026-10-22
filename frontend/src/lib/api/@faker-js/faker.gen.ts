@@ -633,9 +633,7 @@ export const fakeNotificationSettingsInput = (options?: Options): NotificationSe
     const f = options?.faker ?? faker;
     return {
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { execution_completed: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { execution_failed: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { system_updates: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { security_alerts: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean() }
+        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { execution_failed: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean() }
     };
 };
 
@@ -643,9 +641,7 @@ export const fakeNotificationSettingsOutput = (options?: Options): NotificationS
     const f = options?.faker ?? faker;
     return {
         execution_completed: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean(),
-        execution_failed: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean(),
-        system_updates: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean(),
-        security_alerts: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean()
+        execution_failed: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean()
     };
 };
 

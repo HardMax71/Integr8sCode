@@ -13,8 +13,6 @@ class NotificationSettings(BaseModel):
 
     execution_completed: bool = True
     execution_failed: bool = True
-    system_updates: bool = True
-    security_alerts: bool = True
 
 
 class EditorSettings(BaseModel):

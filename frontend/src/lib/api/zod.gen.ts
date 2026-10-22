@@ -676,9 +676,7 @@ export const zNotificationSentEvent = z.object({
  */
 export const zNotificationSettingsInput = z.object({
     execution_completed: z._default(z.optional(z.boolean()), true),
-    execution_failed: z._default(z.optional(z.boolean()), true),
-    system_updates: z._default(z.optional(z.boolean()), true),
-    security_alerts: z._default(z.optional(z.boolean()), true)
+    execution_failed: z._default(z.optional(z.boolean()), true)
 });
 
 /**
@@ -688,9 +686,7 @@ export const zNotificationSettingsInput = z.object({
  */
 export const zNotificationSettingsOutput = z.object({
     execution_completed: z._default(z.boolean(), true),
-    execution_failed: z._default(z.boolean(), true),
-    system_updates: z._default(z.boolean(), true),
-    security_alerts: z._default(z.boolean(), true)
+    execution_failed: z._default(z.boolean(), true)
 });
 
 /**

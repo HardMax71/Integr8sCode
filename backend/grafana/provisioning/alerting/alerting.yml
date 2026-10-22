@@ -10,6 +10,17 @@ contactPoints:
           addresses: ${GF_SMTP_ALERT_RECIPIENTS}
           singleEmail: true
 
+  # An outside dead man's switch; when its pings stop, the host or Grafana is down
+  - orgId: 1
+    name: heartbeat
+    receivers:
+      - uid: heartbeat-receiver
+        type: webhook
+        settings:
+          url: ${ALERT_HEARTBEAT_URL}
+          httpMethod: POST
+        disableResolveMessage: true
+
 policies:
   - orgId: 1
     receiver: email-alerts
@@ -17,6 +28,13 @@ policies:
     group_wait: 30s
     group_interval: 5m
     repeat_interval: 4h
+    routes:
+      - receiver: heartbeat
+        object_matchers:
+          - ['heartbeat', '=', 'true']
+        group_wait: 0s
+        group_interval: 1m
+        repeat_interval: 5m
 
 groups:
   - orgId: 1
@@ -89,3 +107,356 @@ groups:
           summary: "Host memory critically high (>95%), OOM kill risk"
         labels:
           severity: critical
+
+      - uid: host-disk-warning
+        title: "Host Disk > 80%"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: victoria-metrics
+            model:
+              expr: sum by (mountpoint) (system_filesystem_usage_bytes{state="used"}) / sum by (mountpoint) (system_filesystem_usage_bytes{state=~"used|free"}) * 100
+              instant: true
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [80]
+              expression: A
+        for: 10m
+        noDataState: OK
+        dashboardUid: http-middleware
+        panelId: 108
+        annotations:
+          summary: "Disk {{ $labels.mountpoint }} is {{ printf \"%.0f\" $values.A.Value }}% full"
+        labels:
+          severity: warning
+
+      - uid: host-disk-critical
+        title: "Host Disk > 90%"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: victoria-metrics
+            model:
+              expr: sum by (mountpoint) (system_filesystem_usage_bytes{state="used"}) / sum by (mountpoint) (system_filesystem_usage_bytes{state=~"used|free"}) * 100
+              instant: true
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [90]
+              expression: A
+        for: 5m
+        noDataState: OK
+        dashboardUid: http-middleware
+        panelId: 108
+        annotations:
+          summary: "Disk {{ $labels.mountpoint }} is {{ printf \"%.0f\" $values.A.Value }}% full; a full disk stopped prod before"
+        labels:
+          severity: critical
+
+      - uid: container-restarted
+        title: "Container restarted"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: victoria-metrics
+            model:
+              expr: sum by (container_name) (increase(container_restarts_total[10m]))
+              instant: true
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              expression: A
+        for: 0s
+        noDataState: OK
+        dashboardUid: errors
+        panelId: 3
+        annotations:
+          summary: "{{ $labels.container_name }} restarted {{ printf \"%.0f\" $values.A.Value }} times in 10 minutes"
+        labels:
+          severity: critical
+
+      # Seen in the last 10 minutes but not in the last one; a service a release removes alerts once too
+      - uid: container-stopped
+        title: "Container stopped"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: victoria-metrics
+            model:
+              expr: max by (container_name) (max_over_time(container_uptime_seconds[10m])) unless max by (container_name) (last_over_time(container_uptime_seconds[1m]))
+              instant: true
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              expression: A
+        for: 1m
+        noDataState: OK
+        dashboardUid: errors
+        panelId: 4
+        annotations:
+          summary: "{{ $labels.container_name }} stopped reporting; it was up {{ printf \"%.0f\" $values.A.Value }} s"
+        labels:
+          severity: critical
+
+  - orgId: 1
+    name: service-alerts
+    folder: 'Integr8sCode'
+    interval: 1m
+    rules:
+      - uid: error-lines
+        title: "Error lines"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: sum by (service_name) (count_over_time({service_namespace="integr8scode"} | detected_level="error" [5m]))
+              queryType: instant
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              expression: A
+        for: 0s
+        noDataState: OK
+        dashboardUid: errors
+        panelId: 1
+        annotations:
+          summary: "{{ $labels.service_name }} logged {{ printf \"%.0f\" $values.A.Value }} error lines in 5 minutes"
+        labels:
+          severity: warning
+
+      - uid: api-5xx
+        title: "API 5xx > 1%"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: victoria-metrics
+            model:
+              expr: sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m])) / sum(rate(http_server_request_duration_seconds_count[5m])) * 100
+              instant: true
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [1]
+              expression: A
+        for: 5m
+        noDataState: OK
+        dashboardUid: http-middleware
+        panelId: 1
+        annotations:
+          summary: "{{ printf \"%.1f\" $values.A.Value }}% of API requests answered 5xx over 5 minutes"
+        labels:
+          severity: critical
+
+      # Only groups with a consumer: an empty group's lag is a stopped container, which alerts on its own
+      - uid: kafka-lag
+        title: "Kafka consumer lag > 100"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: victoria-metrics
+            model:
+              expr: max by (group, topic) (kafka_consumer_group_lag_sum_ratio) and on (group) (max by (group) (kafka_consumer_group_members) > 0)
+              instant: true
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [100]
+              expression: A
+        for: 10m
+        noDataState: OK
+        dashboardUid: kafka-events-monitoring
+        panelId: 21
+        annotations:
+          summary: "{{ $labels.group }} is {{ printf \"%.0f\" $values.A.Value }} messages behind on {{ $labels.topic }}"
+        labels:
+          severity: warning
+
+      # No data means the receiver can't reach mongod, so it alerts too
+      - uid: mongodb-health
+        title: "MongoDB down"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: victoria-metrics
+            model:
+              expr: min(mongodb_health_ratio)
+              instant: true
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              expression: A
+        for: 2m
+        noDataState: Alerting
+        dashboardUid: mongodb-monitoring
+        panelId: 1
+        annotations:
+          summary: "MongoDB reports unhealthy or stopped reporting"
+        labels:
+          severity: critical
+
+      - uid: dlq-waiting
+        title: "DLQ has messages for 30 minutes"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: victoria-metrics
+            model:
+              expr: sum(dlq_queue_size)
+              instant: true
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              expression: A
+        for: 30m
+        noDataState: OK
+        dashboardUid: dlq-monitoring
+        panelId: 1
+        annotations:
+          summary: "{{ printf \"%.0f\" $values.A.Value }} messages have waited in the DLQ for 30 minutes"
+        labels:
+          severity: warning
+
+      - uid: dlq-large
+        title: "DLQ > 50 messages"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: victoria-metrics
+            model:
+              expr: sum(dlq_queue_size)
+              instant: true
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [50]
+              expression: A
+        for: 5m
+        noDataState: OK
+        dashboardUid: dlq-monitoring
+        panelId: 5
+        annotations:
+          summary: "{{ printf \"%.0f\" $values.A.Value }} messages are waiting in the DLQ"
+        labels:
+          severity: critical
+
+  - orgId: 1
+    name: heartbeat
+    folder: 'Integr8sCode'
+    interval: 1m
+    rules:
+      # Always firing; the heartbeat route resends it every 5 minutes, and the outside monitor alerts when that stops
+      - uid: heartbeat
+        title: "Heartbeat"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: victoria-metrics
+            model:
+              expr: vector(1)
+              instant: true
+              range: false
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              expression: A
+        for: 0s
+        noDataState: Alerting
+        execErrState: Alerting
+        annotations:
+          summary: "Grafana is up and can send"
+        labels:
+          heartbeat: "true"

@@ -14,7 +14,7 @@ On the Grafana side, the test reads every `expr` from the dashboard JSON files a
 
 All three tests carry the `grafana_contract` marker.
 
-`test_grafana_metrics_have_a_source` fails when a dashboard or alert rule queries a series that nothing emits. A name counts as emitted if it's an app sample, a library sample, or starts with one of the collector prefixes in `COLLECTOR_PREFIXES`. That allowlist is short on purpose: `kafka_` for the collector's kafka_metrics receiver, `mongodb_` for its mongodb receiver and `system_` for its `host_metrics` scrapers.
+`test_grafana_metrics_have_a_source` fails when a dashboard or alert rule queries a series that nothing emits. Queries on the Loki datasource are LogQL and name no metrics, so the test skips them. A name counts as emitted if it's an app sample, a library sample, or starts with one of the collector prefixes in `COLLECTOR_PREFIXES`. That allowlist is short on purpose: `container_` for the collector's docker_stats receiver, `kafka_` for its kafka_metrics receiver, `mongodb_` for its mongodb receiver and `system_` for its `host_metrics` scrapers.
 
 `test_code_metrics_used_in_dashboards` fails when an app metric family appears in no dashboard or alert rule. One sample per family is enough, so a histogram is covered by any of its `_bucket`, `_count` or `_sum`. The SDK's `target` family is skipped. The libraries' families aren't required to be charted.
 

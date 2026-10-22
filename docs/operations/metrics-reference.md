@@ -222,6 +222,8 @@ The `kafka_metrics` receiver's consumers scraper gives `kafka_consumer_group_lag
 
 The MongoDB dashboard's "Connections" panel reads `mongodb_connection_count{type}` for `current` and `active`; `available` is left out, since it sits in the hundreds of thousands.
 
+The collector's docker_stats receiver reads every container through docker-socket-proxy every 15 seconds: CPU, memory, network and block I/O per container, plus `container_restarts_total` and `container_uptime_seconds`, all labelled `container_name`. The Errors dashboard charts restarts and uptime, and the container alert rules read them.
+
 Everything else the receivers collect lands in VictoriaMetrics with no panel, and Grafana's Explore view can query it: the other `kafka_*` broker, topic, partition and consumer group families, `mongodb_operation_count_total`, `mongodb_operation_time_milliseconds_total` and `mongodb_document_operation_count`, the rest of the cpu, disk, filesystem and network scrapers, and the paging and processes scrapers. host-metrics mounts only the host's `/proc` and `/sys`, so the filesystem scraper reports only `/`, the disk its container's overlay sits on.
 
 ## PromQL examples

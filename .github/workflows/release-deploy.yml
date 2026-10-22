@@ -142,6 +142,23 @@ jobs:
       (github.event_name == 'workflow_dispatch' && !inputs.skip_deploy)
     runs-on: ubuntu-latest
     steps:
+      # Grafana runs without them and its alerts reach nobody, so the deploy stops instead
+      - name: Check the alert delivery settings
+        env:
+          MAILJET_HOST: ${{ secrets.MAILJET_HOST }}
+          MAILJET_API_KEY: ${{ secrets.MAILJET_API_KEY }}
+          MAILJET_SECRET_KEY: ${{ secrets.MAILJET_SECRET_KEY }}
+          MAILJET_FROM_ADDRESS: ${{ secrets.MAILJET_FROM_ADDRESS }}
+          GRAFANA_ALERT_RECIPIENTS: ${{ secrets.GRAFANA_ALERT_RECIPIENTS }}
+          ALERT_HEARTBEAT_URL: ${{ secrets.ALERT_HEARTBEAT_URL }}
+        run: |
+          for name in MAILJET_HOST MAILJET_API_KEY MAILJET_SECRET_KEY MAILJET_FROM_ADDRESS GRAFANA_ALERT_RECIPIENTS ALERT_HEARTBEAT_URL; do
+            if [ -z "${!name}" ]; then
+              echo "::error::The $name secret is empty, so alerts would reach nobody"
+              exit 1
+            fi
+          done
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2  # v1.2.5
         env:
@@ -153,6 +170,7 @@ jobs:
           MAILJET_FROM_ADDRESS: ${{ secrets.MAILJET_FROM_ADDRESS }}
           MAILJET_HOST: ${{ secrets.MAILJET_HOST }}
           GRAFANA_ALERT_RECIPIENTS: ${{ secrets.GRAFANA_ALERT_RECIPIENTS }}
+          ALERT_HEARTBEAT_URL: ${{ secrets.ALERT_HEARTBEAT_URL }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           MONGO_USER: ${{ secrets.MONGO_USER }}
           MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
@@ -164,7 +182,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: IMAGE_TAG,GRAFANA_ADMIN_USER,GRAFANA_ADMIN_PASSWORD,MAILJET_API_KEY,MAILJET_SECRET_KEY,MAILJET_FROM_ADDRESS,MAILJET_HOST,GRAFANA_ALERT_RECIPIENTS,REDIS_PASSWORD,MONGO_USER,MONGO_PASSWORD,MONGO_MONITOR_PASSWORD,SECRET_KEY,ADMIN_USER_PASSWORD,DEFAULT_USER_PASSWORD
+          envs: IMAGE_TAG,GRAFANA_ADMIN_USER,GRAFANA_ADMIN_PASSWORD,MAILJET_API_KEY,MAILJET_SECRET_KEY,MAILJET_FROM_ADDRESS,MAILJET_HOST,GRAFANA_ALERT_RECIPIENTS,ALERT_HEARTBEAT_URL,REDIS_PASSWORD,MONGO_USER,MONGO_PASSWORD,MONGO_MONITOR_PASSWORD,SECRET_KEY,ADMIN_USER_PASSWORD,DEFAULT_USER_PASSWORD
           command_timeout: 10m
           script: |
             set -e
@@ -183,6 +201,7 @@ jobs:
             cat > .env <<EOF
             IMAGE_TAG='$IMAGE_TAG'
             COMPOSE_PROFILES=observability
+            ENVIRONMENT=production
             SECRET_KEY='$SECRET_KEY'
             MONGO_USER='$MONGO_USER'
             MONGO_PASSWORD='$MONGO_PASSWORD'
@@ -198,6 +217,7 @@ jobs:
             MAILJET_FROM_ADDRESS='$MAILJET_FROM_ADDRESS'
             GF_SMTP_HOST='$MAILJET_HOST'
             GRAFANA_ALERT_RECIPIENTS='$GRAFANA_ALERT_RECIPIENTS'
+            ALERT_HEARTBEAT_URL='$ALERT_HEARTBEAT_URL'
             EOF
 
             docker compose pull

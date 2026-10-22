@@ -63,7 +63,7 @@ Data lives in named volumes:
 | Grafana          | `curl localhost:3000/api/health`                                            |
 | Victoria Metrics | `wget http://127.0.0.1:8428/-/healthy`                                      |
 
-Loki has none because its image is distroless and has no shell, so Grafana and the collector wait for `service_started`. Jaeger, the OTel Collector, host-metrics, Kafdrop and the worker have no healthcheck either.
+Loki has none because its image is distroless and has no shell, so Grafana and the collector wait for `service_started`. Jaeger, the OTel Collector, host-metrics, docker-socket-proxy, Kafdrop and the worker have no healthcheck either.
 
 ## Memory limits
 
@@ -83,6 +83,7 @@ Every long-running service except Kafdrop has a `mem_limit`.
 | Victoria Metrics     | 256m        | `--retentionPeriod=30d`                                     |
 | OTel Collector       | 192m        | `memory_limiter` at 150 MiB                                 |
 | host-metrics         | 128m        | `memory_limiter` at 100 MiB; idles near 57 MiB              |
+| docker-socket-proxy  | 32m         | HAProxy in front of the Docker socket                       |
 
 Kafdrop runs with `-Xmx512M` and no limit. All services above except Jaeger have `restart: unless-stopped`.
 
@@ -91,6 +92,8 @@ Kafdrop runs with `-Xmx512M` and no limit. All services above except Jaeger have
 The backend's start creates (or updates) an `otelMonitor` role with `serverStatus`, `top`, `dbStats`, `indexStats` and `listCollections`, plus a user with only that role. The collector's mongodb receiver logs in as that user, since root fails `$indexStats` on `admin.system.*`. The credentials are `MONGO_MONITOR_USER` (default `otel-monitor`) and `MONGO_MONITOR_PASSWORD` in `.env`. Until the backend has run, the receiver's scrapes fail and retry.
 
 host-metrics runs with `network_mode: host`, so its network scraper reads the host's interfaces, and it reaches the collector through the port compose publishes on `127.0.0.1:4317`. It has no ports of its own: `otel-host-metrics.yaml` turns its internal metrics off and runs no extensions.
+
+The collector's docker_stats receiver reads every container's CPU, memory, network, restarts and uptime through docker-socket-proxy ([Tecnativa/docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy)), which passes only reads of the containers API (`CONTAINERS=1`, `POST` off) and answers 403 to everything else. A container inspect shows that container's environment, secrets included, so the proxy sits on its own internal `docker-api` network with only the collector.
 
 Grafana starts through a small entrypoint. It resets the admin password from `GF_SECURITY_ADMIN_PASSWORD`, starts Grafana without the alert rules, waits until the dashboard provider has created the `integr8scode` folder, then copies the rules back and calls the alerting reload API. Loaded first, the rules would create their own folder with a random UID. See [Grafana integration](grafana-integration.md).
 

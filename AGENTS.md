@@ -721,7 +721,7 @@ Mutations with `meta: { inlineErrors: true }` (the login and register forms) ski
 
 ## Frontend: Logging
 
-The frontend logs through LogTape, and nothing else: ESLint's `no-console` rejects `console.*` in `src/`. `init` in `src/hooks.client.ts` configures it once, sending the `integr8scode` category to the browser console from `debug` up in dev and from `warning` up in a production build. Each module takes its own logger and writes a sentence whose `{placeholders}` name every value it passes, so a line reads on its own:
+The frontend logs through LogTape, and nothing else: ESLint's `no-console` rejects `console.*` in `src/`. `init` in `src/hooks.client.ts` configures it once: every build sends every record to the collector through LogTape's OpenTelemetry sink, the way the backend sends its logs, and nothing goes to the browser console. Loki labels the lines `service_name="browser"`, and the collector's `filter/browser` decides what's dropped: below `warning` when `ENVIRONMENT` is `production`, nothing anywhere else. `init` also logs uncaught errors and unhandled rejections from window listeners. Each module takes its own logger and writes a sentence whose `{placeholders}` name every value it passes, so a line reads on its own:
 
 ```typescript
 import { getLogger } from '@logtape/logtape';
@@ -732,7 +732,7 @@ log.warning('Notification stream lost its connection: {error}', { error });
 
 - The category is `['integr8scode', area]`; the areas today are `app`, `auth`, `api`, `editor`, `notifications` and `replay`
 - Values go in the properties, never into the message string, the same rule as the backend's structlog
-- `error` is for something broken (a 5xx, no response, a stream handler that threw), `warning` for a degraded state the app recovers from (a dropped SSE connection), `debug` for what the user already sees in a toast or a form (a 4xx)
+- `error` is for something broken (a 5xx, no response, a stream handler that threw) and fires the error-lines alert, `warning` for a degraded state the app recovers from (a dropped SSE connection), `debug` for what the user already sees in a toast or a form (a 4xx)
 - Unit tests leave LogTape unconfigured, so it drops every record and no test silences the console. A test that checks a log line calls `captureLogs()` from `#test/test-utils.ts` and asserts on the records
 
 ## Frontend: Session

@@ -401,6 +401,7 @@ services:
       # The backend creates this user on start; until then the mongodb receiver's scrapes fail and retry
       - MONGO_MONITOR_USER=${MONGO_MONITOR_USER:-otel-monitor}
       - MONGO_MONITOR_PASSWORD=${MONGO_MONITOR_PASSWORD:?see .env.example}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
     ports:
       - "127.0.0.1:4317:4317"   # OTLP gRPC
       - "127.0.0.1:4318:4318"   # OTLP HTTP

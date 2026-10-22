@@ -6,6 +6,13 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318
 
+  # The browser's logs, through nginx's /otlp/v1/logs; anyone can post here, so they get a pipeline of their own
+  otlp/browser:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4319
+        max_request_body_size: 65536
+
   # Every container's stdout and stderr, from Docker's fluentd log driver; the tag is the container name
   fluent_forward:
     endpoint: 0.0.0.0:24224
@@ -847,6 +854,22 @@ processors:
         statements:
           - set(resource.attributes["service.name"], resource.attributes["fluent.tag"]) where resource.attributes["fluent.tag"] != nil
 
+  # Whatever resource a browser sends, its records are labelled browser
+  transform/browser:
+    error_mode: ignore
+    log_statements:
+      - context: resource
+        statements:
+          - keep_keys(resource.attributes, [])
+          - set(resource.attributes["service.name"], "browser")
+
+  # The browser sends every level; production keeps its warnings and errors, any other environment all of it
+  filter/browser:
+    error_mode: ignore
+    logs:
+      log_record:
+        - severity_number < SEVERITY_NUMBER_WARN and "${env:ENVIRONMENT}" == "production"
+
   # Docker's lines arrive without a level, and Loki's own guess marks Mongo and Redis info lines as errors
   transform/level:
     error_mode: ignore
@@ -949,3 +972,8 @@ service:
       receivers: [otlp, fluent_forward]
       processors: [memory_limiter, filter/app_json_stdout, groupbyattrs/container, transform/container, transform/level, batch, resource]
       exporters: [otlp_http/loki, debug]
+
+    logs/browser:
+      receivers: [otlp/browser]
+      processors: [memory_limiter, filter/browser, transform/browser, batch, resource]
+      exporters: [otlp_http/loki]

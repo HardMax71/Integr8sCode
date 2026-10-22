@@ -21,7 +21,9 @@ The OTel resource on every record has `service.name` from `SERVICE_NAME` (`integ
 
 ## Collector
 
-The logs pipeline receives OTLP and container output (`fluent_forward`), runs `memory_limiter`, `filter/app_json_stdout`, `groupbyattrs/container`, `transform/container`, `batch` and `resource`, and exports with `otlp_http/loki` to `http://loki:3100/otlp`. The full config is [`backend/otel-collector-config.yaml`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/otel-collector-config.yaml).
+The logs pipeline receives OTLP and container output (`fluent_forward`), runs `memory_limiter`, `filter/app_json_stdout`, `groupbyattrs/container`, `transform/container`, `transform/level`, `batch` and `resource`, and exports with `otlp_http/loki` to `http://loki:3100/otlp`. The full config is [`backend/otel-collector-config.yaml`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/otel-collector-config.yaml).
+
+The browser's records come in on a pipeline of their own, `logs/browser`. Its receiver, `otlp/browser`, takes OTLP over HTTP on port 4319 with bodies up to 64 KB, and only nginx's `/otlp/v1/logs` reaches it ([Frontend logging](logging.md#frontend)). The browser sends every level, and `filter/browser` is where lines get dropped: below `warning` when the collector's `ENVIRONMENT` is `production`, none anywhere else. Anyone can post to that path, so `transform/browser` drops whatever resource a record arrives with and sets `service.name` to `browser`: a posted record can't pass as the backend or any other service. The Errors dashboard and the error-lines alert group by `service_name`, so `browser` shows up there like any container.
 
 ## Container output
 

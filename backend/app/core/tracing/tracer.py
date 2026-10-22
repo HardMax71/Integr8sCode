@@ -57,6 +57,9 @@ class Tracer:
         tp = trace.get_tracer_provider()
         HTTPX2ClientInstrumentor().instrument(tracer_provider=tp)
         PymongoInstrumentor().instrument(tracer_provider=tp)
-        LoggingInstrumentor().instrument(set_logging_format=False, log_level="INFO")
+        # setup_log_exporter already exports every record; a second handler from the instrumentor sends each twice
+        LoggingInstrumentor().instrument(
+            set_logging_format=False, log_level="INFO", enable_log_auto_instrumentation=False
+        )
 
         logger.info("Tracing initialized", service_name=name)

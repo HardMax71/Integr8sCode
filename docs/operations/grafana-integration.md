@@ -1,6 +1,6 @@
 # Grafana integration
 
-Grafana runs under the `observability` compose profile. Everything it shows is provisioned from [`backend/grafana/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/grafana): three datasources, twelve dashboards, two alert rules and an email contact point. Locally it's at `http://localhost:3000`; in production nginx serves it on `grafana.integr8scode.cc` (see [Nginx configuration](nginx-configuration.md#grafana-server)). Anonymous access is off. The admin login comes from `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` (default `admin` / `admin123`), and the entrypoint resets the password to that value on every start.
+Grafana runs under the `observability` compose profile. Everything it shows is provisioned from [`backend/grafana/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/grafana): three datasources, thirteen dashboards, thirteen alert rules, an email contact point and a heartbeat webhook. Locally it's at `http://localhost:3000`; in production nginx serves it on `grafana.integr8scode.cc` (see [Nginx configuration](nginx-configuration.md#grafana-server)). Anonymous access is off. The admin login comes from `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` (default `admin` / `admin123`), and the entrypoint resets the password to that value on every start.
 
 ## Datasources
 
@@ -30,6 +30,7 @@ All dashboards land in one folder, `Integr8sCode`, with the fixed UID `integr8sc
 | notifications.json           | Notifications              |
 | rate-limiting-dashboard.json | Rate Limiting              |
 | security-auth.json           | Security & Authentication  |
+| errors.json                  | Errors                     |
 
 ## Alerting
 
@@ -39,9 +40,20 @@ All dashboards land in one folder, `Integr8sCode`, with the fixed UID `integr8sc
 --8<-- "backend/grafana/provisioning/alerting/alerting.yml"
 ```
 
-Both rules are instant queries on `avg_over_time(system_memory_utilization_ratio{state="used"}[5m]) * 100`, evaluated every minute. One warns above 85% for 5 minutes, the other goes critical above 95% for 2 minutes. The metric comes from the host-metrics collector's memory scraper, which emits `system.memory.utilization` only because `otel-host-metrics.yaml` turns it on; it's off by default.
+Every rule is an instant query evaluated every minute, and each summary names the service or mount and the value. Rules that point at a panel carry its `dashboardUid` and `panelId`, so the mail links to it.
 
-Alerts go to the `email-alerts` contact point, which sends one email addressed to everyone in `GRAFANA_ALERT_RECIPIENTS` (`singleEmail: true`). SMTP is configured in grafana.ini from env vars that compose fills in: `GF_SMTP_HOST`, `MAILJET_API_KEY` as the user, `MAILJET_SECRET_KEY` as the password and `MAILJET_FROM_ADDRESS` as the sender. Locally `GF_SMTP_HOST` is empty, so alerts fire but no mail goes out. Production sets it from the `MAILJET_HOST` secret.
+| Rule | Fires when | Severity |
+|---|---|---|
+| Host Memory, Host Disk | memory over 85% for 5 minutes or 95% for 2; disk over 80% for 10 minutes or 90% for 5 | warning, critical |
+| Container restarted, Container stopped | Docker restarted a container in the last 10 minutes; a container seen in the last 10 minutes hasn't reported for a minute, for 1 minute | critical |
+| Error lines | a service logged any error line in 5 minutes, one alert per service, from Loki's `detected_level` | warning |
+| API 5xx, Kafka lag, MongoDB down, DLQ | 5xx over 1% for 5 minutes; a group with consumers 100 messages behind for 10 minutes; health under 1 or no data for 2 minutes; any DLQ message for 30 minutes or over 50 for 5 | critical or warning |
+
+The memory and disk rules read the host-metrics collector's scrapers; `system.memory.utilization` is off by default and `otel-host-metrics.yaml` turns it on. The container rules read the collector's docker_stats receiver.
+
+The Heartbeat rule always fires. A child policy sends it to the `heartbeat` contact point, a webhook to `ALERT_HEARTBEAT_URL`, every 5 minutes; the outside monitor behind that URL alerts when the pings stop, since nothing inside the host can report the host's or Grafana's own death. Locally the URL defaults to the collector's health endpoint, which answers any POST.
+
+All other alerts go to the `email-alerts` contact point, which sends one email addressed to everyone in `GRAFANA_ALERT_RECIPIENTS` (`singleEmail: true`). SMTP is configured in grafana.ini from env vars that compose fills in: `GF_SMTP_HOST`, `MAILJET_API_KEY` as the user, `MAILJET_SECRET_KEY` as the password and `MAILJET_FROM_ADDRESS` as the sender. Locally `GF_SMTP_HOST` is empty, so alerts fire but no mail goes out. Production sets it from the `MAILJET_HOST` secret.
 
 The rule group names its folder by title, `Integr8sCode`. If the rules load before the dashboard provider creates that folder, Grafana makes a second `Integr8sCode` folder with a random UID and puts the rules there. The compose entrypoint avoids that: it starts Grafana without the alerting files, waits for `/api/folders/integr8scode`, then copies them in and calls `/api/admin/provisioning/alerting/reload`.
 

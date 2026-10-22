@@ -26,7 +26,7 @@ class Settings(BaseModel):
     Load order (each layer overrides the previous):
         1. config_path: base settings (committed to git)
         2. override_path: the worker's overrides (SERVICE_NAME)
-        3. Environment variables for secrets: SECRET_KEY, MONGO_USER, MONGO_PASSWORD, REDIS_PASSWORD
+        3. Environment variables: SECRET_KEY, MONGO_USER, MONGO_PASSWORD, REDIS_PASSWORD and ENVIRONMENT
 
     Usage:
         Settings()                                                       # config.toml + env vars
@@ -51,6 +51,7 @@ class Settings(BaseModel):
             ("MONGO_USER", "root"),
             ("MONGO_PASSWORD", "rootpassword"),
             ("REDIS_PASSWORD", "redispassword"),
+            ("ENVIRONMENT", "development"),
         ):
             data[key] = os.environ.get(key) or data.get(key) or default
         if data.get("MONGO_USER") and data.get("MONGO_PASSWORD"):

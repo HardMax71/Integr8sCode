@@ -25,6 +25,7 @@ COLLECTOR_CONFIG = BACKEND_ROOT / "otel-collector-config.yaml"
 
 # Series written by otel-collector receivers rather than by any Python process, keyed by name prefix.
 COLLECTOR_PREFIXES: dict[str, str] = {
+    "container_": "docker_stats receiver",
     "kafka_": "kafka_metrics receiver",
     "mongodb_": "mongodb receiver",
     "system_": "host_metrics receiver",
@@ -143,6 +144,10 @@ def produced_families() -> Iterator[tuple[dict[str, set[str]], dict[str, set[str
 def _collect_exprs(obj: object, out: list[str]) -> None:
     """Recursively extract ``expr`` field values from Grafana dashboard or alerting data."""
     if isinstance(obj, dict):
+        match obj:
+            # LogQL, which promql-parser can't read; metric names only appear in the PromQL queries
+            case {"datasourceUid": "loki"} | {"datasource": {"uid": "loki"}} | {"datasource": "Loki"}:
+                return
         for key, value in obj.items():
             if key == "expr" and isinstance(value, str):
                 out.append(value)

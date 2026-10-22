@@ -14,7 +14,7 @@ graph LR
 
 ## Watching
 
-The monitor uses list-then-watch on pods matching `app=integr8s,component=executor` in `K8S_NAMESPACE`. On the first run, and again after the Kubernetes API answers 410 Gone, it LISTs all matching pods, handles each one as if it had just been added, and keeps the list's resource version. After that it WATCHes from that version. Each watch is bounded to 30 seconds, and APScheduler starts the next one every 5 seconds (never two at once), so a dropped connection just means the next cycle picks up from the saved version.
+The monitor uses list-then-watch on pods matching `app=integr8s,component=executor` in `K8S_NAMESPACE`. On the first run, and again after the Kubernetes API answers 410 Gone, it LISTs all matching pods, handles each one as if it had just been added, and keeps the list's resource version. After that it WATCHes from that version. Each watch is bounded to 30 seconds. `PodMonitor.run()`, a task the worker starts and cancels at shutdown, opens the next watch as soon as the last one ends, or after `watch_retry_seconds` (5) when it failed, so a dropped connection just means the next watch picks up from the saved version.
 
 ## Mapping
 

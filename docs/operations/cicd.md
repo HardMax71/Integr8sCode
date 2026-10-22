@@ -109,10 +109,11 @@ Registry Cleanup deletes old versions of the backend and frontend images on GHCR
 | `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD` | Release & Deploy            | Grafana admin login                         |
 | `MAILJET_HOST`, `MAILJET_API_KEY`, `MAILJET_SECRET_KEY`, `MAILJET_FROM_ADDRESS` | Release & Deploy | Grafana alert mail over SMTP |
 | `GRAFANA_ALERT_RECIPIENTS`                     | Release & Deploy            | who gets alert mail                         |
+| `ALERT_HEARTBEAT_URL`                          | Release & Deploy            | the outside monitor's heartbeat URL, which Grafana pings every 5 minutes |
 | `CODECOV_TOKEN`                                | CI                          | coverage upload                             |
 | `TEST_SECRET_KEY`                              | CI                          | exported as `SECRET_KEY` for the mypy step |
 
-Compose falls back to public defaults for `SECRET_KEY`, the MongoDB and Redis credentials, the monitor password and the two account passwords, so the deploy script stops before it touches the server when any of those secrets is empty.
+Compose falls back to public defaults for `SECRET_KEY`, the MongoDB and Redis credentials, the monitor password and the two account passwords, so the deploy script stops before it touches the server when any of those secrets is empty. The deploy job's first step does the same for alert delivery: it fails when `MAILJET_HOST`, `MAILJET_API_KEY`, `MAILJET_SECRET_KEY`, `MAILJET_FROM_ADDRESS`, `GRAFANA_ALERT_RECIPIENTS` or `ALERT_HEARTBEAT_URL` is empty, since Grafana would run and its alerts would reach nobody.
 
 ## Supply chain
 

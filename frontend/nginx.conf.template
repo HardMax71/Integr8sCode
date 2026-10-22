@@ -83,6 +83,12 @@ server {
         # --8<-- [end:sse_proxy]
     }
 
+    # Browsers and crawlers ask for /favicon.ico, the app ships favicon.png, and each miss logged an nginx [error]
+    location = /favicon.ico {
+        try_files /favicon.png =404;
+        expires 1y;
+    }
+
     # --8<-- [start:static_caching]
     # Cache static assets; no add_header here, so the server-level security headers still apply
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {

@@ -14,8 +14,10 @@ async def test_run_wires_the_routers_and_orders_shutdown(
     monkeypatch: pytest.MonkeyPatch, test_settings: Settings
 ) -> None:
     broker = MagicMock(spec=KafkaBroker)
+    monitor = MagicMock()
+    monitor.run = AsyncMock()
     container = MagicMock()
-    container.get = AsyncMock(return_value=broker)
+    container.get = AsyncMock(side_effect=[broker, monitor])
     scheduler = MagicMock()
     fast_stream = MagicMock()
     fast_stream.return_value.run = AsyncMock()
@@ -29,8 +31,13 @@ async def test_run_wires_the_routers_and_orders_shutdown(
     await module.run(test_settings, structlog.get_logger("test"))
 
     assert len(broker.include_routers.call_args.args) == 1
-    fast_stream.assert_called_once_with(broker, on_shutdown=[scheduler.shutdown], after_shutdown=[container.close])
+    watch_cancel, scheduler_shutdown = fast_stream.call_args.kwargs["on_shutdown"]
+    assert watch_cancel.__name__ == "cancel"
+    assert scheduler_shutdown is scheduler.shutdown
+    assert fast_stream.call_args.kwargs["after_shutdown"] == [container.close]
     fast_stream.return_value.run.assert_awaited_once()
+    await watch_cancel.__self__
+    monitor.run.assert_awaited_once()
 
 
 async def test_start_jobs_prepares_the_cluster_and_schedules_the_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -46,7 +53,6 @@ async def test_start_jobs_prepares_the_cluster_and_schedules_the_jobs(monkeypatc
     dependency.ensure_image_pre_puller_daemonset.assert_awaited_once()
     dependency.fail_interrupted_sessions.assert_awaited_once()
     assert [(c.kwargs["id"], c.args[0]) for c in scheduler.add_job.call_args_list] == [
-        ("pod_monitor_watch", dependency.watch_cycle),
         ("execution_schedule_pending", dependency.schedule_pending),
         ("replay_run_next_session", dependency.run_next_session),
         ("replay_report_sessions", dependency.report_sessions),

@@ -94,6 +94,7 @@ services:
     container_name: backend
     environment:
       <<: *backend-secrets
+      ENVIRONMENT: ${ENVIRONMENT:-development}
       ADMIN_USER_PASSWORD: ${ADMIN_USER_PASSWORD:?see .env.example}
       DEFAULT_USER_PASSWORD: ${DEFAULT_USER_PASSWORD:?see .env.example}
       MONGO_MONITOR_USER: ${MONGO_MONITOR_USER:-otel-monitor}
@@ -194,6 +195,8 @@ services:
       - GF_SMTP_PASSWORD=${MAILJET_SECRET_KEY:-}
       - GF_SMTP_FROM_ADDRESS=${MAILJET_FROM_ADDRESS:-noreply@integr8scode.cc}
       - GF_SMTP_ALERT_RECIPIENTS=${GRAFANA_ALERT_RECIPIENTS:-noreply@integr8scode.cc}
+      # Prod sets the outside heartbeat; locally it goes to the collector's health endpoint, which answers any POST
+      - ALERT_HEARTBEAT_URL=${ALERT_HEARTBEAT_URL:-http://otel-collector:13133/}
     healthcheck:
       test: ["CMD-SHELL", "curl -f localhost:3000/api/health && echo 'ready'"]
       interval: 10s
@@ -298,6 +301,7 @@ services:
         condition: service_healthy
     environment:
       <<: *backend-secrets
+      ENVIRONMENT: ${ENVIRONMENT:-development}
     volumes:
       - ./backend/app:/app/app:ro
       # k3s's own kubeconfig; the folder, so a missing file never turns into a directory
@@ -402,7 +406,10 @@ services:
       - "127.0.0.1:24224:24224" # Fluent forward, where Docker's log driver sends every container's output
     networks:
       - app-network
+      - docker-api
     depends_on:
+      docker-socket-proxy:
+        condition: service_started
       victoria-metrics:
         condition: service_healthy
       jaeger:
@@ -411,6 +418,21 @@ services:
         condition: service_started
       kafka:
         condition: service_healthy
+    restart: unless-stopped
+
+  # Read-only Docker API for the collector's docker_stats receiver; container inspect shows each container's env, so only the collector shares its network
+  docker-socket-proxy:
+    logging: *logging
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    container_name: docker-socket-proxy
+    profiles: ["observability"]
+    mem_limit: 32m
+    environment:
+      - CONTAINERS=1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - docker-api
     restart: unless-stopped
 
   host-metrics:
@@ -447,3 +469,5 @@ volumes:
 networks:
   app-network:
     driver: bridge
+  docker-api:
+    internal: true

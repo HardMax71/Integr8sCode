@@ -105,7 +105,7 @@ The status snapshot a stream sends first comes from the database, not Redis, and
 | `pod_creation_duration_seconds` | histogram | pod_language | the length of `pod.create` for successful creations: ConfigMap, pod and `PodCreated` publish |
 | `pod_creations_active` | gauge | none | `pod.active_creations` on `pod.create`, reported as each creation ends |
 | `configmaps_created_total` | counter | pod_configmap_result: success, already_exists, failed | span `pod.create_configmap` |
-| `pods_by_phase` | gauge | pod_phase | span `pod_monitor.pods`, one per phase with zeros included, at the end of each `PodMonitor.watch_cycle` in worker (at most 35 s apart): executor pods seen through LIST and watch; a relist rebuilds the counts |
+| `pods_by_phase` | gauge | pod_phase | span `pod_monitor.pods`, one per phase with zeros included, at the end of each `PodMonitor.watch_cycle` in worker (about 30 s apart): executor pods seen through LIST and watch; a relist rebuilds the counts |
 | `pod_lifetime_seconds` | histogram | pod_phase, pod_language | `pod.lifetime_seconds` on `pod_monitor.event` for the event that finished the execution: pod creation to that event |
 | `pod_monitor_events_total` | counter | pod_monitor_watch_event, pod_phase | `pod_monitor.published` on span `pod_monitor.event`: the application events one watch event produced |
 | `pod_monitor_processing_duration_seconds` | histogram | pod_monitor_watch_event: ADDED, MODIFIED, DELETED | the length of `pod_monitor.event`: mapping and publishing one watch event |
@@ -221,6 +221,8 @@ Five of these are counts since mongod started that the receiver declares as non-
 The `kafka_metrics` receiver's consumers scraper gives `kafka_consumer_group_lag_sum_ratio{group,topic}`, the messages a consumer group has yet to read on a topic. The Kafka dashboard's "Consumer Lag by Group" panel reads it. The receiver gives it unit `1`, so the name ends in `_ratio`. "Consumer Group Members" reads `kafka_consumer_group_members{group}`, and a group at 0 has nobody reading its topics. A group the code no longer uses stays at 0 until Kafka drops its offsets, 7 days after its last member left (`offsets.retention.minutes`).
 
 The MongoDB dashboard's "Connections" panel reads `mongodb_connection_count{type}` for `current` and `active`; `available` is left out, since it sits in the hundreds of thousands.
+
+The collector's docker_stats receiver reads every container through docker-socket-proxy every 15 seconds: CPU, memory, network and block I/O per container, plus `container_restarts_total` and `container_uptime_seconds`, all labelled `container_name`. The Errors dashboard charts restarts and uptime, and the container alert rules read them.
 
 Everything else the receivers collect lands in VictoriaMetrics with no panel, and Grafana's Explore view can query it: the other `kafka_*` broker, topic, partition and consumer group families, `mongodb_operation_count_total`, `mongodb_operation_time_milliseconds_total` and `mongodb_document_operation_count`, the rest of the cpu, disk, filesystem and network scrapers, and the paging and processes scrapers. host-metrics mounts only the host's `/proc` and `/sys`, so the filesystem scraper reports only `/`, the disk its container's overlay sits on.
 

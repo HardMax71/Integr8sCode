@@ -107,7 +107,7 @@ A language can raise its own pod's limits above the system settings. Go gets at 
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4317` | config.toml | OTLP endpoint for metrics and logs; unset turns both off |
 | `SERVICE_NAME` | `integr8scode-backend` | config.toml | `service.name` on traces, metrics and logs, Kafka client id, event metadata; `config.worker.toml` sets `integr8scode-worker` |
 | `SERVICE_VERSION` | `1.0.0` | config.toml | `service.version` on traces, metrics and logs |
-| `ENVIRONMENT` | `development` | env var, then TOML | `deployment.environment` attribute; `test` also turns off notification throttling. Read from the environment like the secrets, so the production deploy writes `ENVIRONMENT=production` into `.env` |
+| `ENVIRONMENT` | `development` | env var, then TOML | `deployment.environment` attribute; `test` also turns off notification throttling. Read from the environment like the secrets, so the production deploy writes `ENVIRONMENT=production` into `.env`. The collector gets it too and drops the browser's lines below `warning` in `production` |
 | `HOSTNAME` | the machine's hostname | default | `service.instance.id` on logs and spans; inside a container that's the container ID |
 | `LOG_LEVEL` | `INFO` | config.toml | structlog level |
 

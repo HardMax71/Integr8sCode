@@ -1,3 +1,5 @@
+limit_req_zone $binary_remote_addr zone=browser_logs:1m rate=30r/m;
+
 # --8<-- [start:server_block]
 server {
     listen 5001 ssl;
@@ -82,6 +84,17 @@ server {
         }
         # --8<-- [end:sse_proxy]
     }
+
+    # --8<-- [start:browser_logs]
+    location = /otlp/v1/logs {
+        limit_except POST { deny all; }
+        limit_req zone=browser_logs burst=30 nodelay;
+        limit_req_status 429;
+        client_max_body_size 64k;
+        set $browser_logs_upstream http://otel-collector:4319/v1/logs;
+        proxy_pass $browser_logs_upstream;
+    }
+    # --8<-- [end:browser_logs]
 
     # Browsers and crawlers ask for /favicon.ico, the app ships favicon.png, and each miss logged an nginx [error]
     location = /favicon.ico {

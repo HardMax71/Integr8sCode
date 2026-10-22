@@ -41,7 +41,10 @@
         "@codemirror/view": "^6.43.14",
         "@internationalized/date": "^3.12.4",
         "@logtape/logtape": "^2.4.1",
+        "@logtape/otel": "^2.4.1",
         "@lucide/svelte": "^1.58.0",
+        "@opentelemetry/exporter-logs-otlp-http": "^0.223.0",
+        "@opentelemetry/sdk-logs": "^0.223.0",
         "@tanstack/svelte-query": "^6.3.3",
         "@tanstack/svelte-table": "^9.3.1",
         "@uiw/codemirror-theme-bbedit": "^4.25.12",
@@ -103,6 +106,13 @@
         },
         "formsnap": {
             "sveltekit-superforms": "$sveltekit-superforms"
+        },
+        "@logtape/otel": {
+            "@opentelemetry/exporter-logs-otlp-grpc": "^0.223.0",
+            "@opentelemetry/exporter-logs-otlp-http": "$@opentelemetry/exporter-logs-otlp-http",
+            "@opentelemetry/exporter-logs-otlp-proto": "^0.223.0",
+            "@opentelemetry/otlp-exporter-base": "^0.223.0",
+            "@opentelemetry/sdk-logs": "$@opentelemetry/sdk-logs"
         }
     }
 }

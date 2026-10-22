@@ -1,12 +1,13 @@
 # Nginx configuration
 
-The frontend container is nginx. It serves the Svelte build, proxies `/api/` to the backend, and has a second server block that proxies Grafana on its own hostname. The config is [`frontend/nginx.conf.template`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/nginx.conf.template).
+The frontend container is nginx. It serves the Svelte build, proxies `/api/` to the backend and `/otlp/v1/logs` to the collector, and has a second server block that proxies Grafana on its own hostname. The config is [`frontend/nginx.conf.template`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/nginx.conf.template).
 
 ```mermaid
 flowchart LR
     Browser -->|"app host :5001"| App["server _"]
     Browser -->|"grafana.integr8scode.cc :5001"| G["server grafana.integr8scode.cc"]
     App -->|"/api/*"| Backend["${BACKEND_URL}"]
+    App -->|"/otlp/v1/logs"| Collector["otel-collector:4319"]
     App -->|"/grafana"| Redirect["302 to ${GRAFANA_PUBLIC_URL}"]
     App -->|"everything else"| Static["static files, SPA fallback"]
     G --> Grafana["${GRAFANA_URL}"]
@@ -61,6 +62,14 @@ The backend's address goes through a variable and Docker's resolver, like Grafan
 `proxy_ssl_verify on` checks the backend's certificate on every request. The backend makes that certificate when it first starts and keeps it in the `backend_tls_cert` volume, nginx mounts the volume read-only, and `proxy_ssl_trusted_certificate` trusts exactly that file, so a different server answering as `backend` gets a 502. The frontend waits for the backend's healthcheck, since nginx reads the file only when it starts.
 
 The SSE location under `/api/v1/events/` speaks HTTP/1.1 with an empty `Connection` header, turns off buffering and caching, and raises both timeouts to 24 hours so long-lived streams aren't cut after the default 60 seconds. `proxy_buffering off` alone is enough to pass each event through as it arrives.
+
+### Browser logs
+
+```nginx
+--8<-- "frontend/nginx.conf.template:browser_logs"
+```
+
+The app sends its log records here as OTLP JSON, at most one batch a second, and nginx passes them to the collector's `otlp/browser` receiver ([Loki](loki.md#collector) has the rest of the path). Anyone can post to this path, so it takes POST only, bodies up to 64 KB, and 30 requests a minute per address with a burst of 30, from the `limit_req_zone` at the top of the file; past that nginx answers 429. The upstream goes through a variable like the backend's, so nginx starts without the observability profile and this path returns 502 instead.
 
 ### Static files and SPA routing
 

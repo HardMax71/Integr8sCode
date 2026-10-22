@@ -329,6 +329,76 @@
       ],
       "title": "Process Memory",
       "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "description": "Host load average from the collector's host_metrics load scraper, next to the number of CPUs",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "id": 105,
+      "targets": [
+        {
+          "expr": "max(system_cpu_load_average_1m)",
+          "legendFormat": "1m",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        },
+        {
+          "expr": "max(system_cpu_load_average_5m)",
+          "legendFormat": "5m",
+          "refId": "B",
+          "datasource": "Victoria Metrics"
+        },
+        {
+          "expr": "max(system_cpu_load_average_15m)",
+          "legendFormat": "15m",
+          "refId": "C",
+          "datasource": "Victoria Metrics"
+        },
+        {
+          "expr": "max(system_cpu_logical_count)",
+          "legendFormat": "CPUs",
+          "refId": "D",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Load Average",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "description": "Bytes read and written per whole disk, from the collector's host_metrics disk scraper; partitions, loop and optical devices are left out so nothing counts twice",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "id": 106,
+      "targets": [
+        {
+          "expr": "sum(rate(system_disk_io_bytes_total{device=~\"(sd|vd|xvd)[a-z]+|nvme[0-9]+n[0-9]+\"}[5m])) by (device, direction)",
+          "legendFormat": "{{device}} {{direction}}",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Disk I/O",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",

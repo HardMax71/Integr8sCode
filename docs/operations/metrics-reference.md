@@ -26,7 +26,7 @@ Some metrics have no instrument in the code. A service puts the facts on a span,
 
 Code names instruments with dots, and they arrive with underscores. The collector's Prometheus translator also changes three things:
 
-- It appends the unit: `s` becomes `_seconds`, `%` becomes `_percent`, `event/s` becomes `_event_per_second`, and `MiB` and `x` go on unchanged. Unit `1` and `{key}` add nothing. A unit that is already a word of the name isn't repeated.
+- It appends the unit: `s` becomes `_seconds`, `%` becomes `_percent`, `event/s` becomes `_event_per_second`, and `MiB` and `x` go on unchanged. Unit `1` adds `_ratio` to a gauge and nothing to a counter, and `{key}` adds nothing. A unit that is already a word of the name isn't repeated.
 - Counters end in exactly one `_total`, so `sse.messages.sent.total` becomes `sse_messages_sent_total`.
 - Histograms split into `_bucket`, `_sum` and `_count`. The tables list the name before those suffixes.
 
@@ -203,7 +203,7 @@ A `handle` span contains the discard or immediate retry it starts, so its durati
 
 Collector receivers write these, not Python, so the contract test accepts them by prefix (`COLLECTOR_PREFIXES`).
 
-`system_memory_utilization_ratio{state}` comes from the `host_metrics` memory scraper with `system.memory.utilization` turned on. The overview's "Memory Saturation" gauge and both host memory alert rules read it. The HTTP dashboard's "CPU" panel reads `system_cpu_utilization_ratio{state}`, from the cpu scraper with `system.cpu.utilization` turned on, and "Host Memory Used" reads `system_memory_usage_bytes{state="used"}`.
+`system_memory_utilization_ratio{state}` comes from the `host_metrics` memory scraper with `system.memory.utilization` turned on. The overview's "Memory Saturation" gauge and both host memory alert rules read it. The HTTP dashboard's "CPU" panel reads `system_cpu_utilization_ratio{state}`, from the cpu scraper with `system.cpu.utilization` turned on, and "Host Memory Used" reads `system_memory_usage_bytes{state="used"}`. Below them, "Load Average" reads `system_cpu_load_average_{1m,5m,15m}` from the load scraper next to `system_cpu_logical_count`, and "Disk I/O" reads `system_disk_io_bytes_total{device,direction}` from the disk scraper for whole disks only (`sd*`, `vd*`, `xvd*`, `nvme*n*`), since partitions would count the same bytes twice.
 
 The `mongodb` receiver polls `mongo:27017` every 15 seconds as `MONGO_MONITOR_USER`. Several of these are optional receiver metrics that `otel-collector-config.yaml` turns on. The MongoDB dashboard reads:
 
@@ -217,9 +217,11 @@ The `mongodb` receiver polls `mongo:27017` every 15 seconds as `MONGO_MONITOR_US
 
 Five of these are counts since mongod started that the receiver declares as non-monotonic sums, so they arrive as gauges: `mongodb_cursor_timeout_count`, `mongodb_network_io_receive_bytes`, `mongodb_network_io_transmit_bytes`, `mongodb_network_request_count` and `mongodb_index_access_count`. They only grow, so their panels take `rate()` of them, and a mongod restart reads as a counter reset.
 
-The `kafka_metrics` receiver's consumers scraper gives `kafka_consumer_group_lag_sum_ratio{group,topic}`, the messages a consumer group has yet to read on a topic. The Kafka dashboard's "Consumer Lag by Group" panel reads it. The receiver gives it unit `1`, so the name ends in `_ratio`.
+The `kafka_metrics` receiver's consumers scraper gives `kafka_consumer_group_lag_sum_ratio{group,topic}`, the messages a consumer group has yet to read on a topic. The Kafka dashboard's "Consumer Lag by Group" panel reads it. The receiver gives it unit `1`, so the name ends in `_ratio`. "Consumer Group Members" reads `kafka_consumer_group_members{group}`, and a group at 0 has nobody reading its topics. A group the code no longer uses stays at 0 until Kafka drops its offsets, 7 days after its last member left (`offsets.retention.minutes`).
 
-Everything else the receivers collect lands in VictoriaMetrics with no panel, and Grafana's Explore view can query it: the other `kafka_*` broker, topic, partition and consumer group families, `mongodb_connection_count`, `mongodb_operation_count_total`, `mongodb_operation_time_milliseconds_total` and `mongodb_document_operation_count`, and the `host_metrics` disk, filesystem, load, network, paging and processes scrapers. The collector container mounts only the host's `/proc` and `/sys`, so the network scraper reports the container's own interfaces, not the host's, and the filesystem scraper reports only `/`.
+The MongoDB dashboard's "Connections" panel reads `mongodb_connection_count{type}` for `current` and `active`; `available` is left out, since it sits in the hundreds of thousands.
+
+Everything else the receivers collect lands in VictoriaMetrics with no panel, and Grafana's Explore view can query it: the other `kafka_*` broker, topic, partition and consumer group families, `mongodb_operation_count_total`, `mongodb_operation_time_milliseconds_total` and `mongodb_document_operation_count`, the rest of the cpu and disk scrapers, and the `host_metrics` filesystem, network, paging and processes scrapers. The collector container mounts only the host's `/proc` and `/sys`, so the network scraper reports the container's own interfaces, not the host's, and the filesystem scraper reports only `/`.
 
 ## PromQL examples
 

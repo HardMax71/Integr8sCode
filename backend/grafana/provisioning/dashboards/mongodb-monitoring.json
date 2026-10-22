@@ -567,7 +567,7 @@
       },
       "id": 103,
       "panels": [],
-      "title": "Network I/O",
+      "title": "Network & Connections",
       "type": "row"
     },
     {
@@ -579,7 +579,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 52
       },
@@ -610,8 +610,8 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
+        "w": 8,
+        "x": 8,
         "y": 52
       },
       "id": 31,
@@ -624,6 +624,32 @@
         }
       ],
       "title": "Network Request Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "description": "Client connections open on mongod (current) and those running an operation (active)",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 52
+      },
+      "id": 32,
+      "targets": [
+        {
+          "expr": "max(mongodb_connection_count{type=~\"current|active\"}) by (type)",
+          "legendFormat": "{{type}}",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Connections",
       "type": "timeseries"
     },
     {

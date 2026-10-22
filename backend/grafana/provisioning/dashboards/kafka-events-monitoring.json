@@ -874,7 +874,7 @@
       "datasource": null,
       "id": 19,
       "panels": [],
-      "title": "Topic & Consumer Lag",
+      "title": "Topics & Consumer Groups",
       "type": "row"
     },
     {
@@ -1056,12 +1056,75 @@
       "type": "timeseries"
     },
     {
+      "datasource": "Victoria Metrics",
+      "description": "Consumers connected to each group, from the collector's kafka_metrics receiver every 15 s; 0 means nothing reads that group's topics",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "id": 26,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [
+        {
+          "datasource": "Victoria Metrics",
+          "editorMode": "code",
+          "expr": "sum(kafka_consumer_group_members) by (group)",
+          "instant": false,
+          "legendFormat": "{{group}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Consumer Group Members",
+      "type": "stat"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 43
+        "y": 48
       },
       "datasource": null,
       "id": 22,
@@ -1172,7 +1235,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 44
+        "y": 49
       },
       "id": 24,
       "options": {
@@ -1256,7 +1319,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 44
+        "y": 49
       },
       "id": 25,
       "options": {

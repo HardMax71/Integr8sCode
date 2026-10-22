@@ -33,6 +33,8 @@ type PodMonitorEvent = (
 type EventList = list[PodMonitorEvent]
 type AsyncMapper = Callable[["PodContext"], Awaitable[PodMonitorEvent | None]]
 
+_UNREADABLE_OUTPUT = "The output couldn't be read from the pod's log."
+
 
 class WatchEventType(StringEnum):
     """Kubernetes watch event types."""
@@ -55,7 +57,7 @@ class PodContext:
 
 @dataclass(frozen=True)
 class PodLogs:
-    """Parsed pod logs and execution results. Only created when parsing succeeds."""
+    """A finished pod's output and result; the output is empty, with a note in stderr, when the log can't be read."""
 
     stdout: str
     stderr: str
@@ -70,7 +72,7 @@ class PodEventMapper:
     # Read the log from its start so the STDOUT header survives; entrypoint.sh frames far less than this.
     _MAX_LOG_BYTES = 2 * 1024 * 1024
 
-    def __init__(self, logger: structlog.stdlib.BoundLogger, k8s_api: k8s_client.CoreV1Api | None = None) -> None:
+    def __init__(self, logger: structlog.stdlib.BoundLogger, k8s_api: k8s_client.CoreV1Api) -> None:
         self.logger = logger
         self._event_cache: dict[str, PodPhase] = {}
         self._k8s_api = k8s_api
@@ -81,11 +83,6 @@ class PodEventMapper:
             "Running": [self._map_running],
             "Succeeded": [self._map_completed],
             "Failed": [self._map_failed_or_completed],
-        }
-
-        # Special event type handlers
-        self._event_type_mappers: dict[str, list[AsyncMapper]] = {
-            "DELETED": [self._map_terminated],
         }
 
     async def map_pod_event(self, pod: k8s_client.V1Pod, event_type: WatchEventType) -> EventList:
@@ -108,15 +105,11 @@ class PodEventMapper:
             )
             return []
 
-        # Create context
         phase = pod.status.phase if pod.status else "Unknown"
-
-        # Record prior phase before duplicate cache update
-        prior_phase = self._event_cache.get(getattr(pod.metadata, "name", "")) if pod.metadata else None
-
-        # Skip duplicate events
-        if pod.metadata and self._is_duplicate(pod.metadata.name, phase):
-            self.logger.debug("Duplicate pod event ignored", pod_name=pod.metadata.name, phase=phase)
+        pod_name = pod.metadata.name
+        prior_phase = self._event_cache.get(pod_name)
+        if event_type != WatchEventType.DELETED and prior_phase == phase:
+            self.logger.debug("Duplicate pod event ignored", pod_name=pod_name, phase=phase)
             return []
 
         ctx = PodContext(
@@ -129,55 +122,53 @@ class PodEventMapper:
             reason=getattr(getattr(pod, "status", None), "reason", None),
         )
 
-        # Collect events from mappers
-        events: list[PodMonitorEvent] = []
+        # A deleted pod gets what its phase still owes, then its termination, and leaves the cache
+        if event_type == WatchEventType.DELETED:
+            events = [] if prior_phase == phase else await self._map_phase(ctx, prior_phase)
+            if terminated := await self._map_terminated(ctx):
+                events.append(terminated)
+            self._event_cache.pop(pod_name, None)
+            return events
 
-        # Check for timeout first - if pod timed out, only return timeout event
+        events = await self._map_phase(ctx, prior_phase)
+        # A phase counts as seen only once it produced an event, so a later event in that phase tries again
+        if events:
+            self._remember(pod_name, phase)
+        return events
+
+    async def _map_phase(self, ctx: PodContext, prior_phase: PodPhase | None) -> EventList:
+        """Map the pod's phase to its events; a timed-out pod yields only its timeout."""
         if timeout_event := await self._check_timeout(ctx):
             self.logger.info(
                 "Pod event mapped to timeout",
                 execution_id=ctx.execution_id,
                 phase=ctx.phase,
-                active_deadline_seconds=getattr(getattr(pod, "spec", None), "active_deadline_seconds", None),
+                active_deadline_seconds=getattr(getattr(ctx.pod, "spec", None), "active_deadline_seconds", None),
             )
-            events.append(timeout_event)
-            return events  # Don't process other events if timed out
+            return [timeout_event]
 
         # Special-case: when transitioning Pending -> Running but with no
         # container status info yet, skip emitting running to avoid noise.
         if (
-            phase == "Running"
-            and (not getattr(pod, "status", None) or not getattr(pod.status, "container_statuses", None))
-            and pod.metadata
+            ctx.phase == "Running"
+            and (not getattr(ctx.pod, "status", None) or not getattr(ctx.pod.status, "container_statuses", None))
             and prior_phase == "Pending"
         ):
-            self.logger.debug("Skipping running event, no container statuses after Pending", execution_id=execution_id)
-            return events
+            self.logger.debug(
+                "Skipping running event, no container statuses after Pending", execution_id=ctx.execution_id
+            )
+            return []
 
-        # Phase-based mappers
-        for mapper in self._phase_mappers.get(phase, []):
+        events: EventList = []
+        for mapper in self._phase_mappers.get(ctx.phase, []):
             if event := await mapper(ctx):
-                mapper_name = getattr(mapper, "__name__", repr(mapper))
                 self.logger.info(
                     "Pod phase mapped",
-                    mapper=mapper_name,
+                    mapper=getattr(mapper, "__name__", repr(mapper)),
                     mapped_event_type=event.event_type,
                     execution_id=ctx.execution_id,
                 )
                 events.append(event)
-
-        # Event type mappers
-        for mapper in self._event_type_mappers.get(event_type, []):
-            if event := await mapper(ctx):
-                mapper_name = getattr(mapper, "__name__", repr(mapper))
-                self.logger.info(
-                    "Pod watch event mapped",
-                    mapper=mapper_name,
-                    mapped_event_type=event.event_type,
-                    execution_id=ctx.execution_id,
-                )
-                events.append(event)
-
         return events
 
     def _extract_execution_id(self, pod: k8s_client.V1Pod) -> str | None:
@@ -216,17 +207,14 @@ class PodEventMapper:
         self.logger.info("Pod event metadata", user_id=md.user_id, pod_name=pod.metadata.name)
         return md
 
-    def _is_duplicate(self, pod_name: str, phase: PodPhase) -> bool:
-        """Check if this is a duplicate event"""
-        if self._event_cache.get(pod_name) == phase:
-            return True
+    def _remember(self, pod_name: str, phase: PodPhase) -> None:
+        """Record the phase a pod's events went out for, so a repeat of that phase is skipped."""
         if len(self._event_cache) >= self._MAX_CACHE_SIZE:
             # Evict oldest half to amortise cleanup cost
             keys = list(self._event_cache)[: self._MAX_CACHE_SIZE // 2]
             for k in keys:
                 del self._event_cache[k]
         self._event_cache[pod_name] = phase
-        return False
 
     async def _map_scheduled(self, ctx: PodContext) -> PodScheduledEvent | None:
         """Map pending pod to scheduled event"""
@@ -286,7 +274,6 @@ class PodEventMapper:
 
         logs = await self._extract_logs(ctx.pod)
         if not logs:
-            self.logger.error("Failed to extract logs for completed pod", execution_id=ctx.execution_id)
             return None
 
         evt = ExecutionCompletedEvent(
@@ -374,11 +361,9 @@ class PodEventMapper:
             self.logger.info("Timeout ignored, containers succeeded", execution_id=ctx.execution_id)
             return None
 
-        logs = await self._extract_logs(ctx.pod)
-        if not logs:
-            self.logger.error("Failed to extract logs for timed out pod", execution_id=ctx.execution_id)
-            return None
-
+        logs = await self._extract_logs(ctx.pod) or PodLogs(
+            stdout="", stderr=_UNREADABLE_OUTPUT, exit_code=-1, resource_usage=ResourceUsageDomain()
+        )
         timeout_seconds = ctx.pod.spec.active_deadline_seconds or 0
         evt = ExecutionTimeoutEvent(
             execution_id=ctx.execution_id,
@@ -489,10 +474,11 @@ class PodEventMapper:
         return default
 
     async def _extract_logs(self, pod: k8s_client.V1Pod) -> PodLogs | None:
-        """Extract and parse pod logs. Returns None if extraction fails."""
-        if not self._k8s_api or not pod.metadata:
-            return None
+        """Read a finished pod's result, or None while its main container hasn't terminated.
 
+        The exit code and usage come from the termination message. A log that can't be read leaves the output
+        empty with a note in stderr, so the execution still ends instead of waiting on a pod nobody looks at again.
+        """
         container = self._get_main_container(pod)
         if not container or not container.state or not container.state.terminated:
             return None
@@ -513,9 +499,9 @@ class PodEventMapper:
             logs = await response.read()
         except ApiException, aiohttp.ClientError, TimeoutError:
             self.logger.warning("Failed to fetch pod logs", pod_name=pod.metadata.name, exc_info=True)
-            return None
-
-        stdout, stderr = self._parse_framed_output(logs)
+            stdout, stderr = "", _UNREADABLE_OUTPUT
+        else:
+            stdout, stderr = self._parse_framed_output(logs)
 
         return PodLogs(
             exit_code=int(meta.get("exit_code", str(terminated.exit_code or 0))),

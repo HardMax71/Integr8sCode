@@ -874,7 +874,7 @@
       "datasource": null,
       "id": 19,
       "panels": [],
-      "title": "Topic & Partition Metrics",
+      "title": "Topics & Consumer Groups",
       "type": "row"
     },
     {
@@ -968,7 +968,7 @@
     },
     {
       "datasource": "Victoria Metrics",
-      "description": "Cumulative messages produced per topic for partition balance analysis",
+      "description": "Messages each consumer group has yet to read, per topic, from the collector's kafka_metrics receiver every 15 s",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -980,8 +980,8 @@
             "axisLabel": "Messages",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "bars",
-            "fillOpacity": 50,
+            "drawStyle": "line",
+            "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -999,7 +999,7 @@
             "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "normal"
+              "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -1029,30 +1029,94 @@
       "options": {
         "legend": {
           "calcs": [
-            "sum"
+            "lastNotNull",
+            "max"
           ],
           "displayMode": "table",
-          "placement": "bottom",
+          "placement": "right",
           "showLegend": true
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       },
       "targets": [
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum(messaging_publish_messages_message_total) by (messaging_destination_name) or vector(0)",
+          "expr": "sum(kafka_consumer_group_lag_sum_ratio) by (group, topic)",
           "instant": false,
-          "legendFormat": "{{messaging_destination_name}}",
+          "legendFormat": "{{group}} {{topic}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Partition Message Distribution",
+      "title": "Consumer Lag by Group",
       "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "description": "Consumers connected to each group, from the collector's kafka_metrics receiver every 15 s; 0 means nothing reads that group's topics",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "id": 26,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [
+        {
+          "datasource": "Victoria Metrics",
+          "editorMode": "code",
+          "expr": "sum(kafka_consumer_group_members) by (group)",
+          "instant": false,
+          "legendFormat": "{{group}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Consumer Group Members",
+      "type": "stat"
     },
     {
       "collapsed": false,
@@ -1060,7 +1124,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 43
+        "y": 48
       },
       "datasource": null,
       "id": 22,
@@ -1171,7 +1235,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 44
+        "y": 49
       },
       "id": 24,
       "options": {
@@ -1255,7 +1319,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 44
+        "y": 49
       },
       "id": 25,
       "options": {

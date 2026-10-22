@@ -8,13 +8,13 @@ A module-scoped fixture sets up OTel `MeterProvider`s with a `PrometheusMetricRe
 
 Family names follow the collector, not the Python exporter. The Python exporter appends the unit unless the name already ends with it; the collector's translator skips the unit when it's any token of the name. So an up-down counter named `jobs_active` with unit `jobs` stays `jobs_active` in Victoria Metrics, while the Python exporter alone would call it `jobs_active_jobs`. `_collector_name` applies the collector's rule, and dashboards must use the collector's name.
 
-On the Grafana side, the test reads every `expr` from the dashboard JSON files and from the alert rule YAML in `provisioning/alerting/`, strips strings, label matchers, ranges and `by`/`without` clauses, and drops PromQL functions and keywords. What's left are metric names.
+On the Grafana side, the test reads every `expr` from the dashboard JSON files and from the alert rule YAML in `provisioning/alerting/` and parses it with [promql-parser](https://github.com/messense/py-promql-parser). `promql_parser.walk` visits every node of the query, and the name of each vector selector is a metric the query reads. Functions, label names and strings never look like metric names, since the parser knows what each token is.
 
 ## The checks
 
 All three tests carry the `grafana_contract` marker.
 
-`test_grafana_metrics_have_a_source` fails when a dashboard or alert rule queries a series that nothing emits. A name counts as emitted if it's an app sample, a library sample, or starts with one of the collector prefixes in `COLLECTOR_PREFIXES`. That allowlist is short on purpose: `mongodb_` for the collector's mongodb receiver and `system_` for its `host_metrics` scrapers.
+`test_grafana_metrics_have_a_source` fails when a dashboard or alert rule queries a series that nothing emits. A name counts as emitted if it's an app sample, a library sample, or starts with one of the collector prefixes in `COLLECTOR_PREFIXES`. That allowlist is short on purpose: `kafka_` for the collector's kafka_metrics receiver, `mongodb_` for its mongodb receiver and `system_` for its `host_metrics` scrapers.
 
 `test_code_metrics_used_in_dashboards` fails when an app metric family appears in no dashboard or alert rule. One sample per family is enough, so a histogram is covered by any of its `_bucket`, `_count` or `_sum`. The SDK's `target` family is skipped. The libraries' families aren't required to be charted.
 

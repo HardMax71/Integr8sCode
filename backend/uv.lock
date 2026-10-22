@@ -1119,6 +1119,7 @@ dev = [
     { name = "pillow" },
     { name = "pipdeptree" },
     { name = "pluggy" },
+    { name = "promql-parser" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -1141,6 +1142,7 @@ test = [
     { name = "coverage" },
     { name = "iniconfig" },
     { name = "pluggy" },
+    { name = "promql-parser" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -1250,6 +1252,7 @@ dev = [
     { name = "pillow", specifier = ">=12.3.0" },
     { name = "pipdeptree", specifier = "==4.2.8" },
     { name = "pluggy", specifier = "==1.7.0" },
+    { name = "promql-parser", specifier = "==0.11.0" },
     { name = "pytest", specifier = "==9.1.1" },
     { name = "pytest-asyncio", specifier = "==1.4.0" },
     { name = "pytest-cov", specifier = "==7.1.0" },
@@ -1272,6 +1275,7 @@ test = [
     { name = "coverage", specifier = "==7.16.2" },
     { name = "iniconfig", specifier = "==2.3.1" },
     { name = "pluggy", specifier = "==1.7.0" },
+    { name = "promql-parser", specifier = "==0.11.0" },
     { name = "pytest", specifier = "==9.1.1" },
     { name = "pytest-asyncio", specifier = "==1.4.0" },
     { name = "pytest-cov", specifier = "==7.1.0" },
@@ -2315,6 +2319,42 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/52/73/f1334c29c2af4cd9dba6c7817e61b611bd0215e2eb5565c6064a4de18802/prometheus_client-0.26.0.tar.gz", hash = "sha256:04a91bcf94e2cf74a44a1a874d651a2e853ed354b6e822f3b7487751465d5c2b", size = 92910, upload-time = "2026-07-24T19:36:41.893Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/eb/a3/b69efbf4143b5b9859b977770bbbabcc2796b702fa69dc40271e45cd5a56/prometheus_client-0.26.0-py3-none-any.whl", hash = "sha256:fa93d06737aa02bacd05794768508bb97d2fbee28cb3bca04eaae92f0ca953d6", size = 64494, upload-time = "2026-07-24T19:36:40.854Z" },
+]
+
+[[package]]
+name = "promql-parser"
+version = "0.11.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/46/9d/c3fc671ea3b63bfa1470d25d2273e1be93b1b090b2dccfc2651affd2727d/promql_parser-0.11.0.tar.gz", hash = "sha256:c0f97d3dcf9051c7f50da9e1963b83947c5a12a075d5f70721fdeb9b62a8c810", size = 23011, upload-time = "2026-10-09T00:26:47.514Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/79/07/4a8cac9e517f4dc0fac09e57d78b4a4d471f9288de0a1d64618f82f0906c/promql_parser-0.11.0-cp314-cp314-macosx_10_12_x86_64.whl", hash = "sha256:db17309059435ccdaeafdd12f1180ee2d8f1de68ac5b6edab6f9f0e15206dae3", size = 1260066, upload-time = "2026-10-09T00:25:57.251Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/0e/623ad60e9990e01bdff3edc06bbad8221953716433ba2b55353a2e924185/promql_parser-0.11.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:ddfa14ffe8c30c4e44198811a19fa8cf0d994eda1f0e0ca8337e898f704b0657", size = 1225742, upload-time = "2026-10-09T00:25:45.507Z" },
+    { url = "https://files.pythonhosted.org/packages/f2/7d/4ab22cee1fd71c602a0c5658b7879d33a012c72bf38a80102fca74462d1a/promql_parser-0.11.0-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:acd54141b0cb2537f20d84a62cfbd4542a4af05e2ef3c3d167d27b46e0cdeeb0", size = 1396284, upload-time = "2026-10-09T00:24:35.641Z" },
+    { url = "https://files.pythonhosted.org/packages/c1/29/ad85dcbcb9dc9fa8a310f96a1f638a3ddbfe0f32d4f79c76cb3de82e617c/promql_parser-0.11.0-cp314-cp314-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:4e63d55ff6152df25c8bbf9b3ad61d19a13edcf545aea5b79dbd6b8242a570ea", size = 1346880, upload-time = "2026-10-09T00:24:47.225Z" },
+    { url = "https://files.pythonhosted.org/packages/50/12/e42d787df59c987581386714ff66dd6159331dc12d2edb1a5789f01765a1/promql_parser-0.11.0-cp314-cp314-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:ad1e6eaf4c930a5ba0a7502d326433a38d8305eb66b96acd701e2573489d5a9b", size = 1565930, upload-time = "2026-10-09T00:24:58.939Z" },
+    { url = "https://files.pythonhosted.org/packages/e6/40/f19c6b71e461e7075ec290da1177fe477d4278d08027117e79fab70a800f/promql_parser-0.11.0-cp314-cp314-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:f6af878dfd00c0abce92ba8a96e5023f8115072a5deeac2dd3905b85d26a2f88", size = 1450173, upload-time = "2026-10-09T00:25:10.098Z" },
+    { url = "https://files.pythonhosted.org/packages/57/67/337921268bcfe7f3b195338bca4fdeec1bff4e248a5a5535fa6d0698e632/promql_parser-0.11.0-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:bf715dafd541c876b6460038861b4a79722f88cf2ae7ba0fafb838956e2a0976", size = 1406260, upload-time = "2026-10-09T00:25:34.169Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/39/11044e3283a0f8cb768b279e5af6d050f661cda822b76d82da8b5c6fffb4/promql_parser-0.11.0-cp314-cp314-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:635acdc330af802bfe049ac0fcb4e07558008b0cf3bd3b8d18d38d0148e979d2", size = 1472232, upload-time = "2026-10-09T00:25:22.439Z" },
+    { url = "https://files.pythonhosted.org/packages/97/0f/7c4ae8a07b50962c846aacde2dd1c241d8b5f017b387b3b20ea2e1ef1ea8/promql_parser-0.11.0-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:34ee49af3d2ce582af5c953a9e019d6097701f17344725b6d9ac9718ed8caf5e", size = 1575523, upload-time = "2026-10-09T00:26:09.047Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/d7/17ce9d49ba5eb0b062f5f0d0eb20213510eb8dda1596223ecf4cfc3f1df1/promql_parser-0.11.0-cp314-cp314-musllinux_1_2_armv7l.whl", hash = "sha256:3b0cd29fabb2f9f69fb929ef94226047d670620e309c0d9dcdd6dc6a1e0262da", size = 1621456, upload-time = "2026-10-09T00:26:20.179Z" },
+    { url = "https://files.pythonhosted.org/packages/bd/89/17c89303555672c76ced1a0f8d45a37f0b4732cfd592784a6e7833e141a8/promql_parser-0.11.0-cp314-cp314-musllinux_1_2_i686.whl", hash = "sha256:fa6fe2f2fcc5ff3ea32be25b84cade3bb0da255564d59acb4db56ec13604a6fb", size = 1633237, upload-time = "2026-10-09T00:26:31.698Z" },
+    { url = "https://files.pythonhosted.org/packages/07/ba/3bcc60582e38d4b1daf1c75ca1c54fd27360e4a19106b352ce01bdf90112/promql_parser-0.11.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:f7dcf2e44c052b9737964579b45f58e1fac6197bce43960f07aa23863f7a00ec", size = 1651372, upload-time = "2026-10-09T00:26:43.067Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/02/ff58355a1c4d98d6eca1cc256af98a440073a0c090f17d93c4496eb52790/promql_parser-0.11.0-cp314-cp314-win32.whl", hash = "sha256:9e1d58f46590207c8807d2c8e5c53a630197404d8bc232ffe204dbc012aec900", size = 991982, upload-time = "2026-10-09T00:27:04.743Z" },
+    { url = "https://files.pythonhosted.org/packages/bc/f6/dac496a03f1454353c87d5fc5ae5ab9ba48dff60d8844e451147abb8e6a1/promql_parser-0.11.0-cp314-cp314-win_amd64.whl", hash = "sha256:01972584622a16acbd290762616e5ec12af8d39c77d82b3f8ad893b03bb287df", size = 1107646, upload-time = "2026-10-09T00:26:55.01Z" },
+    { url = "https://files.pythonhosted.org/packages/44/4d/bf8de14f9329aa18b74307ca3ca88a065e2b65d5e593d5c656d1f538bf1d/promql_parser-0.11.0-cp314-cp314t-macosx_10_12_x86_64.whl", hash = "sha256:c9a2cc6c73d5d463d8033baf349bf5e5aa958a7e13b80da96dd05eb29dc0b102", size = 1261401, upload-time = "2026-10-09T00:25:59.005Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/6c/18c2daf9086a20e71f97c498336d4d189146cee21f7d82eec278cfeb088b/promql_parser-0.11.0-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:1780226bd27526b7febb1d74bedc2068d66bc8c9759a7b4c2164aa38914c5d19", size = 1225616, upload-time = "2026-10-09T00:25:47.225Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/81/1ef6f29d45de2ba1efe373f838b37473a0448bc1739fa3e6f2456573b4f9/promql_parser-0.11.0-cp314-cp314t-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:70b795f8ae6e731c8a833bafa7f4ae64aebacaa6054a2f5924aece32071b22e8", size = 1395119, upload-time = "2026-10-09T00:24:37.249Z" },
+    { url = "https://files.pythonhosted.org/packages/59/30/e6252274e4116b7f81238db9cd0f49df7186c5eca6c71bc93775b210254a/promql_parser-0.11.0-cp314-cp314t-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:f39157185a7b3be95945d5a2d62ef695bc47255ae29fc5ff83533e1166a8aa3e", size = 1344217, upload-time = "2026-10-09T00:24:48.872Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/3f/991ab5789162a5d0e3e2ec003e7c7c0e8fa3fc386ba382f757a08d9d7690/promql_parser-0.11.0-cp314-cp314t-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:e99ca7dce9be5258a6ddc1b7f01f3d9a6351209b8b1f3192f9b501d1fed2db57", size = 1568982, upload-time = "2026-10-09T00:25:00.558Z" },
+    { url = "https://files.pythonhosted.org/packages/77/3a/71449c9ac6f83d66a6c160845fd9eef3c6b7bad1aa2a7f8e0d99cb91b510/promql_parser-0.11.0-cp314-cp314t-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:329f6d393325a3d5396a9568502b021158edd1ae66d039d7155bcb1f78115950", size = 1449639, upload-time = "2026-10-09T00:25:11.789Z" },
+    { url = "https://files.pythonhosted.org/packages/4e/cf/12569ff7a85340dc483baa5998c6a46da51c946a439130e0ebce0cfd4dc2/promql_parser-0.11.0-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3d25160cc12db8d3d5bdeef71fd22e92a1301ec6d6bb3d268de4ec7768c7de57", size = 1406000, upload-time = "2026-10-09T00:25:35.757Z" },
+    { url = "https://files.pythonhosted.org/packages/bf/d0/2357c91fb56d228497de9990501a6a73852bbd3a4736c74f0d4c75c62b59/promql_parser-0.11.0-cp314-cp314t-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:615fb351dd9c3837362b7d3def52cad428b2c3df26f019ebc54daaf6ae131bef", size = 1470477, upload-time = "2026-10-09T00:25:23.966Z" },
+    { url = "https://files.pythonhosted.org/packages/82/8a/c117368266df935355dbc92d4ee9fac583ed24427274a17d4245f5081ec9/promql_parser-0.11.0-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:5483e85b36648a8b45ea3c6c318e4d5fb3adb8e95c259289719818c6a75ceaae", size = 1573995, upload-time = "2026-10-09T00:26:10.635Z" },
+    { url = "https://files.pythonhosted.org/packages/c0/80/9ae0afa5730ce22746639ff3eb5ea0080500595e503548c1face04530b60/promql_parser-0.11.0-cp314-cp314t-musllinux_1_2_armv7l.whl", hash = "sha256:4ea30483675b39bd2c4869b18c4f5deaf1ab1d4f5a51d459b78e6a9fca9ff2c8", size = 1618146, upload-time = "2026-10-09T00:26:21.766Z" },
+    { url = "https://files.pythonhosted.org/packages/f5/98/f919d822215f6ae273895e77446a219f7c17c008c78a5c8559a2cb562ee7/promql_parser-0.11.0-cp314-cp314t-musllinux_1_2_i686.whl", hash = "sha256:3cb96e18eb0a482803305695cdae7f72be3156f3425a2ded5d7a59f3980ee4f1", size = 1631508, upload-time = "2026-10-09T00:26:33.329Z" },
+    { url = "https://files.pythonhosted.org/packages/4d/d9/ed107641d7554775ad3aca2899a4067a8b9bbc820643e88290c1e981f195/promql_parser-0.11.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:44454c1577ef03dfddb10d1038ff432d92f283ea5952755edfde28914d9ef716", size = 1650389, upload-time = "2026-10-09T00:26:44.598Z" },
+    { url = "https://files.pythonhosted.org/packages/36/d1/61c3440a1d38f553395366028fa1869351c5a50547d586c421e5fbbfad4c/promql_parser-0.11.0-cp314-cp314t-win32.whl", hash = "sha256:11db0c551a870ae47ab8e3336f8f7955bada3bda19ddc6d2a43fba3807ab0371", size = 989969, upload-time = "2026-10-09T00:27:06.286Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/c4/565afa996d2178f8c7a3b3528ff32d02074bad15544f7341a6baa3f345b7/promql_parser-0.11.0-cp314-cp314t-win_amd64.whl", hash = "sha256:bcc27a9935fe628497218f0227560a86a590072b738445aa1d10253160cce329", size = 1106574, upload-time = "2026-10-09T00:26:56.517Z" },
 ]
 
 [[package]]

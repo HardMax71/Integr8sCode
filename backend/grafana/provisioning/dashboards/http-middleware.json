@@ -399,6 +399,60 @@
       ],
       "title": "Disk I/O",
       "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "description": "Bytes in and out per host interface, from the host-metrics collector; loopback and per-container veth interfaces are left out",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "id": 107,
+      "targets": [
+        {
+          "expr": "sum(rate(system_network_io_bytes_total[5m])) by (device, direction)",
+          "legendFormat": "{{device}} {{direction}}",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Network I/O",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "description": "Used space per filesystem, as df counts it: used over used plus free, without the root-reserved blocks",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "id": 108,
+      "targets": [
+        {
+          "expr": "sum(system_filesystem_usage_bytes{state=\"used\"}) by (mountpoint) / sum(system_filesystem_usage_bytes{state=~\"used|free\"}) by (mountpoint)",
+          "legendFormat": "{{mountpoint}}",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Disk Space Used",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",

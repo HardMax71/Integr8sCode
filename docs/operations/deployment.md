@@ -18,7 +18,7 @@ Everything runs from one docker-compose.yaml: the backend, the frontend, the wor
 
 ```bash
 ./deploy.sh dev                  # core stack
-./deploy.sh dev --observability  # plus Grafana, Jaeger, Loki, Victoria Metrics, OTel Collector
+./deploy.sh dev --observability  # plus Grafana, Jaeger, Loki, Victoria Metrics, OTel Collector, host-metrics
 ./deploy.sh dev --debug          # all of the above plus Kafdrop
 ```
 
@@ -63,7 +63,7 @@ Data lives in named volumes:
 | Grafana          | `curl localhost:3000/api/health`                                            |
 | Victoria Metrics | `wget http://127.0.0.1:8428/-/healthy`                                      |
 
-Loki has none because its image is distroless and has no shell, so Grafana and the collector wait for `service_started`. Jaeger, the OTel Collector, Kafdrop and the worker have no healthcheck either.
+Loki has none because its image is distroless and has no shell, so Grafana and the collector wait for `service_started`. Jaeger, the OTel Collector, host-metrics, Kafdrop and the worker have no healthcheck either.
 
 ## Memory limits
 
@@ -82,12 +82,15 @@ Every long-running service except Kafdrop has a `mem_limit`.
 | Loki                 | 256m        |                                                             |
 | Victoria Metrics     | 256m        | `--retentionPeriod=30d`                                     |
 | OTel Collector       | 192m        | `memory_limiter` at 150 MiB                                 |
+| host-metrics         | 128m        | `memory_limiter` at 100 MiB; idles near 57 MiB              |
 
 Kafdrop runs with `-Xmx512M` and no limit. All services above except Jaeger have `restart: unless-stopped`.
 
 ## Observability profile
 
 The backend's start creates (or updates) an `otelMonitor` role with `serverStatus`, `top`, `dbStats`, `indexStats` and `listCollections`, plus a user with only that role. The collector's mongodb receiver logs in as that user, since root fails `$indexStats` on `admin.system.*`. The credentials are `MONGO_MONITOR_USER` (default `otel-monitor`) and `MONGO_MONITOR_PASSWORD` in `.env`. Until the backend has run, the receiver's scrapes fail and retry.
+
+host-metrics runs with `network_mode: host`, so its network scraper reads the host's interfaces, and it reaches the collector through the port compose publishes on `127.0.0.1:4317`. It has no ports of its own: `otel-host-metrics.yaml` turns its internal metrics off and runs no extensions.
 
 Grafana starts through a small entrypoint. It resets the admin password from `GF_SECURITY_ADMIN_PASSWORD`, starts Grafana without the alert rules, waits until the dashboard provider has created the `integr8scode` folder, then copies the rules back and calls the alerting reload API. Loaded first, the rules would create their own folder with a random UID. See [Grafana integration](grafana-integration.md).
 
@@ -169,7 +172,7 @@ docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
 docker image prune -af
 ```
 
-Between `up` and the prune it restarts the collector, VictoriaMetrics, Loki or Grafana when the release changed a config file that service mounts, comparing the new tag with the commit the server ran before. They read their config only when they start, and compose recreates a container only when its service definition changes, never for a new file behind a mount. Without the restart, a release that changes only `otel-collector-config.yaml` keeps running the old one; release 2026.10.28 ran 2.5 hours like that, without its new span metrics. Grafana re-reads its dashboards every 10 seconds by itself, so a dashboard change doesn't restart it.
+Between `up` and the prune it restarts the collector, host-metrics, VictoriaMetrics, Loki or Grafana when the release changed a config file that service mounts, comparing the new tag with the commit the server ran before. They read their config only when they start, and compose recreates a container only when its service definition changes, never for a new file behind a mount. Without the restart, a release that changes only `otel-collector-config.yaml` keeps running the old one; release 2026.10.28 ran 2.5 hours like that, without its new span metrics. Grafana re-reads its dashboards every 10 seconds by itself, so a dashboard change doesn't restart it.
 
 Pruning before the pull and after the deploy keeps only the images the running stack uses. To roll back by hand, check out one of the two CalVer tags before the current one (older releases are deleted, and so are their images), set `IMAGE_TAG` in `.env` to it and run the same `pull` and `up`, plus `docker compose restart` for any of those four whose config the rollback changes; the old images come back from GHCR.
 

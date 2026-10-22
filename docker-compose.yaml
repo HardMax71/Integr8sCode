@@ -350,9 +350,39 @@ services:
     command: -config.file=/etc/loki/local-config.yaml
     networks:
       - app-network
-    mem_limit: 256m
+    mem_limit: 512m  # a 30-day search took it to 207 MiB
     restart: unless-stopped
     # Distroless image with no shell, so no healthcheck
+
+  # The same lines as Loki, with every field indexed; the start script applies the logs index template and the 30-day retention policy
+  opensearch:
+    logging: *logging
+    container_name: opensearch
+    profiles: ["observability"]
+    image: opensearchproject/opensearch:3.9.0
+    entrypoint: ["bash", "/etc/opensearch-setup/start.sh"]
+    environment:
+      - discovery.type=single-node
+      # mmap would need vm.max_map_count raised on the host
+      - node.store.allow_mmap=false
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - ./backend/opensearch:/etc/opensearch-setup:ro
+      - opensearch_data:/usr/share/opensearch/data
+    networks:
+      - app-network
+    mem_limit: 1536m  # 30 days at prod's volume sit near 1.1 GiB with the 512m heap
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf localhost:9200/_index_template/logs > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
 
   # Monitoring Stack
   # Victoria Metrics - Time series database
@@ -465,6 +495,7 @@ volumes:
   grafana_data:
   victoria_metrics_data:
   loki_data:
+  opensearch_data:
   kafka_data:
   kafka_logs:
 # --8<-- [end:dev_volumes]

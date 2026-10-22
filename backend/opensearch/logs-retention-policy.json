@@ -1,0 +1,19 @@
+{
+  "policy": {
+    "description": "Delete a daily logs index 30 days after it was created",
+    "default_state": "hot",
+    "states": [
+      {
+        "name": "hot",
+        "actions": [],
+        "transitions": [{ "state_name": "delete", "conditions": { "min_index_age": "30d" } }]
+      },
+      {
+        "name": "delete",
+        "actions": [{ "delete": {} }],
+        "transitions": []
+      }
+    ],
+    "ism_template": [{ "index_patterns": ["logs-*"], "priority": 100 }]
+  }
+}

@@ -87,6 +87,9 @@ receivers:
 connectors:
   forward/sampling:
 
+  # Every log pipeline hands its lines to logs/search for OpenSearch
+  forward/search:
+
   signaltometrics:
     spans:
       - name: queue.enqueue
@@ -843,6 +846,13 @@ processors:
       log_record:
         - IsMatch(log.attributes["fluent.tag"], "^(backend|worker)$") and IsMatch(log.body, "^\\{")
 
+  # Mongo logs every connection and login at info level, two thirds of all lines; its warnings and errors still go through
+  filter/mongo_info:
+    error_mode: ignore
+    logs:
+      log_record:
+        - log.attributes["fluent.tag"] == "mongo" and IsMatch(log.body, "\"s\":\\s*\"I\"")
+
   # One resource per container, named after it, so Loki labels each container's lines with their own service_name
   groupbyattrs/container:
     keys: [fluent.tag]
@@ -853,6 +863,14 @@ processors:
       - context: resource
         statements:
           - set(resource.attributes["service.name"], resource.attributes["fluent.tag"]) where resource.attributes["fluent.tag"] != nil
+
+  # structlog's JSON keys become attributes, so OpenSearch can search execution_id, user_id and the rest by name
+  transform/search:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - merge_maps(log.attributes, ParseJSON(log.body), "insert") where IsMatch(resource.attributes["service.name"], "^integr8scode-(backend|worker)$") and IsMatch(log.body, "^\\{")
 
   # Whatever resource a browser sends, its records are labelled browser
   transform/browser:
@@ -921,6 +939,13 @@ exporters:
     tls:
       insecure: true
 
+  # One index a day, so the 30-day retention policy in backend/opensearch deletes whole days
+  opensearch:
+    http:
+      endpoint: http://opensearch:9200
+    logs_index: logs
+    logs_index_time_format: yyyy.MM.dd
+
   # Console logging for debugging
   debug:
     verbosity: normal
@@ -970,10 +995,15 @@ service:
     
     logs:
       receivers: [otlp, fluent_forward]
-      processors: [memory_limiter, filter/app_json_stdout, groupbyattrs/container, transform/container, transform/level, batch, resource]
-      exporters: [otlp_http/loki, debug]
+      processors: [memory_limiter, filter/app_json_stdout, filter/mongo_info, groupbyattrs/container, transform/container, transform/level, batch, resource]
+      exporters: [otlp_http/loki, forward/search, debug]
 
     logs/browser:
       receivers: [otlp/browser]
       processors: [memory_limiter, filter/browser, transform/browser, batch, resource]
-      exporters: [otlp_http/loki]
+      exporters: [otlp_http/loki, forward/search]
+
+    logs/search:
+      receivers: [forward/search]
+      processors: [memory_limiter, transform/search]
+      exporters: [opensearch]

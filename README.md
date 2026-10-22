@@ -87,7 +87,7 @@ curl -k https://localhost/api/v1/health/live
 | Jaeger (Tracing)   | [http://localhost:16686](http://localhost:16686) | needs `--observability`                       |
 | Kafdrop (Kafka UI) | [http://localhost:9000](http://localhost:9000)   | needs `--debug`                               |
 
-`./deploy.sh dev --observability` adds Grafana, Jaeger, Victoria Metrics, Loki and the OTel Collector. `--debug` adds all of those plus Kafdrop.
+`./deploy.sh dev --observability` adds Grafana, Jaeger, Victoria Metrics, Loki, OpenSearch and the OTel Collector. `--debug` adds all of those plus Kafdrop.
 
 nginx and the backend each make a self-signed certificate when they first start, so accept the browser warning. nginx verifies the backend's certificate on every proxied request. A certificate mounted at `/etc/nginx/certs` in the frontend container is used as is.
 

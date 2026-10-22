@@ -43,7 +43,9 @@ The container's entrypoint is [`backend/opensearch/start.sh`](https://github.com
 --8<-- "backend/opensearch/logs-retention-policy.json"
 ```
 
-The policy deletes each daily index 30 days after it was created, the same retention as Loki. A stored policy is never overwritten, so a changed policy needs a new id. An index created before the policy existed, on the very first start, gets it attached by the same script.
+The policy deletes each daily index 30 days after it was created, the same retention as Loki. A stored policy is never overwritten, so a changed policy needs a new id.
+
+The collector starts writing as soon as OpenSearch answers, a moment before start.sh has put the template in. So compose starts OpenSearch with `action.auto_create_index=-logs-*,+*`: until then a write gets `index_not_found_exception` and is dropped (Loki has it), instead of creating a `logs-` index with default mappings. Once the template and the policy exist, start.sh allows auto-creation with a persistent cluster setting, so a restart needs no setup before writes go through. The cluster reports yellow even so: the retention plugin's own `.opendistro-ism-config` index asks for a replica that a single node can't place.
 
 ## Grafana
 

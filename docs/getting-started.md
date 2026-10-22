@@ -56,7 +56,7 @@ Limits are system-wide, not per execution. An execution request carries only the
 
 ## Look around
 
-Kafdrop, Grafana and Jaeger aren't part of the default stack. `./deploy.sh dev --observability` adds Grafana, Jaeger, Victoria Metrics, Loki and the OTel collector, and `--debug` adds Kafdrop on top. All of them listen on localhost only.
+Kafdrop, Grafana and Jaeger aren't part of the default stack. `./deploy.sh dev --observability` adds Grafana, Jaeger, Victoria Metrics, Loki, OpenSearch and the OTel collector, and `--debug` adds Kafdrop on top. All of them listen on localhost only.
 
 | Service | URL | Needs |
 |---------|-----|-------|

@@ -229,6 +229,7 @@ jobs:
             git diff --quiet "$PREVIOUS" HEAD -- backend/otel-host-metrics.yaml || RESTART="$RESTART host-metrics"
             git diff --quiet "$PREVIOUS" HEAD -- backend/victoria-metrics || RESTART="$RESTART victoria-metrics"
             git diff --quiet "$PREVIOUS" HEAD -- backend/loki || RESTART="$RESTART loki"
+            git diff --quiet "$PREVIOUS" HEAD -- backend/opensearch || RESTART="$RESTART opensearch"
             git diff --quiet "$PREVIOUS" HEAD -- backend/grafana ':(exclude)backend/grafana/provisioning/dashboards' || RESTART="$RESTART grafana"
             if [ -n "$RESTART" ]; then
               echo "Config changed, restarting:$RESTART"

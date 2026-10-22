@@ -9,8 +9,9 @@ Grafana runs under the `observability` compose profile. Everything it shows is p
 | Victoria Metrics | prometheus | `victoria-metrics` | default; exemplar `trace_id` links to Jaeger       |
 | Jaeger           | jaeger     | `jaeger`           | needs Jaeger below 2.21, see [Tracing](tracing.md#jaeger) |
 | Loki             | loki       | `loki`             | `trace_id` derived field links to Jaeger          |
+| OpenSearch       | grafana-opensearch-datasource | `opensearch` | daily `logs-` indices; `traceId` links to Jaeger, see [OpenSearch](opensearch.md#grafana) |
 
-Grafana 13 downloads the prometheus and jaeger plugins on first start. `preinstall_sync` in grafana.ini makes it install them before provisioning runs, so the first start on a fresh volume needs to reach grafana.com.
+Grafana 13 downloads the prometheus, jaeger and grafana-opensearch-datasource plugins on first start. `preinstall_sync` in grafana.ini makes it install them before provisioning runs, so the first start on a fresh volume needs to reach grafana.com.
 
 ## Dashboards
 

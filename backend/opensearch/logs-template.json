@@ -1,0 +1,17 @@
+{
+  "index_patterns": ["logs-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": { "type": "date" },
+        "body": { "type": "text" },
+        "attributes": { "type": "flat_object" },
+        "resource": { "type": "flat_object" }
+      }
+    }
+  }
+}

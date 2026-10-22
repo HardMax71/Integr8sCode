@@ -165,6 +165,7 @@ nav:
     - Nginx Configuration: operations/nginx-configuration.md
     - Logging: operations/logging.md
     - Log Aggregation (Loki): operations/loki.md
+    - Log Search (OpenSearch): operations/opensearch.md
     - Tracing: operations/tracing.md
     - Metrics:
       - Reference: operations/metrics-reference.md

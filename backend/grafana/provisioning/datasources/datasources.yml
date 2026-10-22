@@ -38,3 +38,25 @@ datasources:
           matcherRegex: trace_id
           name: TraceID
           url: '$${__value.raw}'
+
+  # OpenSearch, the same logs as Loki with every field indexed; the plugin is installed when Grafana starts
+  - name: OpenSearch
+    type: grafana-opensearch-datasource
+    uid: opensearch
+    access: proxy
+    url: http://opensearch:9200
+    editable: true
+    jsonData:
+      flavor: opensearch
+      version: "3.9.0"
+      # One index a day, so a search reads only the days in its time range
+      database: "[logs-]YYYY.MM.DD"
+      interval: Daily
+      timeField: "@timestamp"
+      logMessageField: body
+      logLevelField: severity.text
+      pplEnabled: true
+      dataLinks:
+        - field: traceId
+          url: '$${__value.raw}'
+          datasourceUid: jaeger

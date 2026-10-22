@@ -125,6 +125,15 @@ jobs:
             docker pull ghcr.io/${{ steps.sha.outputs.owner }}/integr8scode/frontend:${{ steps.version.outputs.version }}
             ```
 
+      # The newest release and two to roll back to; Registry Cleanup keeps the images of the same three
+      - name: Delete releases older than the newest 3
+        if: steps.version.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list -R "$GITHUB_REPOSITORY" --limit 100 --json tagName,createdAt --jq 'sort_by(.createdAt) | reverse | .[3:][].tagName' |
+            xargs -r -n1 gh release delete -R "$GITHUB_REPOSITORY" --yes --cleanup-tag
+
   deploy:
     name: Deploy to Production
     needs: [release]

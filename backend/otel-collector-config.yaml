@@ -9,29 +9,6 @@ receivers:
   # Every container's stdout and stderr, from Docker's fluentd log driver; the tag is the container name
   fluent_forward:
     endpoint: 0.0.0.0:24224
-  
-  # Collect host metrics
-  host_metrics:
-    collection_interval: 10s
-    root_path: /hostfs
-    scrapers:
-      cpu:
-        metrics:
-          system.cpu.utilization:
-            enabled: true
-      disk:
-      filesystem:
-        exclude_mount_points:
-          mount_points: ["^(/hostfs)?/boot", "^(/hostfs)?/var/lib/kubelet"]
-          match_type: regexp
-      load:
-      memory:
-        metrics:
-          system.memory.utilization:
-            enabled: true
-      network:
-      paging:
-      processes:
 
   kafka_metrics:
     brokers: ["kafka:29092"]
@@ -922,7 +899,7 @@ service:
       exporters: [otlp_grpc/jaeger, debug]
     
     metrics:
-      receivers: [otlp, host_metrics, kafka_metrics, mongodb]
+      receivers: [otlp, kafka_metrics, mongodb]
       processors: [memory_limiter, batch, resource]
       exporters: [prometheus_remote_write, debug]
 

@@ -39,7 +39,7 @@ All dashboards land in one folder, `Integr8sCode`, with the fixed UID `integr8sc
 --8<-- "backend/grafana/provisioning/alerting/alerting.yml"
 ```
 
-Both rules are instant queries on `avg_over_time(system_memory_utilization_ratio{state="used"}[5m]) * 100`, evaluated every minute. One warns above 85% for 5 minutes, the other goes critical above 95% for 2 minutes. The metric comes from the collector's `host_metrics` memory scraper, which emits `system.memory.utilization` only because the collector config turns it on; it's off by default.
+Both rules are instant queries on `avg_over_time(system_memory_utilization_ratio{state="used"}[5m]) * 100`, evaluated every minute. One warns above 85% for 5 minutes, the other goes critical above 95% for 2 minutes. The metric comes from the host-metrics collector's memory scraper, which emits `system.memory.utilization` only because `otel-host-metrics.yaml` turns it on; it's off by default.
 
 Alerts go to the `email-alerts` contact point, which sends one email addressed to everyone in `GRAFANA_ALERT_RECIPIENTS` (`singleEmail: true`). SMTP is configured in grafana.ini from env vars that compose fills in: `GF_SMTP_HOST`, `MAILJET_API_KEY` as the user, `MAILJET_SECRET_KEY` as the password and `MAILJET_FROM_ADDRESS` as the sender. Locally `GF_SMTP_HOST` is empty, so alerts fire but no mail goes out. Production sets it from the `MAILJET_HOST` secret.
 

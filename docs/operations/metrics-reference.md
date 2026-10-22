@@ -8,7 +8,8 @@ The backend (API) and the worker both push their metrics over OTLP to the OpenTe
 flowchart LR
     API["backend"] -->|"OTLP gRPC, every 60 s"| Collector["otel-collector"]
     Worker["worker"] -->|"OTLP gRPC, every 60 s"| Collector
-    Receivers["host_metrics, mongodb, kafka_metrics receivers"] --> Collector
+    Host["host-metrics (host network)"] -->|"OTLP gRPC to 127.0.0.1:4317"| Collector
+    Receivers["mongodb, kafka_metrics receivers"] --> Collector
     Collector -->|"prometheus remote write"| VM["VictoriaMetrics"]
     VM -->|"scrapes span counters every 15 s"| Collector
     VM --> Grafana
@@ -16,7 +17,7 @@ flowchart LR
 
 `create_app` and the worker's `main()` each call `setup_metrics` (`app/core/metrics/base.py`) once. It installs a global `MeterProvider` whose `PeriodicExportingMetricReader` exports every 60 000 ms through an OTLP gRPC exporter. The exporter targets `OTEL_EXPORTER_OTLP_ENDPOINT`, which `config.toml` sets to `http://otel-collector:4317`. It also starts the system metrics instrumentation for the process's own CPU and memory. Without an endpoint it returns early and the no-op provider stays. The OpenTelemetry instrumentations take their meters from that provider. The app's own metrics have no meter at all: they come from spans, described next.
 
-The collector's metrics pipeline (`backend/otel-collector-config.yaml`) reads the `otlp`, `host_metrics`, `kafka_metrics` and `mongodb` receivers, runs `memory_limiter`, `batch` and `resource`, and exports with `prometheus_remote_write` to `http://victoria-metrics:8428/api/v1/write`. VictoriaMetrics keeps 30 days. The collector, VictoriaMetrics and Grafana sit in the `observability` compose profile, so none of this runs unless you start the stack with `./deploy.sh dev --observability`. Counters and histograms made from spans take another way, described next.
+The collector's metrics pipeline (`backend/otel-collector-config.yaml`) reads the `otlp`, `kafka_metrics` and `mongodb` receivers, runs `memory_limiter`, `batch` and `resource`, and exports with `prometheus_remote_write` to `http://victoria-metrics:8428/api/v1/write`. VictoriaMetrics keeps 30 days. Host metrics come from a second collector, the `host-metrics` service (`backend/otel-host-metrics.yaml`). It runs only the `host_metrics` receiver in the host's network namespace, since in a container the network scraper sees only that container's `eth0` and `lo`, and sends to the main collector's OTLP port on `127.0.0.1:4317`. Both collectors, VictoriaMetrics and Grafana sit in the `observability` compose profile, so none of this runs unless you start the stack with `./deploy.sh dev --observability`. Counters and histograms made from spans take another way, described next.
 
 ## Metrics made from spans
 
@@ -203,7 +204,7 @@ A `handle` span contains the discard or immediate retry it starts, so its durati
 
 Collector receivers write these, not Python, so the contract test accepts them by prefix (`COLLECTOR_PREFIXES`).
 
-`system_memory_utilization_ratio{state}` comes from the `host_metrics` memory scraper with `system.memory.utilization` turned on. The overview's "Memory Saturation" gauge and both host memory alert rules read it. The HTTP dashboard's "CPU" panel reads `system_cpu_utilization_ratio{state}`, from the cpu scraper with `system.cpu.utilization` turned on, and "Host Memory Used" reads `system_memory_usage_bytes{state="used"}`. Below them, "Load Average" reads `system_cpu_load_average_{1m,5m,15m}` from the load scraper next to `system_cpu_logical_count`, and "Disk I/O" reads `system_disk_io_bytes_total{device,direction}` from the disk scraper for whole disks only (`sd*`, `vd*`, `xvd*`, `nvme*n*`), since partitions would count the same bytes twice.
+`system_memory_utilization_ratio{state}` comes from the host-metrics collector's memory scraper with `system.memory.utilization` turned on. The overview's "Memory Saturation" gauge and both host memory alert rules read it. The HTTP dashboard's "CPU" panel reads `system_cpu_utilization_ratio{state}`, from the cpu scraper with `system.cpu.utilization` turned on, and "Host Memory Used" reads `system_memory_usage_bytes{state="used"}`. Below them, "Load Average" reads `system_cpu_load_average_{1m,5m,15m}` from the load scraper next to `system_cpu_logical_count`, and "Disk I/O" reads `system_disk_io_bytes_total{device,direction}` from the disk scraper for whole disks only (`sd*`, `vd*`, `xvd*`, `nvme*n*`), since partitions would count the same bytes twice. "Network I/O" reads `system_network_io_bytes_total{device,direction}` for the host's interfaces; host-metrics leaves out `lo` and the per-container `veth*` pairs, whose traffic also crosses a bridge and the NIC. "Disk Space Used" divides `system_filesystem_usage_bytes{state="used"}` by used plus free per mountpoint, the way `df` counts it.
 
 The `mongodb` receiver polls `mongo:27017` every 15 seconds as `MONGO_MONITOR_USER`. Several of these are optional receiver metrics that `otel-collector-config.yaml` turns on. The MongoDB dashboard reads:
 
@@ -221,7 +222,7 @@ The `kafka_metrics` receiver's consumers scraper gives `kafka_consumer_group_lag
 
 The MongoDB dashboard's "Connections" panel reads `mongodb_connection_count{type}` for `current` and `active`; `available` is left out, since it sits in the hundreds of thousands.
 
-Everything else the receivers collect lands in VictoriaMetrics with no panel, and Grafana's Explore view can query it: the other `kafka_*` broker, topic, partition and consumer group families, `mongodb_operation_count_total`, `mongodb_operation_time_milliseconds_total` and `mongodb_document_operation_count`, the rest of the cpu and disk scrapers, and the `host_metrics` filesystem, network, paging and processes scrapers. The collector container mounts only the host's `/proc` and `/sys`, so the network scraper reports the container's own interfaces, not the host's, and the filesystem scraper reports only `/`.
+Everything else the receivers collect lands in VictoriaMetrics with no panel, and Grafana's Explore view can query it: the other `kafka_*` broker, topic, partition and consumer group families, `mongodb_operation_count_total`, `mongodb_operation_time_milliseconds_total` and `mongodb_document_operation_count`, the rest of the cpu, disk, filesystem and network scrapers, and the paging and processes scrapers. host-metrics mounts only the host's `/proc` and `/sys`, so the filesystem scraper reports only `/`, the disk its container's overlay sits on.
 
 ## PromQL examples
 

@@ -10,7 +10,7 @@ Platform for running scripts online in isolated Kubernetes pods. Users write Pyt
 | Backend | FastAPI, Dishka DI, Beanie ODM (MongoDB), Python 3.14 (backend/.python-version), async throughout, httpx2 for HTTP |
 | Events | Kafka (KRaft, no ZooKeeper) + FastStream (Pydantic JSON) |
 | Worker | one process (`app/worker.py`): execution scheduler, k8s worker, pod monitor, result processor, DLQ retries |
-| Infra | MongoDB 9, Redis 8; optional Grafana, Jaeger, Victoria Metrics, Loki, OTel Collector (`--observability`) and Kafdrop (`--debug`) |
+| Infra | MongoDB 9, Redis 8; optional Grafana, Jaeger, Victoria Metrics, Loki, OTel Collector plus its host-metrics collector (`--observability`) and Kafdrop (`--debug`) |
 | Runtimes | Python 3.11 to 3.14, Node 22/24/26, Ruby 3.3/3.4/4.0, Bash 5.3, Go 1.26/1.27 (app/runtime_registry.py) |
 
 ## Key Directory Map
@@ -81,7 +81,7 @@ npm run test:e2e          # Playwright E2E, needs the running stack
 ./deploy.sh dev                  # start
 ./deploy.sh dev --build          # rebuild and start
 ./deploy.sh dev --wait           # start and wait for healthy
-./deploy.sh dev --observability  # plus Grafana, Jaeger, Victoria Metrics, Loki, OTel Collector
+./deploy.sh dev --observability  # plus Grafana, Jaeger, Victoria Metrics, Loki, OTel Collector, host-metrics
 ./deploy.sh dev --debug          # observability plus Kafdrop
 ./deploy.sh down                 # stop
 ./deploy.sh openapi              # regenerate docs/reference/openapi.json

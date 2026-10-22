@@ -1,0 +1,52 @@
+receivers:
+  host_metrics:
+    collection_interval: 10s
+    root_path: /hostfs
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.utilization:
+            enabled: true
+      disk:
+      filesystem:
+        exclude_mount_points:
+          mount_points: ["^(/hostfs)?/boot", "^(/hostfs)?/var/lib/kubelet"]
+          match_type: regexp
+      load:
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      network:
+        # A veth pair comes and goes with every container, and its traffic also crosses a bridge and the NIC
+        exclude:
+          interfaces: ["^(lo|veth.*)$"]
+          match_type: regexp
+      paging:
+      processes:
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 100
+    spike_limit_mib: 25
+
+  batch:
+
+exporters:
+  # The otel-collector service publishes OTLP gRPC on the host's loopback
+  otlp_grpc:
+    endpoint: 127.0.0.1:4317
+    tls:
+      insecure: true
+
+service:
+  # Its own metrics would listen on a port of the host
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    metrics:
+      receivers: [host_metrics]
+      processors: [memory_limiter, batch]
+      exporters: [otlp_grpc]

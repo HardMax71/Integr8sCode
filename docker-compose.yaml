@@ -391,8 +391,6 @@ services:
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./backend/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
-      - /proc:/hostfs/proc:ro
-      - /sys:/hostfs/sys:ro
     environment:
       # The backend creates this user on start; until then the mongodb receiver's scrapes fail and retry
       - MONGO_MONITOR_USER=${MONGO_MONITOR_USER:-otel-monitor}
@@ -413,6 +411,24 @@ services:
         condition: service_started
       kafka:
         condition: service_healthy
+    restart: unless-stopped
+
+  host-metrics:
+    logging: *logging
+    image: otel/opentelemetry-collector-contrib:0.163.1
+    container_name: host-metrics
+    profiles: ["observability"]
+    # In the host's network namespace the network scraper reads the host's interfaces, and 127.0.0.1:4317 reaches otel-collector
+    network_mode: host
+    mem_limit: 128m
+    command: ["--config=/etc/otel-host-metrics.yaml"]
+    volumes:
+      - ./backend/otel-host-metrics.yaml:/etc/otel-host-metrics.yaml:ro
+      - /proc:/hostfs/proc:ro
+      - /sys:/hostfs/sys:ro
+    depends_on:
+      otel-collector:
+        condition: service_started
     restart: unless-stopped
 
 # --8<-- [start:dev_volumes]

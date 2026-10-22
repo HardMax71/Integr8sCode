@@ -874,7 +874,7 @@
       "datasource": null,
       "id": 19,
       "panels": [],
-      "title": "Topic & Partition Metrics",
+      "title": "Topic & Consumer Lag",
       "type": "row"
     },
     {
@@ -968,7 +968,7 @@
     },
     {
       "datasource": "Victoria Metrics",
-      "description": "Cumulative messages produced per topic for partition balance analysis",
+      "description": "Messages each consumer group has yet to read, per topic, from the collector's kafka_metrics receiver every 15 s",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -980,8 +980,8 @@
             "axisLabel": "Messages",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "bars",
-            "fillOpacity": 50,
+            "drawStyle": "line",
+            "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -999,7 +999,7 @@
             "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "normal"
+              "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -1029,29 +1029,30 @@
       "options": {
         "legend": {
           "calcs": [
-            "sum"
+            "lastNotNull",
+            "max"
           ],
           "displayMode": "table",
-          "placement": "bottom",
+          "placement": "right",
           "showLegend": true
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       },
       "targets": [
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum(messaging_publish_messages_message_total) by (messaging_destination_name) or vector(0)",
+          "expr": "sum(kafka_consumer_group_lag_sum_ratio) by (group, topic)",
           "instant": false,
-          "legendFormat": "{{messaging_destination_name}}",
+          "legendFormat": "{{group}} {{topic}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Partition Message Distribution",
+      "title": "Consumer Lag by Group",
       "type": "timeseries"
     },
     {

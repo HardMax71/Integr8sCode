@@ -215,7 +215,11 @@ The `mongodb` receiver polls `mongo:27017` every 15 seconds as `MONGO_MONITOR_US
 | Memory and cache | `mongodb_memory_usage_bytes`, `mongodb_cache_operations_total` (type hit or miss), `mongodb_page_faults_total`, `mongodb_wtcache_bytes_read_total` |
 | Network and locks | `mongodb_network_io_receive_bytes`, `mongodb_network_io_transmit_bytes`, `mongodb_network_request_count`, `mongodb_global_lock_time_milliseconds_total`, `mongodb_lock_acquire_count_total`, `mongodb_lock_acquire_wait_count_total` |
 
-The `kafka_metrics` receiver and the rest of `host_metrics` land in VictoriaMetrics too, but no dashboard reads them yet.
+Five of these are counts since mongod started that the receiver declares as non-monotonic sums, so they arrive as gauges: `mongodb_cursor_timeout_count`, `mongodb_network_io_receive_bytes`, `mongodb_network_io_transmit_bytes`, `mongodb_network_request_count` and `mongodb_index_access_count`. They only grow, so their panels take `rate()` of them, and a mongod restart reads as a counter reset.
+
+The `kafka_metrics` receiver's consumers scraper gives `kafka_consumer_group_lag_sum_ratio{group,topic}`, the messages a consumer group has yet to read on a topic. The Kafka dashboard's "Consumer Lag by Group" panel reads it. The receiver gives it unit `1`, so the name ends in `_ratio`.
+
+Everything else the receivers collect lands in VictoriaMetrics with no panel, and Grafana's Explore view can query it: the other `kafka_*` broker, topic, partition and consumer group families, `mongodb_connection_count`, `mongodb_operation_count_total`, `mongodb_operation_time_milliseconds_total` and `mongodb_document_operation_count`, and the `host_metrics` disk, filesystem, load, network, paging and processes scrapers. The collector container mounts only the host's `/proc` and `/sys`, so the network scraper reports the container's own interfaces, not the host's, and the filesystem scraper reports only `/`.
 
 ## PromQL examples
 

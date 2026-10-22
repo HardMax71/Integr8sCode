@@ -364,15 +364,9 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum(rate(rate_limit_requests_total{rate_limit_endpoint!~\"/api/v1/result/.*\"}[5m])) by (rate_limit_endpoint)",
+          "expr": "sum(rate(rate_limit_requests_total[5m])) by (rate_limit_endpoint)",
           "legendFormat": "{{rate_limit_endpoint}}",
           "refId": "A",
-          "datasource": "Victoria Metrics"
-        },
-        {
-          "expr": "sum(rate(rate_limit_requests_total{rate_limit_endpoint=~\"/api/v1/result/.*\"}[5m]))",
-          "legendFormat": "/api/v1/result/*",
-          "refId": "B",
           "datasource": "Victoria Metrics"
         }
       ],

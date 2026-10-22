@@ -1,11 +1,9 @@
-from __future__ import annotations
-
 import json
-import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import NotRequired, TypedDict
 
+import promql_parser
 import pytest
 import yaml
 from fastapi import FastAPI
@@ -27,123 +25,10 @@ COLLECTOR_CONFIG = BACKEND_ROOT / "otel-collector-config.yaml"
 
 # Series written by otel-collector receivers rather than by any Python process, keyed by name prefix.
 COLLECTOR_PREFIXES: dict[str, str] = {
+    "kafka_": "kafka_metrics receiver",
     "mongodb_": "mongodb receiver",
     "system_": "host_metrics receiver",
 }
-
-PROMQL_BUILTINS = frozenset(
-    {
-        "sum",
-        "avg",
-        "min",
-        "max",
-        "count",
-        "stddev",
-        "stdvar",
-        "group",
-        "count_values",
-        "topk",
-        "bottomk",
-        "quantile",
-        "by",
-        "without",
-        "on",
-        "ignoring",
-        "group_left",
-        "group_right",
-        "bool",
-        "sum_over_time",
-        "avg_over_time",
-        "min_over_time",
-        "max_over_time",
-        "count_over_time",
-        "stddev_over_time",
-        "stdvar_over_time",
-        "last_over_time",
-        "present_over_time",
-        "quantile_over_time",
-        "rate",
-        "irate",
-        "increase",
-        "delta",
-        "idelta",
-        "deriv",
-        "predict_linear",
-        "histogram_quantile",
-        "histogram_avg",
-        "histogram_count",
-        "histogram_sum",
-        "histogram_fraction",
-        "histogram_stddev",
-        "histogram_stdvar",
-        "holt_winters",
-        "changes",
-        "resets",
-        "vector",
-        "scalar",
-        "time",
-        "timestamp",
-        "absent",
-        "absent_over_time",
-        "sgn",
-        "sort",
-        "sort_desc",
-        "sort_by_label",
-        "sort_by_label_desc",
-        "label_replace",
-        "label_join",
-        "round",
-        "ceil",
-        "floor",
-        "clamp",
-        "clamp_min",
-        "clamp_max",
-        "abs",
-        "sqrt",
-        "ln",
-        "log2",
-        "log10",
-        "exp",
-        "exp2",
-        "acos",
-        "asin",
-        "atan",
-        "atan2",
-        "cos",
-        "sin",
-        "tan",
-        "acosh",
-        "asinh",
-        "atanh",
-        "cosh",
-        "sinh",
-        "tanh",
-        "deg",
-        "rad",
-        "pi",
-        "day_of_month",
-        "day_of_week",
-        "day_of_year",
-        "days_in_month",
-        "hour",
-        "minute",
-        "month",
-        "year",
-        "or",
-        "and",
-        "unless",
-        "offset",
-        "inf",
-        "nan",
-        "le",
-        "result",
-        "status",
-        "type",
-        "format",
-        "table",
-        "instant",
-    }
-)
 
 
 class _Sum(TypedDict):
@@ -268,14 +153,16 @@ def _collect_exprs(obj: object, out: list[str]) -> None:
             _collect_exprs(item, out)
 
 
-def _extract_metric_names(expr: str) -> set[str]:
-    """Extract Prometheus metric names from a PromQL expression."""
-    expr = re.sub(r'"[^"]*"', "", expr)
-    expr = re.sub(r"\{[^}]*\}", "", expr)
-    expr = re.sub(r"\[[^\]]*\]", "", expr)
-    expr = re.sub(r"\b(?:by|without)\s*\([^)]*\)", "", expr, flags=re.IGNORECASE)
-    tokens = re.findall(r"[a-zA-Z_:][a-zA-Z0-9_:]*", expr)
-    return {t for t in tokens if t.lower() not in PROMQL_BUILTINS and ("_" in t or len(t) > 3)}
+class _SelectorNames:
+    """Collects the metric names of a query's selectors while ``promql_parser.walk`` visits its nodes."""
+
+    def __init__(self) -> None:
+        self.names: set[str] = set()
+
+    def visit(self, node: promql_parser.Expr) -> None:
+        match node:
+            case promql_parser.VectorSelector(name=str(name)):
+                self.names.add(name)
 
 
 def _grafana_metrics() -> dict[str, set[str]]:
@@ -286,11 +173,11 @@ def _grafana_metrics() -> dict[str, set[str]]:
     for path, data in sources:
         exprs: list[str] = []
         _collect_exprs(data, exprs)
-        names: set[str] = set()
+        selectors = _SelectorNames()
         for expr in exprs:
-            names |= _extract_metric_names(expr)
-        if names:
-            result[path.name] = names
+            promql_parser.walk(promql_parser.parse(expr), pre_visit=selectors.visit)
+        if selectors.names:
+            result[path.name] = selectors.names
     return result
 
 

@@ -13,8 +13,8 @@ curl -sf -X PUT "$api/_index_template/logs" -H 'Content-Type: application/json' 
 curl -sf -o /dev/null "$api/_plugins/_ism/policies/logs-30d" \
   || curl -sf -X PUT "$api/_plugins/_ism/policies/logs-30d" -H 'Content-Type: application/json' -d @/etc/opensearch-setup/logs-retention-policy.json > /dev/null \
   || exit 1
-# An index the collector created before the policy existed gets it too; one that has it already is skipped
-curl -s -X POST "$api/_plugins/_ism/add/logs-*" -H 'Content-Type: application/json' -d '{"policy_id": "logs-30d"}' > /dev/null
+# Compose starts OpenSearch refusing to create logs- indices, so none exists without the template and the policy
+curl -sf -X PUT "$api/_cluster/settings" -H 'Content-Type: application/json' -d '{"persistent": {"action.auto_create_index": "true"}}' > /dev/null || exit 1
 # The first wait returns when the trap runs; the second waits for OpenSearch to finish shutting down
 wait $pid
 wait $pid

@@ -365,6 +365,8 @@ services:
       - discovery.type=single-node
       # mmap would need vm.max_map_count raised on the host
       - node.store.allow_mmap=false
+      # No write can create a logs- index before start.sh has set up its template and retention policy; start.sh then allows it
+      - action.auto_create_index=-logs-*,+*
       - DISABLE_SECURITY_PLUGIN=true
       - DISABLE_INSTALL_DEMO_CONFIG=true
       - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m

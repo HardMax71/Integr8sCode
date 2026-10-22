@@ -165,6 +165,7 @@ jobs:
             docker image prune -af || true
 
             # The server runs the compose file and config of the release, not whatever main has since
+            PREVIOUS=$(git rev-parse HEAD)
             git fetch --tags --force origin
             git checkout --detach "$IMAGE_TAG"
 
@@ -192,6 +193,17 @@ jobs:
 
             docker compose pull
             docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
+
+            # These read their mounted config only at start, and compose recreates a container only when its service definition changes
+            RESTART=""
+            git diff --quiet "$PREVIOUS" HEAD -- backend/otel-collector-config.yaml || RESTART="$RESTART otel-collector"
+            git diff --quiet "$PREVIOUS" HEAD -- backend/victoria-metrics || RESTART="$RESTART victoria-metrics"
+            git diff --quiet "$PREVIOUS" HEAD -- backend/loki || RESTART="$RESTART loki"
+            git diff --quiet "$PREVIOUS" HEAD -- backend/grafana ':(exclude)backend/grafana/provisioning/dashboards' || RESTART="$RESTART grafana"
+            if [ -n "$RESTART" ]; then
+              echo "Config changed, restarting:$RESTART"
+              docker compose restart $RESTART
+            fi
 
             echo "Backend healthy (IMAGE_TAG=$IMAGE_TAG)"
 

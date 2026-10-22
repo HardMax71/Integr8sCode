@@ -563,13 +563,13 @@ Everything outside the API runs in one process, `python -m app.worker` (`backend
 3. `create_worker_container(settings)`
 4. Get `KafkaBroker` from the container and `broker.include_routers(scheduler_router())`
 5. `setup_dishka(container, broker=broker, auto_inject=True)`
-6. `start_jobs(container)` prepares the cluster and starts the APScheduler jobs, then `FastStream(broker, on_shutdown=[scheduler.shutdown], after_shutdown=[container.close]).run()`
+6. `start_jobs(container)` prepares the cluster and starts the APScheduler jobs, `PodMonitor.run()` starts as a task, then `FastStream(broker, on_shutdown=[watch.cancel, scheduler.shutdown], after_shutdown=[container.close]).run()`
 
 | Part | Purpose |
 |------|---------|
 | execution_scheduler | Consumes `execution_requested` and `execution_cancelled`, queues executions in Redis, starts them while slots are free, cancels them; checks the queue every 10s |
 | k8s_worker | Creates executor pods and ConfigMaps and deletes cancelled pods when the scheduler calls it; applies the executor namespace, NetworkPolicy and ResourceQuota on startup |
-| pod_monitor | Watches executor pods (watch cycle every 5s), publishes pod events, hands finished executions to the result processor, deletes the pod and tells the scheduler |
+| pod_monitor | Watches executor pods (one 30 s watch after another, in its own task), publishes pod events, hands finished executions to the result processor, deletes the pod and tells the scheduler |
 | result_processor | Stores the status and result, then publishes the terminal event and result_stored or result_failed; publishes nothing for an execution that already ended |
 | event_replay | Runs the replay session the API scheduled, oldest first (job every 2s): sends the matching stored events to Kafka again; fails sessions a restart cut off when the worker starts |
 | dlq_processor | APScheduler only (no Kafka consumer), retries due DLQ rows every 10s for the consumer group that failed |

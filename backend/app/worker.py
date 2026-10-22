@@ -45,8 +45,10 @@ async def run(settings: Settings, logger: structlog.stdlib.BoundLogger) -> None:
     setup_dishka(container, broker=broker, auto_inject=True)
 
     scheduler = await start_jobs(container)
-    # FastStream stops the scheduler before the broker and closes the container after it
-    await FastStream(broker, on_shutdown=[scheduler.shutdown], after_shutdown=[container.close]).run()
+    monitor = await container.get(PodMonitor)
+    watch = asyncio.create_task(monitor.run())
+    # FastStream cancels the pod watch and stops the scheduler before the broker, and closes the container after it
+    await FastStream(broker, on_shutdown=[watch.cancel, scheduler.shutdown], after_shutdown=[container.close]).run()
     logger.info("Worker shutdown complete")
 
 
@@ -56,7 +58,6 @@ async def start_jobs(container: AsyncContainer) -> AsyncIOScheduler:
     await k8s_worker.ensure_namespace_security()
     await k8s_worker.ensure_image_pre_puller_daemonset()
 
-    monitor = await container.get(PodMonitor)
     execution_scheduler = await container.get(ExecutionScheduler)
     dlq_manager = await container.get(DLQManager)
     idempotency = await container.get(IdempotencyManager)
@@ -65,7 +66,6 @@ async def start_jobs(container: AsyncContainer) -> AsyncIOScheduler:
 
     scheduler = AsyncIOScheduler()
     jobs = (
-        ("pod_monitor_watch", monitor.watch_cycle, 5, 60),
         # A slot freed by its Redis deadline sends no event, so the queue is checked on a timer too
         ("execution_schedule_pending", execution_scheduler.schedule_pending, 10, 30),
         ("replay_run_next_session", replay_service.run_next_session, 2, 30),

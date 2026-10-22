@@ -1,3 +1,4 @@
+import asyncio
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -55,7 +56,7 @@ class PodMonitor:
       and a resource_version cursor.
     - Subsequent calls WATCH from that cursor, receiving only new changes.
 
-    The worker's scheduler runs watch_cycle every 5 seconds.
+    The worker runs run() as one task for its whole life: a bounded watch, then the next.
     """
 
     def __init__(
@@ -128,14 +129,25 @@ class PodMonitor:
             if self._watch.resource_version:
                 self._last_resource_version = self._watch.resource_version
 
-    async def watch_cycle(self) -> None:
+    async def run(self) -> None:
+        """Watch pods until the worker cancels this task, pausing after a watch that failed."""
+        while True:
+            if not await self.watch_cycle():
+                await asyncio.sleep(self.config.watch_retry_seconds)
+
+    async def watch_cycle(self) -> bool:
         """Run one watch, note the error that ended it, then report how many pods are in each phase.
 
         A 410 Gone means the cursor expired, so the next cycle lists again before watching.
+
+        Returns:
+            Whether the watch ended normally, at its server-side timeout.
         """
+        ended_normally = False
         with self._tracer.start_as_current_span("pod_monitor.watch") as span:
             try:
                 await self.watch_pod_events()
+                ended_normally = True
             except ApiException as e:
                 if e.status == 410:
                     self.logger.warning("Resource version expired, resetting watch cursor")
@@ -152,6 +164,7 @@ class PodMonitor:
                 self._tracer.start_span(
                     "pod_monitor.pods", attributes={"pod.phase": phase, "pod_monitor.pods": counts[phase]}
                 ).end()
+        return ended_normally
 
     async def _list_and_process_existing_pods(self) -> None:
         """LIST all matching pods to bootstrap state and get a resource_version cursor."""

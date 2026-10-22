@@ -21,7 +21,7 @@ graph LR
 |------|--------------|-------------|
 | [Execution scheduler](execution_scheduler.md) | Queues executions, starts them while slots are free, cancels them | `saga-orchestrator` group; `schedule_pending` every 10s |
 | [K8s worker](k8s_worker.md) | Creates the script ConfigMap and the executor pod, deletes a cancelled pod | called by the scheduler |
-| [Pod monitor](pod_monitor.md) | Watches executor pods, hands what they report to the result processor, deletes finished pods | watch cycle every 5s |
+| [Pod monitor](pod_monitor.md) | Watches executor pods, hands what they report to the result processor, deletes finished pods | one 30 s watch after another |
 | [Result processor](result_processor.md) | Writes the status and result onto the execution document, then publishes the events | called by the pod monitor and the scheduler |
 | [DLQ processor](dlq_processor.md) | Republishes DLQ rows whose retry time has come | job every 10s |
 | [Event replay](../event-replay.md) | Sends the events of the oldest scheduled replay session to Kafka again | job every 2s; at startup it fails sessions a restart cut off |

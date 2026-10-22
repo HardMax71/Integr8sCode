@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -321,7 +322,7 @@ async def test_watch_cycle_reports_the_error_that_ended_it(
     pm._last_resource_version = "rv-before"
     monkeypatch.setattr(pm, "watch_pod_events", AsyncMock(side_effect=error))
 
-    await pm.watch_cycle()
+    assert await pm.watch_cycle() is False
 
     assert span_attributes(span_exporter, "pod_monitor.watch") == [{"pod_monitor.error_type": error_type}]
     expired = error_type == ErrorType.RESOURCE_VERSION_EXPIRED
@@ -334,6 +335,22 @@ async def test_watch_cycle_reports_no_error_when_the_watch_ends_normally(
     pm = make_pod_monitor(tracer)
     monkeypatch.setattr(pm, "watch_pod_events", AsyncMock())
 
-    await pm.watch_cycle()
+    assert await pm.watch_cycle() is True
 
     assert span_attributes(span_exporter, "pod_monitor.watch") == [{}]
+
+
+async def test_run_watches_again_at_once_and_pauses_only_after_a_failed_watch(
+    tracer: trace.Tracer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pm = make_pod_monitor(tracer, config=PodMonitorConfig(watch_retry_seconds=7))
+    watch_cycle = AsyncMock(side_effect=[True, False, True, asyncio.CancelledError()])
+    monkeypatch.setattr(pm, "watch_cycle", watch_cycle)
+    sleep = AsyncMock()
+    monkeypatch.setattr(asyncio, "sleep", sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        await pm.run()
+
+    assert watch_cycle.await_count == 4
+    sleep.assert_awaited_once_with(7)

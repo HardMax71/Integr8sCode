@@ -47,7 +47,8 @@ runs:
       shell: bash
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
-      run: docker compose up -d --no-build
+      # The app and what it depends on; no test uses the observability services, and their images are about 4 GB
+      run: docker compose up -d --no-build frontend worker mongo-backup
 
     - name: Wait for services
       shell: bash

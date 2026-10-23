@@ -80,11 +80,11 @@ export default [
         'error',
         ...['SvelteLiteral[value=', 'Literal[value=', 'TemplateElement[value.raw='].flatMap((node) => [
           {
-            selector: `${node}/(^|\\s)dark:/]`,
+            selector: String.raw`${node}/(^|\s)dark:/]`,
             message: 'The color tokens in app.css switch with .dark on their own; drop the dark: variant.',
           },
           {
-            selector: `${node}/(^|[\\s:])(text|bg|border|ring|divide|from|to|via|fill|stroke|outline|placeholder|decoration)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\\d/]`,
+            selector: String.raw`${node}/(^|[\s:])(text|bg|border|ring|divide|from|to|via|fill|stroke|outline|placeholder|decoration)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d/]`,
             message: 'Use a color token from app.css (fg, muted, accent, danger, ...), not a raw Tailwind palette color.',
           },
         ]),
@@ -93,7 +93,7 @@ export default [
           message: 'DataTable titles a column by its id; name the column after its API key instead.',
         },
         {
-          selector: 'SvelteElement[name.name=/^([lL]abel|dt|th)$/] SvelteText[value=/\\w/]',
+          selector: String.raw`SvelteElement[name.name=/^([lL]abel|dt|th)$/] SvelteText[value=/\w/]`,
           message: "Label an API field with {fieldTitle('key')}; hand-written text gives it a second name.",
         },
       ],

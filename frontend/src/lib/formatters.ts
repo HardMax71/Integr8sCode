@@ -2,7 +2,7 @@ import { differenceInSeconds, differenceInMinutes, differenceInHours, difference
 
 function validDate(timestamp: string | null | undefined): Date | null {
     const date = timestamp ? new Date(timestamp) : null;
-    return date && !isNaN(date.getTime()) ? date : null;
+    return date && !Number.isNaN(date.getTime()) ? date : null;
 }
 
 /**

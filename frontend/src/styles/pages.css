@@ -56,15 +56,6 @@
     position: relative;
   }
 
-  .editor-wrapper .cm-editor {
-    height: 100% !important;
-    max-height: 100% !important;
-  }
-
-  .editor-wrapper .cm-scroller {
-    overflow: auto !important;
-  }
-
   .editor-toolbar {
     position: sticky;
     top: 0;

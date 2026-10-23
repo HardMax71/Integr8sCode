@@ -17,20 +17,20 @@ type ActiveStatus = Extract<ExecutionStatus, 'queued' | 'scheduled' | 'running'>
 
 export type ExecutionPhase = 'idle' | 'starting' | ActiveStatus;
 
-const ACTIVE_STATUSES: readonly ExecutionStatus[] = [
+const ACTIVE_STATUSES: ReadonlySet<ExecutionStatus> = new Set([
     ExecutionStatus.QUEUED,
     ExecutionStatus.SCHEDULED,
     ExecutionStatus.RUNNING,
-];
+]);
 
-const FAILURE_EVENTS: readonly (EventType | SseControlEvent)[] = [
-    EventType.EXECUTION_FAILED,
-    EventType.EXECUTION_TIMEOUT,
-    EventType.RESULT_FAILED,
-];
+const FAILURE_MESSAGES: Partial<Record<EventType | SseControlEvent, string>> = {
+    [EventType.EXECUTION_FAILED]: 'Execution failed.',
+    [EventType.EXECUTION_TIMEOUT]: 'Execution timed out.',
+    [EventType.RESULT_FAILED]: 'Failed to store execution results.',
+};
 
 function isActivePhase(s: ExecutionStatus): s is ActiveStatus {
-    return ACTIVE_STATUSES.includes(s);
+    return ACTIVE_STATUSES.has(s);
 }
 
 class ExecutionState {
@@ -38,7 +38,7 @@ class ExecutionState {
     result = $state<ExecutionResult | null>(null);
     #streamError = $state<string | null>(null);
     #controller: AbortController | null = null;
-    #start = createMutation(() => createExecutionApiV1ExecutePostMutation());
+    readonly #start = createMutation(() => createExecutionApiV1ExecutePostMutation());
 
     get phase(): ExecutionPhase {
         return this.#start.isPending ? 'starting' : this.#phase;
@@ -107,14 +107,10 @@ class ExecutionState {
                 break;
             }
 
-            if (FAILURE_EVENTS.includes(ev.event_type)) {
+            const failure = FAILURE_MESSAGES[ev.event_type];
+            if (failure) {
                 this.result = ev.result;
-                this.#streamError =
-                    ev.event_type === EventType.EXECUTION_TIMEOUT
-                        ? 'Execution timed out.'
-                        : ev.event_type === EventType.RESULT_FAILED
-                          ? 'Failed to store execution results.'
-                          : 'Execution failed.';
+                this.#streamError = failure;
                 terminalReceived = true;
                 break;
             }

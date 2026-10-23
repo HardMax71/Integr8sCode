@@ -35,6 +35,12 @@ type AsyncMapper = Callable[["PodContext"], Awaitable[PodMonitorEvent | None]]
 
 _UNREADABLE_OUTPUT = "The output couldn't be read from the pod's log."
 
+_WAITING_ERRORS = {
+    "ImagePullBackOff": ExecutionErrorType.SYSTEM_ERROR,
+    "ErrImagePull": ExecutionErrorType.SYSTEM_ERROR,
+    "CrashLoopBackOff": ExecutionErrorType.SCRIPT_ERROR,
+}
+
 
 class WatchEventType(StringEnum):
     """Kubernetes watch event types."""
@@ -423,56 +429,35 @@ class PodEventMapper:
 
     def _analyze_failure(self, pod: k8s_client.V1Pod) -> FailureInfo:
         """Analyze pod failure and determine error type"""
-        # Default failure info
-        default = self.FailureInfo(
-            message=(pod.status.message if pod.status else None) or "Pod failed",
-            error_type=ExecutionErrorType.SYSTEM_ERROR,
-        )
+        status = pod.status
+        if not status:
+            return self.FailureInfo(message="Pod failed", error_type=ExecutionErrorType.SYSTEM_ERROR)
 
-        if not pod.status:
-            return default
-
-        # Check for resource limits
-        if pod.status.reason == "Evicted":
+        if status.reason == "Evicted":
             return self.FailureInfo(
                 message="Pod evicted due to resource constraints", error_type=ExecutionErrorType.RESOURCE_LIMIT
             )
 
-        # Check container statuses
-        for status in pod.status.container_statuses or []:
-            # Terminated container
-            if status.state and status.state.terminated:
-                terminated = status.state.terminated
-                if terminated.exit_code != 0:
-                    return self.FailureInfo(
-                        message=terminated.message
-                        or pod.status.message
-                        or f"Container exited with code {terminated.exit_code}",
-                        error_type=ExecutionErrorType.SCRIPT_ERROR,
-                        exit_code=terminated.exit_code,
-                    )
+        for container in status.container_statuses or []:
+            state = container.state or k8s_client.V1ContainerState()
+            if state.terminated and state.terminated.exit_code != 0:
+                exit_code = state.terminated.exit_code
+                return self.FailureInfo(
+                    message=state.terminated.message or status.message or f"Container exited with code {exit_code}",
+                    error_type=ExecutionErrorType.SCRIPT_ERROR,
+                    exit_code=exit_code,
+                )
+            if state.waiting and (error_type := _WAITING_ERRORS.get(state.waiting.reason)):
+                return self.FailureInfo(
+                    message=state.waiting.message or f"Container waiting: {state.waiting.reason}", error_type=error_type
+                )
 
-            # Waiting container
-            if status.state and status.state.waiting:
-                waiting = status.state.waiting
-                error_type_map = {
-                    "ImagePullBackOff": ExecutionErrorType.SYSTEM_ERROR,
-                    "ErrImagePull": ExecutionErrorType.SYSTEM_ERROR,
-                    "CrashLoopBackOff": ExecutionErrorType.SCRIPT_ERROR,
-                }
-
-                if error_type := error_type_map.get(waiting.reason):
-                    return self.FailureInfo(
-                        message=waiting.message or f"Container waiting: {waiting.reason}", error_type=error_type
-                    )
-
-        # Check for OOM
-        if "OOMKilled" in (pod.status.message or ""):
+        if "OOMKilled" in (status.message or ""):
             return self.FailureInfo(
                 message="Container killed due to out of memory", error_type=ExecutionErrorType.RESOURCE_LIMIT
             )
 
-        return default
+        return self.FailureInfo(message=status.message or "Pod failed", error_type=ExecutionErrorType.SYSTEM_ERROR)
 
     async def _extract_logs(self, pod: k8s_client.V1Pod) -> PodLogs | None:
         """Read a finished pod's result, or None while its main container hasn't terminated.

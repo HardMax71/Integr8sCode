@@ -27,7 +27,7 @@ _notification_settings = TypeAdapter(DomainNotificationSettings)
 _editor_settings = TypeAdapter(DomainEditorSettings)
 
 
-@router.get("/", response_model=UserSettings)
+@router.get("/")
 async def get_user_settings(
     current_user: Annotated[UserDocument, Depends(current_user)],
     settings_service: FromDishka[UserSettingsService],
@@ -37,7 +37,7 @@ async def get_user_settings(
     return UserSettings.model_validate(domain)
 
 
-@router.put("/", response_model=UserSettings)
+@router.put("/")
 async def update_user_settings(
     current_user: Annotated[UserDocument, Depends(current_user)],
     updates: UserSettingsUpdate,
@@ -50,7 +50,7 @@ async def update_user_settings(
     return UserSettings.model_validate(domain)
 
 
-@router.put("/theme", response_model=UserSettings)
+@router.put("/theme")
 async def update_theme(
     current_user: Annotated[UserDocument, Depends(current_user)],
     update_request: ThemeUpdateRequest,
@@ -61,7 +61,7 @@ async def update_theme(
     return UserSettings.model_validate(domain)
 
 
-@router.put("/notifications", response_model=UserSettings)
+@router.put("/notifications")
 async def update_notification_settings(
     current_user: Annotated[UserDocument, Depends(current_user)],
     notifications: NotificationSettings,
@@ -75,7 +75,7 @@ async def update_notification_settings(
     return UserSettings.model_validate(domain)
 
 
-@router.put("/editor", response_model=UserSettings)
+@router.put("/editor")
 async def update_editor_settings(
     current_user: Annotated[UserDocument, Depends(current_user)],
     editor: EditorSettings,
@@ -89,7 +89,7 @@ async def update_editor_settings(
     return UserSettings.model_validate(domain)
 
 
-@router.get("/history", response_model=SettingsHistoryResponse)
+@router.get("/history")
 async def get_settings_history(
     current_user: Annotated[UserDocument, Depends(current_user)],
     settings_service: FromDishka[UserSettingsService],
@@ -101,7 +101,7 @@ async def get_settings_history(
     return SettingsHistoryResponse(history=entries, limit=limit)
 
 
-@router.post("/restore", response_model=UserSettings)
+@router.post("/restore")
 async def restore_settings(
     current_user: Annotated[UserDocument, Depends(current_user)],
     restore_request: RestoreSettingsRequest,

@@ -181,9 +181,9 @@ class ResultProcessor:
         """
         try:
             written = await self._execution_repo.write_terminal_result(result)
-        except PyMongoError as e:
+        except PyMongoError:
             self.logger.error("Failed to store execution result", execution_id=result.execution_id, exc_info=True)
-            await self._publish_result_failed(result.execution_id, str(e), metadata.user_id, aggregate_id)
+            await self._publish_result_failed(result.execution_id, metadata.user_id, aggregate_id)
             return
         if not written:
             self.logger.info(
@@ -219,9 +219,7 @@ class ResultProcessor:
         )
         await self._producer.produce_or_log(event_to_produce=event, key=execution_id)
 
-    async def _publish_result_failed(
-        self, execution_id: str, error_message: str, user_id: str, aggregate_id: str | None
-    ) -> None:
+    async def _publish_result_failed(self, execution_id: str, user_id: str, aggregate_id: str | None) -> None:
         """Publish result processing failed event."""
         event = ResultFailedEvent(
             execution_id=execution_id,

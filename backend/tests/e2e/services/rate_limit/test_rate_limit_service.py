@@ -205,7 +205,7 @@ async def test_sliding_window_pipeline_failure(test_settings: Settings) -> None:
     )
 
     with pytest.raises(ConnectionError):
-        await svc._check_sliding_window("user1", "/api/test", int(rule.requests), rule.window_seconds, rule)
+        await svc._check_sliding_window("user1", "/api/test", int(rule.requests), rule.window_seconds)
 
 
 async def test_token_bucket_invalid_data(svc: RateLimitService) -> None:
@@ -221,7 +221,7 @@ async def test_token_bucket_invalid_data(svc: RateLimitService) -> None:
     )
 
     status = await svc._check_token_bucket(
-        "user", "/api", int(rule.requests), rule.window_seconds, rule.burst_multiplier or 1.0, rule
+        "user", "/api", int(rule.requests), rule.window_seconds, rule.burst_multiplier or 1.0
     )
     assert status.allowed is True
 

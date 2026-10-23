@@ -32,7 +32,7 @@ router = APIRouter(
 _user_changes = TypeAdapter(UserChanges)
 
 
-@router.get("/", response_model=UserListResponse)
+@router.get("/")
 async def list_users(
     admin: Annotated[UserDocument, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],
@@ -64,7 +64,6 @@ async def list_users(
 
 @router.post(
     "/",
-    response_model=UserResponse,
     responses={409: {"model": ErrorResponse, "description": "Username already exists"}},
 )
 async def create_user(
@@ -86,7 +85,6 @@ async def create_user(
 
 @router.get(
     "/{user_id}",
-    response_model=UserResponse,
     responses={404: {"model": ErrorResponse, "description": "User not found"}},
 )
 async def get_user(
@@ -101,7 +99,6 @@ async def get_user(
 
 @router.get(
     "/{user_id}/overview",
-    response_model=AdminUserOverview,
     responses={404: {"model": ErrorResponse, "description": "User not found"}},
 )
 async def get_user_overview(
@@ -116,7 +113,6 @@ async def get_user_overview(
 
 @router.put(
     "/{user_id}",
-    response_model=UserResponse,
     responses={
         404: {"model": ErrorResponse, "description": "User not found"},
         409: {"model": ErrorResponse, "description": "Username or email already exists"},
@@ -141,7 +137,6 @@ async def update_user(
 
 @router.delete(
     "/{user_id}",
-    response_model=DeleteUserResponse,
     responses={
         400: {"model": ErrorResponse, "description": "Cannot delete your own account"},
         404: {"model": ErrorResponse, "description": "User not found"},
@@ -160,7 +155,6 @@ async def delete_user(
 
 @router.post(
     "/{user_id}/reset-password",
-    response_model=MessageResponse,
     responses={404: {"model": ErrorResponse, "description": "User not found"}},
 )
 async def reset_user_password(
@@ -178,7 +172,6 @@ async def reset_user_password(
 
 @router.post(
     "/{user_id}/unlock",
-    response_model=UnlockResponse,
     responses={404: {"model": ErrorResponse, "description": "User not found"}},
 )
 async def unlock_user(

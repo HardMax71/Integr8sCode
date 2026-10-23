@@ -135,7 +135,7 @@ async def stream_replay_status(
 ) -> EventSourceResponse:
     """Stream the status and progress of a replay session via SSE."""
     status = await service.get_replay_sse_status(session_id)
-    statuses = await sse_service.create_replay_stream(status)
+    statuses = sse_service.create_replay_stream(status)
     return EventSourceResponse(
         ({"data": EventReplayStatusResponse.model_validate(s).model_dump_json()} async for s in statuses), ping=15
     )

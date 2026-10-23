@@ -9,7 +9,6 @@ from app.domain.events import DomainEvent
 from app.infrastructure.kafka.topics import RESULT_TYPES
 from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION, at_least
 from app.schemas_pydantic.execution import (
-    CancelExecutionRequest,
     CancelResponse,
     DeleteResponse,
     ExampleScripts,
@@ -169,11 +168,7 @@ class TestExecutionCancel:
 
         await wait_for_event(exec_response.execution_id, EventType.POD_CREATED)
 
-        cancel_req = CancelExecutionRequest(reason="Test cancellation")
-        cancel_response = await test_user.post(
-            f"/api/v1/executions/{exec_response.execution_id}/cancel",
-            json=cancel_req.model_dump(),
-        )
+        cancel_response = await test_user.post(f"/api/v1/executions/{exec_response.execution_id}/cancel")
         assert cancel_response.status_code == 200
 
         cancel_result = CancelResponse.model_validate(cancel_response.json())
@@ -191,11 +186,7 @@ class TestExecutionCancel:
         request = ExecutionRequest(script="print('quick')")
         exec_response, _ = await submit_and_wait(test_user, request)
 
-        cancel_req = CancelExecutionRequest(reason="Too late")
-        cancel_response = await test_user.post(
-            f"/api/v1/executions/{exec_response.execution_id}/cancel",
-            json=cancel_req.model_dump(),
-        )
+        cancel_response = await test_user.post(f"/api/v1/executions/{exec_response.execution_id}/cancel")
 
         assert cancel_response.status_code == 400
         assert "cannot cancel" in cancel_response.json()["detail"].lower()

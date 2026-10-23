@@ -167,20 +167,6 @@ export type BodyLoginApiV1AuthLoginPost = {
 };
 
 /**
- * CancelExecutionRequest
- *
- * Model for cancelling an execution.
- */
-export type CancelExecutionRequest = {
-    /**
-     * Reason
-     *
-     * Reason for cancellation
-     */
-    reason?: string;
-};
-
-/**
  * CancelResponse
  *
  * Model for execution cancellation response.
@@ -4689,7 +4675,7 @@ export type GetResultApiV1ExecutionsExecutionIdResultGetResponses = {
 export type GetResultApiV1ExecutionsExecutionIdResultGetResponse = GetResultApiV1ExecutionsExecutionIdResultGetResponses[keyof GetResultApiV1ExecutionsExecutionIdResultGetResponses];
 
 export type CancelExecutionApiV1ExecutionsExecutionIdCancelPostData = {
-    body: CancelExecutionRequest;
+    body?: never;
     path: {
         /**
          * Execution Id

@@ -89,7 +89,7 @@ class SSEService:
             async for payload in payloads:
                 yield {"event": "notification", "data": _notif_adapter.dump_json(payload).decode()}
 
-    async def create_replay_stream(
+    def create_replay_stream(
         self, initial_status: DomainReplaySSEPayload
     ) -> AsyncGenerator[DomainReplaySSEPayload, None]:
         """Return the replay status stream: the initial status, then each change until a terminal one.

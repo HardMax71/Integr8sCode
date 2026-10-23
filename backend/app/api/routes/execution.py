@@ -13,7 +13,6 @@ from app.domain.enums import EventType, ExecutionStatus
 from app.domain.events import DomainEvent
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.execution import (
-    CancelExecutionRequest,
     CancelResponse,
     DeleteResponse,
     ExampleScripts,
@@ -42,7 +41,6 @@ async def get_execution_with_access(
 
 @router.post(
     "/execute",
-    response_model=ExecutionResponse,
     responses={
         409: {
             "model": ErrorResponse,
@@ -84,7 +82,6 @@ async def create_execution(
 
 @router.get(
     "/executions/{execution_id}/result",
-    response_model=ExecutionResult,
     responses={
         403: {"model": ErrorResponse, "description": "Not the owner of this execution"},
         404: {"model": ErrorResponse, "description": "Execution not found"},
@@ -99,7 +96,6 @@ async def get_result(
 
 @router.post(
     "/executions/{execution_id}/cancel",
-    response_model=CancelResponse,
     responses={
         400: {"model": ErrorResponse, "description": "Execution is in a terminal state"},
         403: {"model": ErrorResponse, "description": "Not the owner of this execution"},
@@ -109,7 +105,6 @@ async def get_result(
 async def cancel_execution(
     execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
     current_user: Annotated[UserDocument, Depends(current_user)],
-    cancel_request: CancelExecutionRequest,
     execution_service: FromDishka[ExecutionService],
 ) -> CancelResponse:
     """Cancel a running or queued execution."""
@@ -117,14 +112,12 @@ async def cancel_execution(
         execution_id=execution.execution_id,
         current_status=execution.status,
         user_id=current_user.user_id,
-        reason=cancel_request.reason,
     )
     return CancelResponse.model_validate(result)
 
 
 @router.post(
     "/executions/{execution_id}/retry",
-    response_model=ExecutionResponse,
     responses={
         400: {"model": ErrorResponse, "description": "Execution is still running or queued"},
         403: {"model": ErrorResponse, "description": "Not the owner of this execution"},
@@ -145,7 +138,6 @@ async def retry_execution(
 
 @router.get(
     "/executions/{execution_id}/events",
-    response_model=list[DomainEvent],
     responses={
         403: {"model": ErrorResponse, "description": "Not the owner of this execution"},
         404: {"model": ErrorResponse, "description": "Execution not found"},
@@ -164,7 +156,7 @@ async def get_execution_events(
     return events
 
 
-@router.get("/user/executions", response_model=ExecutionListResponse)
+@router.get("/user/executions")
 async def get_user_executions(
     current_user: Annotated[UserDocument, Depends(current_user)],
     execution_service: FromDishka[ExecutionService],
@@ -198,16 +190,16 @@ async def get_user_executions(
     )
 
 
-@router.get("/example-scripts", response_model=ExampleScripts)
+@router.get("/example-scripts")
 async def get_example_scripts(
     execution_service: FromDishka[ExecutionService],
 ) -> ExampleScripts:
     """Get example scripts for the code editor."""
-    scripts = await execution_service.get_example_scripts()
+    scripts = execution_service.get_example_scripts()
     return ExampleScripts(scripts=scripts)
 
 
-@router.get("/k8s-limits", response_model=ResourceLimits)
+@router.get("/k8s-limits")
 async def get_k8s_resource_limits(
     execution_service: FromDishka[ExecutionService],
 ) -> ResourceLimits:
@@ -216,7 +208,7 @@ async def get_k8s_resource_limits(
     return ResourceLimits.model_validate(limits)
 
 
-@router.delete("/executions/{execution_id}", response_model=DeleteResponse)
+@router.delete("/executions/{execution_id}")
 async def delete_execution(
     execution_id: str,
     admin: Annotated[UserDocument, Depends(admin_user)],

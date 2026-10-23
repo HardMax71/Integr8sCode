@@ -257,8 +257,7 @@ async def get_user(self, user_id: str) -> UserDocument:
     return user
 
 # Route: no None check, no HTTPException; the service already raises if missing
-@router.get("/{user_id}", response_model=UserResponse,
-            responses={404: {"model": ErrorResponse}})
+@router.get("/{user_id}", responses={404: {"model": ErrorResponse}})
 async def get_user(user_id: str, service: FromDishka[AdminUserService]) -> UserResponse:
     user = await service.get_user(user_id=user_id)
     return UserResponse.model_validate(user)
@@ -283,7 +282,6 @@ router = APIRouter(
 
 @router.post(
     "/execute",
-    response_model=ExecutionResponse,
     responses={
         409: {"model": ErrorResponse, "description": "Duplicate execution"},
         429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
@@ -303,7 +301,7 @@ async def create_execution(
 Rules:
 - All routes live in `app/api/routes/`, prefixed with `/api/v1` via `settings.API_V1_STR`
 - Path ordering: literal paths (`/defaults`) before parameterised ones (`/{user_id}`) in the same router
-- Return Pydantic schema models, **never** raw dicts
+- Return Pydantic schema models, **never** raw dicts. The return annotation is the response model, so routes set no `response_model=`
 - Use `responses={}` to document non-200 outcomes
 - Auth: JWT in an httpOnly cookie plus CSRF double-submit (`X-CSRF-Token` header required for POST, PUT, PATCH and DELETE)
 - OpenAPI and docs pages are served only when `DEVELOPMENT_MODE` is true

@@ -58,7 +58,7 @@ async def test_scheduling_drops_expired_running_slots(
     await redis_client.zadd(running, {"lost-release": now - 10})
     await redis_client.zadd(pending, {"next": now})
 
-    script = await queue._get_schedule_script()
+    script = queue._schedule_script
     result = await script(keys=[running, pending], args=[1, now, now + 60])
 
     assert result[0] == "next"
@@ -73,7 +73,7 @@ async def test_scheduling_waits_while_live_slots_fill_the_limit(
     await redis_client.zadd(running, {"busy": now + 100})
     await redis_client.zadd(pending, {"next": now})
 
-    script = await queue._get_schedule_script()
+    script = queue._schedule_script
 
     assert await script(keys=[running, pending], args=[1, now, now + 60]) is None
     assert await redis_client.zcard(pending) == 1

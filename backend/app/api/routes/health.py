@@ -11,7 +11,7 @@ router = APIRouter(prefix="/health", tags=["Health"], route_class=DishkaRoute)
 _START_TIME = time.time()
 
 
-@router.get("/live", response_model=LivenessResponse)
+@router.get("/live")
 async def liveness() -> LivenessResponse:
     """Basic liveness probe. Does not touch external deps."""
     return LivenessResponse(

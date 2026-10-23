@@ -71,9 +71,9 @@ class TestGetResourceLimits:
 class TestGetExampleScripts:
     """Tests for get_example_scripts method."""
 
-    async def test_get_example_scripts(self, execution_service: ExecutionService) -> None:
+    def test_get_example_scripts(self, execution_service: ExecutionService) -> None:
         """Get example scripts returns dictionary with python."""
-        examples = await execution_service.get_example_scripts()
+        examples = execution_service.get_example_scripts()
 
         assert isinstance(examples, dict)
         assert "python" in examples

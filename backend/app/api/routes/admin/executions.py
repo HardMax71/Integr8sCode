@@ -26,17 +26,16 @@ router = APIRouter(
 
 @router.get(
     "/",
-    response_model=AdminExecutionListResponse,
     responses={403: {"model": ErrorResponse}},
 )
 async def list_executions(
     _: Annotated[UserDocument, Depends(admin_user)],
     service: FromDishka[AdminExecutionService],
-    status: ExecutionStatus | None = Query(None),
-    priority: QueuePriority | None = Query(None),
-    user_id: str | None = Query(None),
-    limit: int = Query(50, ge=1, le=200),
-    skip: int = Query(0, ge=0),
+    status: Annotated[ExecutionStatus | None, Query()] = None,
+    priority: Annotated[QueuePriority | None, Query()] = None,
+    user_id: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    skip: Annotated[int, Query(ge=0)] = 0,
 ) -> AdminExecutionListResponse:
     executions, total = await service.list_executions(
         status=status,
@@ -56,7 +55,6 @@ async def list_executions(
 
 @router.put(
     "/{execution_id}/priority",
-    response_model=AdminExecutionResponse,
     responses={403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
 )
 async def update_priority(
@@ -71,7 +69,6 @@ async def update_priority(
 
 @router.get(
     "/queue",
-    response_model=QueueStatusResponse,
     responses={403: {"model": ErrorResponse}},
 )
 async def get_queue_status(

@@ -81,10 +81,9 @@ async def test_try_schedule_returns_event(
 
     enqueued_at = time.time() - 1.5
     script = AsyncMock(return_value=[b"e1", str(enqueued_at).encode(), 0])
-    mock_redis.register_script = MagicMock(return_value=script)
+    queue_service._schedule_script = script
     mock_redis.get = AsyncMock(return_value=event_json)
 
-    queue_service._schedule_script = None
 
     before = time.time()
     result = await queue_service.try_schedule(5)
@@ -124,9 +123,8 @@ async def test_try_schedule_event_data_expired(
 ) -> None:
     """When the event JSON has expired from Redis, try_schedule frees the running slot and raises."""
     script = AsyncMock(return_value=[b"e-gone", str(time.time()).encode(), 2])
-    mock_redis.register_script = MagicMock(return_value=script)
+    queue_service._schedule_script = script
     mock_redis.get = AsyncMock(return_value=None)
-    queue_service._schedule_script = None
 
     with pytest.raises(QueuedRequestLostError) as lost:
         await queue_service.try_schedule(5)
@@ -148,8 +146,7 @@ async def test_release(queue_service: ExecutionQueueService, mock_redis: AsyncMo
 
 async def test_update_priority_existing(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     script = AsyncMock(return_value=1)
-    mock_redis.register_script = MagicMock(return_value=script)
-    queue_service._update_priority_script = None
+    queue_service._update_priority_script = script
     result = await queue_service.update_priority("e1", QueuePriority.HIGH)
     assert result is True
     script.assert_called_once()
@@ -157,8 +154,7 @@ async def test_update_priority_existing(queue_service: ExecutionQueueService, mo
 
 async def test_update_priority_missing(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     script = AsyncMock(return_value=0)
-    mock_redis.register_script = MagicMock(return_value=script)
-    queue_service._update_priority_script = None
+    queue_service._update_priority_script = script
     result = await queue_service.update_priority("e1", QueuePriority.HIGH)
     assert result is False
 
@@ -208,7 +204,7 @@ async def test_reserve_user_slot(
     queue_service: ExecutionQueueService, mock_redis: AsyncMock, script_result: int, expected: bool
 ) -> None:
     script = AsyncMock(return_value=script_result)
-    mock_redis.register_script = MagicMock(return_value=script)
+    queue_service._reserve_user_slot_script = script
 
     assert await queue_service.reserve_user_slot("u1", "e1", 3) is expected
 

@@ -4,6 +4,9 @@ from app.domain.events import ExecutionRequestedEvent
 from app.runtime_registry import POD_RUNTIME_CONFIGS, PodRuntimeConfig, at_least
 from app.settings import Settings
 
+# The ConfigMap key, the mounted file and the command the container runs
+_ENTRYPOINT = "entrypoint.sh"
+
 
 class PodBuilder:
     def __init__(self, settings: Settings):
@@ -44,14 +47,14 @@ class PodBuilder:
                     "execution-id": execution_id,
                 },
             ),
-            data={event.runtime_filename: script_content, "entrypoint.sh": entrypoint_content},
+            data={event.runtime_filename: script_content, _ENTRYPOINT: entrypoint_content},
         )
 
     def _build_container(self, event: ExecutionRequestedEvent, pod_config: PodRuntimeConfig) -> k8s_client.V1Container:
         execution_id = event.execution_id
 
         # Timeout is enforced by activeDeadlineSeconds on the pod spec
-        container_command = ["/bin/sh", "/entry/entrypoint.sh"] + event.runtime_command
+        container_command = ["/bin/sh", f"/entry/{_ENTRYPOINT}"] + event.runtime_command
 
         # Get resources - prefer the event's values, fallback to settings
         cpu_request = event.cpu_request or self._settings.K8S_POD_CPU_REQUEST
@@ -121,7 +124,7 @@ class PodBuilder:
                     name="entrypoint-volume",
                     config_map=k8s_client.V1ConfigMapVolumeSource(
                         name=f"script-{execution_id}",
-                        items=[k8s_client.V1KeyToPath(key="entrypoint.sh", path="entrypoint.sh")],
+                        items=[k8s_client.V1KeyToPath(key=_ENTRYPOINT, path=_ENTRYPOINT)],
                     ),
                 ),
                 k8s_client.V1Volume(

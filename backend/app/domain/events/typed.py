@@ -47,6 +47,8 @@ class BaseEvent(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
         json_schema_extra={"required": ["event_id", "event_type", "event_version", "timestamp", "metadata"]},
+        # Dataclass fields (metadata, resource usage) are checked when built in code, as they are when read from Kafka
+        revalidate_instances="always",
     )
 
     event_id: str = Field(default_factory=lambda: str(uuid4()))

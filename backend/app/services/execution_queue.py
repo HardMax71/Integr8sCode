@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import time
-from typing import Any
 
 import redis.asyncio as redis
 import structlog
@@ -124,32 +123,16 @@ class ExecutionQueueService:
         self._redis = redis_client
         self._logger = logger
         self._tracer = tracer
-        self._schedule_script: Any = None
-        self._update_priority_script: Any = None
-        self._reserve_user_slot_script: Any = None
-
-    async def _get_schedule_script(self) -> Any:
-        if self._schedule_script is None:
-            self._schedule_script = self._redis.register_script(_TRY_SCHEDULE_LUA)
-        return self._schedule_script
-
-    async def _get_update_priority_script(self) -> Any:
-        if self._update_priority_script is None:
-            self._update_priority_script = self._redis.register_script(_UPDATE_PRIORITY_LUA)
-        return self._update_priority_script
-
-    async def _get_reserve_user_slot_script(self) -> Any:
-        if self._reserve_user_slot_script is None:
-            self._reserve_user_slot_script = self._redis.register_script(_RESERVE_USER_SLOT_LUA)
-        return self._reserve_user_slot_script
+        self._schedule_script = redis_client.register_script(_TRY_SCHEDULE_LUA)
+        self._update_priority_script = redis_client.register_script(_UPDATE_PRIORITY_LUA)
+        self._reserve_user_slot_script = redis_client.register_script(_RESERVE_USER_SLOT_LUA)
 
     async def reserve_user_slot(self, user_id: str, execution_id: str, limit: int) -> bool:
         """Count an execution against its user's limit; False when the user already has ``limit`` in flight.
 
         A reservation lasts as long as a queued event does, so one whose release got lost frees itself.
         """
-        script = await self._get_reserve_user_slot_script()
-        reserved = await script(
+        reserved = await self._reserve_user_slot_script(
             keys=[_user_key(user_id), _owner_key(execution_id)],
             args=[time.time(), limit, _EVENT_TTL, execution_id, user_id],
         )
@@ -191,9 +174,8 @@ class ExecutionQueueService:
         Raises:
             QueuedRequestLostError: The execution's stored request expired; its slots are already freed.
         """
-        script = await self._get_schedule_script()
         now = time.time()
-        result = await script(
+        result = await self._schedule_script(
             keys=[_RUNNING_KEY, *_PENDING_KEYS], args=[max_active, now, now + _PROVISIONAL_SLOT_SECONDS]
         )
         if result is None:
@@ -241,8 +223,7 @@ class ExecutionQueueService:
         self._logger.debug("Released execution from active set", execution_id=execution_id)
 
     async def update_priority(self, execution_id: str, new_priority: QueuePriority) -> bool:
-        script = await self._get_update_priority_script()
-        result = await script(
+        result = await self._update_priority_script(
             keys=[_pending_key(new_priority), *_PENDING_KEYS],
             args=[execution_id],
         )

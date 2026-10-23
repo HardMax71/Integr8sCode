@@ -17,7 +17,7 @@ from app.services.notification_service import NotificationService
 router = APIRouter(prefix="/notifications", tags=["notifications"], route_class=DishkaRoute)
 
 
-@router.get("", response_model=NotificationListResponse)
+@router.get("")
 async def get_notifications(
     user: Annotated[UserDocument, Depends(current_user)],
     notification_service: FromDishka[NotificationService],
@@ -64,7 +64,7 @@ async def mark_all_read(
     return Response(status_code=204)
 
 
-@router.get("/unread-count", response_model=UnreadCountResponse)
+@router.get("/unread-count")
 async def get_unread_count(
     user: Annotated[UserDocument, Depends(current_user)],
     notification_service: FromDishka[NotificationService],
@@ -74,7 +74,7 @@ async def get_unread_count(
     return UnreadCountResponse(unread_count=count)
 
 
-@router.delete("/{notification_id}", response_model=DeleteNotificationResponse)
+@router.delete("/{notification_id}")
 async def delete_notification(
     notification_id: str,
     user: Annotated[UserDocument, Depends(current_user)],

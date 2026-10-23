@@ -131,12 +131,6 @@ class ExampleScripts(BaseModel):
     scripts: dict[str, str]  # lang: str with script
 
 
-class CancelExecutionRequest(BaseModel):
-    """Model for cancelling an execution."""
-
-    reason: str = Field("User requested cancellation", description="Reason for cancellation")
-
-
 class ExecutionListResponse(BaseModel):
     """Model for paginated execution list."""
 

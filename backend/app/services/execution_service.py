@@ -81,7 +81,7 @@ class ExecutionService:
             language_limits={lang: await self._runtime_settings.get_language_limits(lang) for lang in runtimes},
         )
 
-    async def get_example_scripts(self) -> dict[str, str]:
+    def get_example_scripts(self) -> dict[str, str]:
         return self.settings.EXAMPLE_SCRIPTS
 
     def _create_event_metadata(self, user_id: str) -> EventMetadata:
@@ -209,7 +209,6 @@ class ExecutionService:
         execution_id: str,
         current_status: ExecutionStatus,
         user_id: str,
-        reason: str = "User requested cancellation",
     ) -> CancelResult:
         """
         Cancel a running or queued execution.
@@ -218,7 +217,6 @@ class ExecutionService:
             execution_id: UUID of the execution.
             current_status: Current status of the execution.
             user_id: User requesting cancellation.
-            reason: Cancellation reason.
 
         Returns:
             CancelResult with status and event info.

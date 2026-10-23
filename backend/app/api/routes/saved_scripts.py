@@ -28,7 +28,7 @@ _RUNTIME_NOT_OFFERED: dict[str, Any] = {
 _saved_script_changes = TypeAdapter(SavedScriptChanges)
 
 
-@router.post("/scripts", response_model=SavedScriptResponse, responses={422: _RUNTIME_NOT_OFFERED})
+@router.post("/scripts", responses={422: _RUNTIME_NOT_OFFERED})
 async def create_saved_script(
     user: Annotated[UserDocument, Depends(current_user)],
     saved_script: SavedScriptCreateRequest,
@@ -46,7 +46,7 @@ async def create_saved_script(
     return SavedScriptResponse.model_validate(script)
 
 
-@router.get("/scripts", response_model=SavedScriptListResponse)
+@router.get("/scripts")
 async def list_saved_scripts(
     user: Annotated[UserDocument, Depends(current_user)],
     saved_script_service: FromDishka[SavedScriptService],
@@ -58,7 +58,6 @@ async def list_saved_scripts(
 
 @router.get(
     "/scripts/{script_id}",
-    response_model=SavedScriptResponse,
     responses={404: {"model": ErrorResponse, "description": "Script not found"}},
 )
 async def get_saved_script(
@@ -73,7 +72,6 @@ async def get_saved_script(
 
 @router.put(
     "/scripts/{script_id}",
-    response_model=SavedScriptResponse,
     responses={404: {"model": ErrorResponse, "description": "Script not found"}, 422: _RUNTIME_NOT_OFFERED},
 )
 async def update_saved_script(

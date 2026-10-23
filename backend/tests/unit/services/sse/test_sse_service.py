@@ -255,7 +255,7 @@ async def test_replay_stream_yields_initial_then_live() -> None:
         created_at=_NOW,
     )
 
-    agen = await svc.create_replay_stream(initial)
+    agen = svc.create_replay_stream(initial)
 
     assert await agen.__anext__() is initial
 
@@ -313,7 +313,7 @@ async def test_replay_stream_terminal_initial_closes_immediately() -> None:
         created_at=_NOW,
     )
 
-    agen = await svc.create_replay_stream(initial)
+    agen = svc.create_replay_stream(initial)
 
     assert await agen.__anext__() is initial
 

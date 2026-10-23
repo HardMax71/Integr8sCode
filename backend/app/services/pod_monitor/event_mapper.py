@@ -125,7 +125,7 @@ class PodEventMapper:
         # A deleted pod gets what its phase still owes, then its termination, and leaves the cache
         if event_type == WatchEventType.DELETED:
             events = [] if prior_phase == phase else await self._map_phase(ctx, prior_phase)
-            if terminated := await self._map_terminated(ctx):
+            if terminated := self._map_terminated(ctx):
                 events.append(terminated)
             self._event_cache.pop(pod_name, None)
             return events
@@ -307,7 +307,9 @@ class PodEventMapper:
         # Use logs data if available, fallback to error_info
         stdout = logs.stdout if logs else ""
         stderr = logs.stderr if logs and logs.stderr else error_info.message
-        exit_code = error_info.exit_code if error_info.exit_code is not None else (logs.exit_code if logs else 1)
+        exit_code = error_info.exit_code
+        if exit_code is None:
+            exit_code = logs.exit_code if logs else 1
 
         evt = ExecutionFailedEvent(
             execution_id=ctx.execution_id,
@@ -327,7 +329,7 @@ class PodEventMapper:
         )
         return evt
 
-    async def _map_terminated(self, ctx: PodContext) -> PodTerminatedEvent | None:
+    def _map_terminated(self, ctx: PodContext) -> PodTerminatedEvent | None:
         """Map deleted pod to terminated event"""
         container = self._get_main_container(ctx.pod)
         if not container or not container.state or not container.state.terminated:
@@ -442,11 +444,10 @@ class PodEventMapper:
             if status.state and status.state.terminated:
                 terminated = status.state.terminated
                 if terminated.exit_code != 0:
-                    # Prefer explicit messages when available
-                    term_msg = getattr(terminated, "message", None)
-                    status_msg = pod.status.message if getattr(pod, "status", None) else None
                     return self.FailureInfo(
-                        message=term_msg or status_msg or f"Container exited with code {terminated.exit_code}",
+                        message=terminated.message
+                        or pod.status.message
+                        or f"Container exited with code {terminated.exit_code}",
                         error_type=ExecutionErrorType.SCRIPT_ERROR,
                         exit_code=terminated.exit_code,
                     )
@@ -518,7 +519,7 @@ class PodEventMapper:
     @staticmethod
     def _parse_termination_message(raw: str) -> dict[str, str]:
         """Parse key=value metadata from K8s termination message."""
-        return dict(line.split("=", 1) for line in raw.strip().splitlines() if "=" in line)
+        return {key: value for key, sep, value in (line.partition("=") for line in raw.strip().splitlines()) if sep}
 
     @staticmethod
     def _parse_framed_output(logs: bytes) -> tuple[str, str]:

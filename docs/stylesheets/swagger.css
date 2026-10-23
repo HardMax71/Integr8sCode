@@ -1,0 +1,4 @@
+/* Swagger UI runs in an iframe; a page that sets filter= shows only its tag, without the box that edits it */
+.operation-filter-input {
+  display: none;
+}

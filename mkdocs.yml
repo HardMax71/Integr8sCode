@@ -49,7 +49,9 @@ theme:
 
 plugins:
   - search
-  - swagger-ui-tag
+  - swagger-ui-tag:
+      extra_css:
+        - stylesheets/swagger.css
   - mermaid2:
       arguments:
         securityLevel: loose

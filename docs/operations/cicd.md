@@ -5,10 +5,11 @@ CI is eight GitHub Actions workflows, two composite actions and a Dependabot con
 ```mermaid
 graph LR
     subgraph ST["CI"]
-        UB["backend unit + Grafana contract"] --> Build["build and push 2 images"]
+        UB["backend unit"] --> Build["build and push 2 images"]
         UF["frontend unit"] --> Build
         Build --> EB["backend E2E"]
         Build --> EF["frontend E2E, 2 shards"]
+        GC["Grafana contract"]
     end
     subgraph DSP["Docker Scan & Promote"]
         Scan["Trivy, 2 images"] --> Promote["crane: sha tag to latest"]
@@ -49,11 +50,12 @@ CI is the only workflow a PR has to pass, and it runs only what the PR can affec
 
 | Changed                                                         | Jobs                                                                 |
 |-----------------------------------------------------------------|----------------------------------------------------------------------|
-| `backend/`                                                      | ruff, mypy, grimp, bandit, backend unit tests                        |
+| `backend/`                                                      | ruff, mypy, grimp, bandit, backend unit tests, Grafana contract tests |
+| `grafana/`, `host-metrics/`, `loki/`, `opensearch/`, `otel-collector/`, `victoria-metrics/` | Grafana contract tests, Docs Build |
 | `frontend/`                                                     | frontend lint and type check, frontend unit tests                    |
 | `backend/`, `frontend/`, `.env.example`, compose, deploy.sh or the composite actions | the images and frontend E2E; backend E2E unless only `frontend/` changed |
 | `backend/`, the spec, the generated client or its generator config | Spec and client match the code                                    |
-| `docs/`, mkdocs.yml, or `backend/` and `frontend/`, since the docs include snippets of them | Docs Build                                  |
+| `docs/`, mkdocs.yml, or `backend/`, `frontend/` and the service config folders, since the docs include snippets of them | Docs Build |
 
 A change to ci.yml itself runs every job, and so does every push to `main`. The last job, All checks pass, runs `re-actors/alls-green` over the others: a job skipped because its files didn't change counts as passed, and a failed or cancelled one fails it. FastAPI, pydantic and CPython gate their PRs the same way. All checks pass is the one required status check, so a PR that only touches the docs waits for the docs build and nothing else, and a new job only needs adding to its `needs`.
 
@@ -63,7 +65,7 @@ Stacked PRs come from `gh stack`. CI runs for every PR in a stack, each against 
 
 ## Tests and images
 
-The backend unit job installs with `uv sync --frozen --group test --no-dev --no-install-project --no-build` and runs `pytest tests/unit` with coverage. The pytest config adds `-n auto --dist=loadgroup`, so tests run in parallel with xdist and tests that share a group stay on one worker. The same job then runs the [Grafana contract tests](../testing/contract-testing.md) with `pytest tests/contract -m grafana_contract`. The frontend unit job runs `npm ci --ignore-scripts` and `npm run test:coverage`. Coverage goes to Codecov with the flags `backend-unit`, `frontend-unit` and later `backend-e2e`.
+The backend unit job installs with `uv sync --frozen --group test --no-dev --no-install-project --no-build` and runs `pytest tests/unit` with coverage. The pytest config adds `-n auto --dist=loadgroup`, so tests run in parallel with xdist and tests that share a group stay on one worker. A job of its own runs the [Grafana contract tests](../testing/contract-testing.md) with `pytest tests/contract -m grafana_contract` when `backend/` or a service config folder changed, so a dashboard edit doesn't build the images or run E2E. The frontend unit job runs `npm ci --ignore-scripts` and `npm run test:coverage`. Coverage goes to Codecov with the flags `backend-unit`, `frontend-unit` and later `backend-e2e`.
 
 Once both pass, or are skipped because only one side changed, one job builds the two images and pushes them to GHCR as `sha-<7 chars>`:
 
@@ -86,7 +88,7 @@ The backend E2E job runs `pytest tests/e2e` inside the backend container after `
 
 ## Docker Scan & Promote
 
-The jobs run only when CI succeeded on `main`, or on a manual run. A matrix scans `backend` and `frontend` with Trivy v0.75.0 (`CRITICAL,HIGH`, unfixed ignored, `backend/.trivyignore`) and uploads SARIF to the Security tab. A finding fails the scan job, and `promote` needs every scan to pass, so an image with a fixable `CRITICAL` or `HIGH` vulnerability never becomes `latest`. `limit-severities-for-sarif` keeps the SARIF to those two levels; without it the action drops the severity filter for SARIF and the gate would trip on everything. The promote job then copies each `sha-` tag to `latest` with `crane copy`, a registry-side manifest copy with no rebuild. CI runs finish in any order, so promotes run one at a time (`concurrency: promote-latest`), and each first checks the commits on `main` after its own: when `latest` already holds the image of one of them, it leaves `latest` alone and the Summary job is skipped. Without that check, an older merge whose CI finished last moved `latest` back a commit on 2026-10-22.
+The jobs run only when CI succeeded on `main`, or on a manual run. A matrix scans `backend` and `frontend` with Trivy v0.75.0 (`CRITICAL,HIGH`, unfixed ignored, `.trivyignore`) and uploads SARIF to the Security tab. A finding fails the scan job, and `promote` needs every scan to pass, so an image with a fixable `CRITICAL` or `HIGH` vulnerability never becomes `latest`. `limit-severities-for-sarif` keeps the SARIF to those two levels; without it the action drops the severity filter for SARIF and the gate would trip on everything. The promote job then copies each `sha-` tag to `latest` with `crane copy`, a registry-side manifest copy with no rebuild. CI runs finish in any order, so promotes run one at a time (`concurrency: promote-latest`), and each first checks the commits on `main` after its own: when `latest` already holds the image of one of them, it leaves `latest` alone and the Summary job is skipped. Without that check, an older merge whose CI finished last moved `latest` back a commit on 2026-10-22.
 
 ## Release & Deploy
 

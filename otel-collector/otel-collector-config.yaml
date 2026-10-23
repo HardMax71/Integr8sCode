@@ -939,7 +939,7 @@ exporters:
     tls:
       insecure: true
 
-  # One index a day, so the 30-day retention policy in backend/opensearch deletes whole days
+  # One index a day, so the 30-day retention policy in opensearch/logs-retention-policy.json deletes whole days
   opensearch:
     http:
       endpoint: http://opensearch:9200
@@ -982,7 +982,7 @@ service:
       processors: [memory_limiter, batch, resource]
       exporters: [prometheus_remote_write, debug]
 
-    # VictoriaMetrics scrapes these every 15 s, see backend/victoria-metrics/scrape.yaml
+    # VictoriaMetrics scrapes these every 15 s, see victoria-metrics/scrape.yaml
     metrics/span_counts:
       receivers: [signaltometrics]
       processors: [memory_limiter, filter/no_gauges, deltatocumulative, batch, resource]

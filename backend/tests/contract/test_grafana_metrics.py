@@ -17,11 +17,11 @@ from prometheus_client.metrics_core import Metric
 
 from app.core.metrics.base import PROCESS_METRICS
 
-BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
-GRAFANA_DIR = BACKEND_ROOT / "grafana" / "provisioning"
+REPO_ROOT = Path(__file__).resolve().parents[3]
+GRAFANA_DIR = REPO_ROOT / "grafana" / "provisioning"
 DASHBOARDS_DIR = GRAFANA_DIR / "dashboards"
 ALERTING_DIR = GRAFANA_DIR / "alerting"
-COLLECTOR_CONFIG = BACKEND_ROOT / "otel-collector-config.yaml"
+COLLECTOR_CONFIG = REPO_ROOT / "otel-collector" / "otel-collector-config.yaml"
 
 # Series written by otel-collector receivers rather than by any Python process, keyed by name prefix.
 COLLECTOR_PREFIXES: dict[str, str] = {

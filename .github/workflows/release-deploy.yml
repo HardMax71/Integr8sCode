@@ -200,7 +200,6 @@ jobs:
             umask 077
             cat > .env <<EOF
             IMAGE_TAG='$IMAGE_TAG'
-            COMPOSE_PROFILES=observability
             ENVIRONMENT=production
             SECRET_KEY='$SECRET_KEY'
             MONGO_USER='$MONGO_USER'

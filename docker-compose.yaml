@@ -1,7 +1,7 @@
 x-logging: &logging
   driver: fluentd
   options:
-    # async: a container still starts, and buffers its lines, while the collector is down or not in the profile
+    # async: a container still starts, and buffers its lines, while the collector is down
     fluentd-address: localhost:24224
     fluentd-async: "true"
     tag: "{{.Name}}"
@@ -175,7 +175,6 @@ services:
   grafana:
     logging: *logging
     container_name: grafana
-    profiles: ["observability"]
     image: grafana/grafana:13.2.4
     user: "472"
     # Alert rules load after dashboards create the integr8scode folder; loaded first, they'd make one with a random UID
@@ -350,7 +349,6 @@ services:
     # 2.21+ dropped the search API Grafana's Jaeger datasource calls (grafana/grafana#112336)
     image: jaegertracing/jaeger:2.20.0
     container_name: jaeger
-    profiles: ["observability"]
     mem_limit: 256m
     # The built-in all-in-one config keeps 100 000 traces in memory, about 260 MiB at ~2.3 KB each; 50 000 is about 4 days
     command: ["--set=extensions.jaeger_storage.backends.some_storage.memory.max_traces=50000"]
@@ -370,7 +368,6 @@ services:
   loki:
     logging: *logging
     container_name: loki
-    profiles: ["observability"]
     image: grafana/loki:3.7.8
     ports:
       - "127.0.0.1:3100:3100"
@@ -388,7 +385,6 @@ services:
   opensearch:
     logging: *logging
     container_name: opensearch
-    profiles: ["observability"]
     image: opensearchproject/opensearch:3.9.0
     entrypoint: ["bash", "/etc/opensearch-setup/start.sh"]
     environment:
@@ -422,7 +418,6 @@ services:
     logging: *logging
     image: victoriametrics/victoria-metrics:v1.154.0
     container_name: victoria-metrics
-    profiles: ["observability"]
     mem_limit: 256m
     ports:
       - "127.0.0.1:8428:8428"
@@ -454,7 +449,6 @@ services:
         max-file: "3"
     image: otel/opentelemetry-collector-contrib:0.163.1
     container_name: otel-collector
-    profiles: ["observability"]
     mem_limit: 192m
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
@@ -490,7 +484,6 @@ services:
     logging: *logging
     image: tecnativa/docker-socket-proxy:v0.5.0
     container_name: docker-socket-proxy
-    profiles: ["observability"]
     mem_limit: 32m
     environment:
       - CONTAINERS=1
@@ -504,7 +497,6 @@ services:
     logging: *logging
     image: otel/opentelemetry-collector-contrib:0.163.1
     container_name: host-metrics
-    profiles: ["observability"]
     # In the host's network namespace the network scraper reads the host's interfaces, and 127.0.0.1:4317 reaches otel-collector
     network_mode: host
     mem_limit: 128m

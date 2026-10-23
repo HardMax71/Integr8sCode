@@ -1,6 +1,6 @@
 # Log search (OpenSearch)
 
-OpenSearch holds the same log lines as [Loki](loki.md), with every field indexed, so a search by execution id, user id or error text over 30 days answers in milliseconds instead of reading every chunk. Loki stays for now: the plan in [#373](https://github.com/HardMax71/Integr8sCode/issues/373) is to run both on real traffic, compare, and then drop one. OpenSearch runs with the `observability` compose profile, next to Loki.
+OpenSearch holds the same log lines as [Loki](loki.md), with every field indexed, so a search by execution id, user id or error text over 30 days answers in milliseconds instead of reading every chunk. Loki stays for now: the plan in [#373](https://github.com/HardMax71/Integr8sCode/issues/373) is to run both on real traffic, compare, and then drop one.
 
 ```mermaid
 flowchart LR

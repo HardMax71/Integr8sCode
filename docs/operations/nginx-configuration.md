@@ -69,7 +69,7 @@ The SSE location under `/api/v1/events/` speaks HTTP/1.1 with an empty `Connecti
 --8<-- "frontend/nginx.conf.template:browser_logs"
 ```
 
-The app sends its log records here as OTLP JSON, at most one batch a second, and nginx passes them to the collector's `otlp/browser` receiver ([Loki](loki.md#collector) has the rest of the path). Anyone can post to this path, so it takes POST only, bodies up to 64 KB, and 30 requests a minute per address with a burst of 30, from the `limit_req_zone` at the top of the file; past that nginx answers 429. The upstream goes through a variable like the backend's, so nginx starts without the observability profile and this path returns 502 instead.
+The app sends its log records here as OTLP JSON, at most one batch a second, and nginx passes them to the collector's `otlp/browser` receiver ([Loki](loki.md#collector) has the rest of the path). Anyone can post to this path, so it takes POST only, bodies up to 64 KB, and 30 requests a minute per address with a burst of 30, from the `limit_req_zone` at the top of the file; past that nginx answers 429. The upstream goes through a variable like the backend's, so nginx starts while the collector is down and this path returns 502 until it's back.
 
 ### Static files and SPA routing
 
@@ -89,7 +89,7 @@ SvelteKit writes the JavaScript and CSS under `_app/immutable/` with content has
 
 Grafana gets its own hostname, `grafana.integr8scode.cc`, and is proxied at the root. grafana.ini sets no `root_url`; compose passes `GF_SERVER_ROOT_URL` from `GRAFANA_ROOT_URL`. `/api/live/` is the Grafana Live websocket, so it gets the `Upgrade` and `Connection` headers.
 
-The upstream goes through a variable with Docker's resolver (`127.0.0.11`), so nginx resolves `grafana` per request instead of at startup. Without that, nginx would refuse to start when the observability profile is off. In that case the Grafana host just returns 502. This server block sets no security headers.
+The upstream goes through a variable with Docker's resolver (`127.0.0.11`), so nginx resolves `grafana` per request instead of at startup. Without that, nginx would refuse to start while Grafana is down. In that case the Grafana host just returns 502. This server block sets no security headers.
 
 ## Environment variables
 

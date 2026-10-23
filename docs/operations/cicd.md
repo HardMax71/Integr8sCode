@@ -34,15 +34,15 @@ graph LR
 | Label Sync                     | label-sync.yml       | push and PRs to `main` touching the label files or issue forms; Mondays at 03:00; manual |
 | Dependabot Auto-merge          | dependabot-auto-merge.yml | Dependabot's PRs to `main`                                         |
 
-Besides the tests, CI runs one job per check. Ruff runs `ruff check`. MyPy runs `mypy --strict` with `SECRET_KEY` from the `TEST_SECRET_KEY` secret. Grimp runs `python -m scripts.check_orphan_modules`, which fails on any module nothing imports except `app.main` and `__init__.py` files that hold only a docstring. Security Scanning runs `uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/ -ll`. Bandit parses with the Python it runs on, so on anything older it skips the files that use 3.14 syntax such as `except A, B:` without failing. The frontend job runs ESLint, Stylelint, the Prettier check, `svelte-check --fail-on-warnings` and a production build. The SBOM workflow generates SPDX SBOMs for backend and frontend with `anchore/sbom-action`, scans them with Grype through `anchore/scan-action` (cutoff `high`, `fail-build: false`) and uploads SARIF to the Security tab.
+Besides the tests, CI runs one job per check. Ruff runs `ruff check`. MyPy runs `mypy --strict` with `SECRET_KEY` from the `TEST_SECRET_KEY` secret. Grimp runs `python -m scripts.check_orphan_modules`, which fails on any module nothing imports except `app.main` and `__init__.py` files that hold only a docstring. Security Scanning runs `uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/,backend/.venv/ -ll`. Bandit parses with the Python it runs on, so on anything older it skips the files that use 3.14 syntax such as `except A, B:` without failing. The frontend job runs ESLint, Stylelint, the Prettier check, `svelte-check --fail-on-warnings` and a production build. The SBOM workflow generates SPDX SBOMs for backend and frontend with `anchore/sbom-action`, scans them with Grype through `anchore/scan-action` (cutoff `high`, `fail-build: false`) and uploads SARIF to the Security tab.
 
-The docs job installs the backend dependencies, runs `./deploy.sh openapi` and builds with `mkdocs build --strict`. On pushes to `main`, Deploy Docs publishes the result to GitHub Pages and then deletes the `github-pages` deployments before it, so the repository lists only the live one.
+The docs job installs the backend dependencies, runs `python -m scripts.export_openapi` and builds with `mkdocs build --strict`. On pushes to `main`, Deploy Docs publishes the result to GitHub Pages and then deletes the `github-pages` deployments before it, so the repository lists only the live one.
 
 Labels adds `area:` labels. On a PR, `actions/labeler` matches the changed paths against `.github/labeler.yml`; it runs on `pull_request_target` so fork PRs can be labeled too, and it never checks out the PR's code. On an issue, `github/issue-labeler` matches the Component answer of the issue form against `.github/issue-labeler.yml` and adds the label. It never removes one, so labels added by hand stay.
 
 Label Sync keeps labels as code. `.github/labels.yml` lists every label in the repo, and `crazy-max/ghaction-github-labeler` makes the repo match it: it creates and updates labels, renames one that has `from_name`, and deletes any label the file doesn't list, which also takes it off every issue. On a PR it only prints what it would change. Before that, a `yq` step fails the run when `.github/labeler.yml`, `.github/issue-labeler.yml` or an issue form uses a label the file doesn't declare. A new area needs its label in `.github/labels.yml`, a path rule in `.github/labeler.yml`, an option in both issue forms and a pattern in `.github/issue-labeler.yml`.
 
-The `Spec and client match the code` job enforces that `docs/reference/openapi.json` and `frontend/src/lib/api/` only ever come from the generators. It runs `./deploy.sh openapi` and `npm run generate:api` on the checked-out code and fails if either leaves a difference, which catches a hand edit and a spec or client someone forgot to regenerate.
+The `Spec and client match the code` job enforces that `docs/reference/openapi.json` and `frontend/src/lib/api/` only ever come from the generators. It runs `python -m scripts.export_openapi` and `npm run generate:api` on the checked-out code and fails if either leaves a difference, which catches a hand edit and a spec or client someone forgot to regenerate.
 
 ## Pull requests and merging
 
@@ -53,7 +53,7 @@ CI is the only workflow a PR has to pass, and it runs only what the PR can affec
 | `backend/`                                                      | ruff, mypy, grimp, bandit, backend unit tests, Grafana contract tests |
 | `grafana/`, `host-metrics/`, `loki/`, `opensearch/`, `otel-collector/`, `victoria-metrics/` | Grafana contract tests, Docs Build |
 | `frontend/`                                                     | frontend lint and type check, frontend unit tests                    |
-| `backend/`, `frontend/`, `.env.example`, compose, deploy.sh or the composite actions | the images and frontend E2E; backend E2E unless only `frontend/` changed |
+| `backend/`, `frontend/`, `.env.example`, compose or the composite actions | the images and frontend E2E; backend E2E unless only `frontend/` changed |
 | `backend/`, the spec, the generated client or its generator config | Spec and client match the code                                    |
 | `docs/`, mkdocs.yml, or `backend/`, `frontend/` and the service config folders, since the docs include snippets of them | Docs Build |
 
@@ -137,30 +137,22 @@ Dependabot Auto-merge turns on auto-merge for every Dependabot PR, majors includ
 
 ## Running checks locally
 
+`pre-commit run --all-files` runs CI's lint and type checks with the same commands: ruff, `mypy --strict`, the orphan module check and bandit on the backend, ESLint, Stylelint, Prettier and svelte-check on the frontend. The unit and contract tests:
+
 ```bash
 cd backend
-uv run ruff check . --config pyproject.toml
-uv run mypy --config-file pyproject.toml --strict .
-uv run python -m scripts.check_orphan_modules
-uvx --no-build --python 3.14 bandit==1.9.4 -r . -x ./tests,./.venv -ll
 uv run pytest tests/unit
 uv run pytest tests/contract -m grafana_contract
 ```
 
 ```bash
 cd frontend
-npm run lint
-npm run stylelint
-npm run format:check
-npm run check
 npm run test
 ```
 
-For E2E, do what CI does: copy `backend/config.test.toml` over `backend/config.toml`, start the stack with `./deploy.sh dev --wait`, then run the suites.
+For E2E, do what CI does: add `BACKEND_CONFIG=config.test.toml` to `.env`, so the backend and the worker mount config.test.toml as their config.toml, start the stack with `docker compose up -d --wait`, then run the suites.
 
 ```bash
 docker compose exec -T backend sh -c 'uv sync --group test --no-dev --frozen --no-install-project --no-build && pytest tests/e2e'
 cd frontend && npm run test:e2e
 ```
-
-`./deploy.sh test` and `./deploy.sh check` don't work right now ([#292](https://github.com/HardMax71/Integr8sCode/issues/292)).

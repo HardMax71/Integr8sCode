@@ -79,7 +79,7 @@ When a `vi.mock` factory refers to mock functions, create them in `vi.hoisted()`
 --8<-- "frontend/playwright.config.ts:config"
 ```
 
-The suite runs against the stack on `https://localhost:5001`, which is the compose frontend that `./deploy.sh dev` starts. `npm run dev` can't stand in for it, since its proxy sends `/api` to a hostname that only resolves inside the compose network. The only account the suite expects is the seeded admin, whose password it reads from `ADMIN_USER_PASSWORD` like seed_users.py does, falling back to `admin123`.
+The suite runs against the stack on `https://localhost:5001`, which is the compose frontend that `docker compose up -d` starts. `npm run dev` can't stand in for it, since its proxy sends `/api` to a hostname that only resolves inside the compose network. The only account the suite expects is the seeded admin, whose password it reads from `ADMIN_USER_PASSWORD` like seed_users.py does, falling back to `admin123`.
 
 [`e2e/fixtures.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/e2e/fixtures.ts) registers one account per worker through the API and signs it and the seeded admin in once per worker, so two workers never share a user's settings, scripts or notifications. Every test gets a fresh browser context: `page` for a guest, and `userPage` or `adminPage` starting with the worker's session cookies, so nothing one test leaves in localStorage reaches the next. The `api` fixture is an API client signed in as the worker's user, and `execution` starts an execution through it for the tests that need one, such as the notification and admin table tests.
 

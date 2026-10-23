@@ -53,7 +53,6 @@ jobs:
               - *workflow
               - '.env.example'
               - 'docker-compose.yaml'
-              - 'deploy.sh'
               - '.github/actions/**'
             # The configs of the observability services, each in the folder named after its compose service
             observability: &observability
@@ -67,7 +66,6 @@ jobs:
             api:
               - *workflow
               - 'backend/**'
-              - 'deploy.sh'
               - 'docs/reference/openapi.json'
               - 'frontend/src/lib/api/**'
               - 'frontend/openapi-ts.config.ts'
@@ -82,7 +80,6 @@ jobs:
               - 'backend/**'
               - 'frontend/**'
               - 'docker-compose.yaml'
-              - 'deploy.sh'
 
   ruff:
     name: Ruff Linting
@@ -176,7 +173,7 @@ jobs:
           cache-dependency-glob: "backend/uv.lock"
 
       - name: Run bandit
-        run: uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/ -ll
+        run: uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/,backend/.venv/ -ll
 
   frontend:
     name: Frontend Lint & Type Check
@@ -250,14 +247,14 @@ jobs:
 
       - name: Regenerate the spec and the client
         run: |
-          ./deploy.sh openapi
+          (cd backend && uv run --no-sync --no-build python -m scripts.export_openapi)
           cd frontend && npm run generate:api
 
       - name: Fail on any difference
         run: |
           changes=$(git status --porcelain -- docs/reference/openapi.json frontend/src/lib/api)
           if [ -n "$changes" ]; then
-            echo "::error::docs/reference/openapi.json and frontend/src/lib/api must come from the generators, never from hand edits. Run ./deploy.sh openapi, then ./deploy.sh types, and commit the result."
+            echo "::error::docs/reference/openapi.json and frontend/src/lib/api must come from the generators, never from hand edits. Run uv run python -m scripts.export_openapi in backend/, then npm run generate:api in frontend/, and commit the result."
             echo "$changes"
             git diff --stat -- docs/reference/openapi.json frontend/src/lib/api
             exit 1
@@ -281,7 +278,7 @@ jobs:
         run: cd backend && uv sync --frozen --no-dev --no-install-project --no-build
 
       - name: Generate OpenAPI spec
-        run: ./deploy.sh openapi
+        run: cd backend && uv run --no-sync --no-build python -m scripts.export_openapi
 
       - name: Build documentation
         run: >-

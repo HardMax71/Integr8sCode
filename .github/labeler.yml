@@ -77,7 +77,6 @@
   - changed-files:
       - any-glob-to-any-file:
           - docker-compose.yaml
-          - deploy.sh
           - "**/Dockerfile*"
           - .env.example
           - .github/workflows/docker.yml

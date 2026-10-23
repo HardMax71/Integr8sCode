@@ -36,7 +36,8 @@ runs:
       shell: bash
       run: |
         set -e
-        cp backend/config.test.toml backend/config.toml
+        # compose reads .env for every later command, so the backend and the worker both run with the test settings
+        echo BACKEND_CONFIG=config.test.toml >> .env
 
         timeout 120 tail --pid="$(cat /tmp/infra-pull.pid)" -f /dev/null 2>/dev/null || true
         cat /tmp/infra-pull.log 2>/dev/null || true

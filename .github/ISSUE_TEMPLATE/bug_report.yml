@@ -49,7 +49,7 @@ body:
         - Kafka events (consumers, DLQ, replay)
         - Live updates and notifications
         - Metrics, dashboards and logs
-        - Deployment (compose, deploy.sh, production)
+        - Deployment (compose, production)
         - CI and tooling
         - Documentation
         - Not sure
@@ -62,7 +62,7 @@ body:
       label: Environment
       description: Whatever applies.
       placeholder: |
-        - Where: local dev (./deploy.sh dev) or production
+        - Where: local dev (docker compose up) or production
         - Version: release tag or commit, e.g. 2026.10.3 or 7b9f060
         - Script language and version, e.g. Go 1.27
         - Browser, e.g. Firefox 145

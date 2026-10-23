@@ -18,7 +18,7 @@ In the tables, the value is what applies with the shipped `config.toml`. The sou
 
 ## Secrets
 
-For each secret, `Settings` takes the environment variable if it's set and non-empty, then the TOML value, then a dev default. Compose passes all four to every backend service through the `x-backend-secrets` anchor and has no defaults of its own: the values come from `.env` (`./deploy.sh dev` copies `.env.example`, the production deploy writes it from the repository secrets), and compose refuses to start while one is empty.
+For each secret, `Settings` takes the environment variable if it's set and non-empty, then the TOML value, then a dev default. Compose passes all four to every backend service through the `x-backend-secrets` anchor and has no defaults of its own: the values come from `.env` (locally a copy of `.env.example`, in production written by the deploy from the repository secrets), and compose refuses to start while one is empty.
 
 | Variable | Purpose | Dev default |
 |----------|---------|-------------|
@@ -111,7 +111,7 @@ A language can raise its own pod's limits above the system settings. Go gets at 
 | `HOSTNAME` | the machine's hostname | default | `service.instance.id` on logs and spans; inside a container that's the container ID |
 | `LOG_LEVEL` | `INFO` | config.toml | structlog level |
 
-Jaeger and the OTel collector only run with `./deploy.sh dev --observability` or `--debug`. Without them the exporters log connection errors and the app keeps working.
+Jaeger and the OTel collector only run with the `observability` compose profile. Without them the exporters log connection errors and the app keeps working.
 
 ## Server
 

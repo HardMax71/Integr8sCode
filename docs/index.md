@@ -18,7 +18,8 @@ You need Docker with Compose and a reachable Kubernetes cluster. [Getting starte
 ```bash
 git clone https://github.com/HardMax71/Integr8sCode.git
 cd Integr8sCode
-./deploy.sh dev
+cp .env.example .env
+docker compose up -d
 ```
 
 Then open [https://localhost:5001](https://localhost:5001) and log in as `user` / `user123`.

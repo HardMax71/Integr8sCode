@@ -36,7 +36,7 @@ describe('AdminLayout', () => {
         expect(screen.getByText('Settings')).toBeInTheDocument();
 
         const adminLinks = screen.getAllByRole('link').filter((l) => l.getAttribute('href')?.startsWith('/admin/'));
-        expect(adminLinks.length).toBe(4);
+        expect(adminLinks).toHaveLength(4);
 
         const hrefs = adminLinks.map((l) => l.getAttribute('href'));
         expect(hrefs).toContain('/admin/events');

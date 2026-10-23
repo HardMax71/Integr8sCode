@@ -79,7 +79,9 @@ async function useWithCoverage(page: Page, use: (page: Page) => Promise<void>, t
 }
 
 /** A route handler that never answers, so a test can look at the UI while the request is pending */
-export function holdRequest(): void {}
+export function holdRequest(): void {
+    // Answers nothing, so the request stays pending and the page shows its loading state
+}
 
 /** Accepts the next confirm() the page shows */
 export function acceptDialog(dialog: Dialog): Promise<void> {

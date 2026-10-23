@@ -87,14 +87,7 @@ export const getResultApiV1ExecutionsExecutionIdResultGet = <ThrowOnError extend
  *
  * Cancel a running or queued execution.
  */
-export const cancelExecutionApiV1ExecutionsExecutionIdCancelPost = <ThrowOnError extends boolean = false>(options: Options<CancelExecutionApiV1ExecutionsExecutionIdCancelPostData, ThrowOnError>): RequestResult<CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponses, CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors, ThrowOnError> => (options.client ?? client).post<CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponses, CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors, ThrowOnError>({
-    url: '/api/v1/executions/{execution_id}/cancel',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
+export const cancelExecutionApiV1ExecutionsExecutionIdCancelPost = <ThrowOnError extends boolean = false>(options: Options<CancelExecutionApiV1ExecutionsExecutionIdCancelPostData, ThrowOnError>): RequestResult<CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponses, CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors, ThrowOnError> => (options.client ?? client).post<CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponses, CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors, ThrowOnError>({ url: '/api/v1/executions/{execution_id}/cancel', ...options });
 
 /**
  * Retry Execution

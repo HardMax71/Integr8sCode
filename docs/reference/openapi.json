@@ -395,16 +395,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CancelExecutionRequest"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -4177,19 +4167,6 @@
           "password"
         ],
         "title": "Body_login_api_v1_auth_login_post"
-      },
-      "CancelExecutionRequest": {
-        "properties": {
-          "reason": {
-            "type": "string",
-            "title": "Reason",
-            "description": "Reason for cancellation",
-            "default": "User requested cancellation"
-          }
-        },
-        "type": "object",
-        "title": "CancelExecutionRequest",
-        "description": "Model for cancelling an execution."
       },
       "CancelResponse": {
         "properties": {

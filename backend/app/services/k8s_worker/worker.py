@@ -15,6 +15,8 @@ from app.settings import Settings
 
 from .pod_builder import PodBuilder
 
+_SERVER_SIDE_APPLY = "application/apply-patch+yaml"
+
 
 class KubernetesWorker:
     """Creates and deletes executor pods, and prepares the executor namespace at startup.
@@ -239,7 +241,7 @@ exec "$@"
             body=policy,
             field_manager="integr8s",
             force=True,
-            _content_type="application/apply-patch+yaml",
+            _content_type=_SERVER_SIDE_APPLY,
         )
         self.logger.info("NetworkPolicy applied", policy_name=policy_name, namespace=namespace)
 
@@ -262,7 +264,7 @@ exec "$@"
             body=body,
             field_manager="integr8s",
             force=True,
-            _content_type="application/apply-patch+yaml",
+            _content_type=_SERVER_SIDE_APPLY,
         )
         self.logger.info("Namespace applied with Pod Security Admission labels", namespace=namespace)
 
@@ -291,7 +293,7 @@ exec "$@"
             body=quota,
             field_manager="integr8s",
             force=True,
-            _content_type="application/apply-patch+yaml",
+            _content_type=_SERVER_SIDE_APPLY,
         )
         self.logger.info("ResourceQuota applied", quota_name=quota_name, namespace=namespace)
 
@@ -369,7 +371,7 @@ exec "$@"
                 body=daemonset,
                 field_manager="integr8s",
                 force=True,
-                _content_type="application/apply-patch+yaml",
+                _content_type=_SERVER_SIDE_APPLY,
             )
             self.logger.info("DaemonSet applied", daemonset=daemonset_name)
 

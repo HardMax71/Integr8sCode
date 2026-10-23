@@ -61,11 +61,9 @@ export function initializeApiInterceptors(): void {
     // A body that isn't an ErrorResponse, like a proxy's error page, or no response at all becomes one
     client.interceptors.error.use((error, response, request, opts) => {
         const problem = zErrorResponse.safeParse(error);
-        const failure: ErrorResponse = problem.success
-            ? problem.data
-            : response
-              ? { status: response.status, detail: `HTTP ${response.status}` }
-              : { status: 0, detail: 'Network error. Check your connection.' };
+        let failure: ErrorResponse = { status: 0, detail: 'Network error. Check your connection.' };
+        if (problem.success) failure = problem.data;
+        else if (response) failure = { status: response.status, detail: `HTTP ${response.status}` };
         // A 4xx is the API answering as designed, and the user sees it in a toast or the form
         const line = { method: request?.method ?? opts.method, url: request?.url ?? opts.url, ...failure };
         if (failure.status === 0 || failure.status >= 500)
@@ -77,7 +75,7 @@ export function initializeApiInterceptors(): void {
     // --8<-- [start:csrf_injection]
     // The double-submit pattern: the header echoes the readable csrf_token cookie that login set
     client.interceptors.request.use((request) => {
-        const csrfToken = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/)?.[1];
+        const csrfToken = /(?:^|;\s*)csrf_token=([^;]*)/.exec(document.cookie)?.[1];
         if (request.method !== 'GET' && csrfToken) request.headers.set('X-CSRF-Token', csrfToken);
         return request;
     });

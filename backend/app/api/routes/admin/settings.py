@@ -21,7 +21,6 @@ _system_settings = TypeAdapter(SystemSettings)
 
 @router.get(
     "/",
-    response_model=SystemSettingsSchema,
     responses={500: {"model": ErrorResponse, "description": "Failed to load system settings"}},
 )
 async def get_system_settings(
@@ -35,7 +34,6 @@ async def get_system_settings(
 
 @router.put(
     "/",
-    response_model=SystemSettingsSchema,
     responses={
         400: {"model": ErrorResponse, "description": "Invalid settings values"},
         422: {"model": ErrorResponse, "description": "Settings validation failed"},
@@ -55,7 +53,6 @@ async def update_system_settings(
 
 @router.post(
     "/reset",
-    response_model=SystemSettingsSchema,
     responses={500: {"model": ErrorResponse, "description": "Failed to reset settings"}},
 )
 async def reset_system_settings(

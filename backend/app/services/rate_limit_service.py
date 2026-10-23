@@ -127,10 +127,10 @@ class RateLimitService:
 
         if rule.algorithm == RateLimitAlgorithm.TOKEN_BUCKET:
             status = await self._check_token_bucket(
-                user_id, endpoint, effective_limit, rule.window_seconds, rule.burst_multiplier, rule
+                user_id, endpoint, effective_limit, rule.window_seconds, rule.burst_multiplier
             )
         else:
-            status = await self._check_sliding_window(user_id, endpoint, effective_limit, rule.window_seconds, rule)
+            status = await self._check_sliding_window(user_id, endpoint, effective_limit, rule.window_seconds)
 
         attributes: dict[str, AttributeValue] = {
             "rate_limit.endpoint": normalized_endpoint,
@@ -142,7 +142,7 @@ class RateLimitService:
         return status
 
     async def _check_sliding_window(
-        self, user_id: str, endpoint: str, limit: int, window_seconds: int, rule: RateLimitRule
+        self, user_id: str, endpoint: str, limit: int, window_seconds: int
     ) -> RateLimitStatus:
         key = f"{self.prefix}sw:{user_id}:{endpoint}"
         await self._register_user_key(user_id, key)
@@ -217,7 +217,7 @@ return {allowed, tostring(tokens)}
 """
 
     async def _check_token_bucket(
-        self, user_id: str, endpoint: str, limit: int, window_seconds: int, burst_multiplier: float, rule: RateLimitRule
+        self, user_id: str, endpoint: str, limit: int, window_seconds: int, burst_multiplier: float
     ) -> RateLimitStatus:
         key = f"{self.prefix}tb:{user_id}:{endpoint}"
         max_tokens = int(limit * burst_multiplier)

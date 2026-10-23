@@ -30,10 +30,11 @@ set +e
 # Keeps the first bytes of a stream and drains the rest, so the script never blocks or fills /tmp.
 # dd writes each read straight to the file: a buffering head would lose it while a background child holds the pipe.
 capture() {
+    DEST=$1
     SIZE=0
     while [ "$SIZE" -le "$MAX_STREAM_BYTES" ]; do
-        dd bs=65536 count=1 >> "$1" 2> /dev/null
-        NEW_SIZE=$(($(wc -c < "$1")))
+        dd bs=65536 count=1 >> "$DEST" 2> /dev/null
+        NEW_SIZE=$(($(wc -c < "$DEST")))
         [ "$NEW_SIZE" -eq "$SIZE" ] && break
         SIZE=$NEW_SIZE
     done
@@ -109,15 +110,18 @@ printf 'exit_code=%d\ncpu_jiffies=%d\nclk_tck=%d\npeak_memory_kb=%d\nwall_second
 # ---------- write length-prefixed stdout/stderr ----------------------------
 
 emit() {
-    SIZE=$(($(wc -c < "$3")))
+    MARKER=$1
+    STREAM=$2
+    SOURCE=$3
+    SIZE=$(($(wc -c < "$SOURCE")))
     if [ "$SIZE" -le "$MAX_STREAM_BYTES" ]; then
-        printf '%s %d\n' "$1" "$SIZE"
-        head -c "$SIZE" "$3"
+        printf '%s %d\n' "$MARKER" "$SIZE"
+        head -c "$SIZE" "$SOURCE"
         return
     fi
-    NOTICE="[$2 truncated: showing the first $MAX_STREAM_BYTES bytes]"
-    printf '%s %d\n' "$1" "$((MAX_STREAM_BYTES + ${#NOTICE} + 2))"
-    head -c "$MAX_STREAM_BYTES" "$3"
+    NOTICE="[$STREAM truncated: showing the first $MAX_STREAM_BYTES bytes]"
+    printf '%s %d\n' "$MARKER" "$((MAX_STREAM_BYTES + ${#NOTICE} + 2))"
+    head -c "$MAX_STREAM_BYTES" "$SOURCE"
     printf '\n%s\n' "$NOTICE"
 }
 

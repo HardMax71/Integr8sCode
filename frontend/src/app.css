@@ -301,8 +301,6 @@
 
   .cm-editor {
     @apply font-mono! text-sm border rounded-lg;
-
-    height: 100% !important;
   }
 
   .cm-scroller {

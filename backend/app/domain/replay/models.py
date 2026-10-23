@@ -76,10 +76,7 @@ class ReplayFilter:
             query["event_type"] = {"$in": list(self.event_types)}
 
         if self.exclude_event_types:
-            if "event_type" in query:
-                query["event_type"]["$nin"] = list(self.exclude_event_types)
-            else:
-                query["event_type"] = {"$nin": list(self.exclude_event_types)}
+            query.setdefault("event_type", {})["$nin"] = list(self.exclude_event_types)
 
         if self.start_time or self.end_time:
             time_query: dict[str, Any] = {}

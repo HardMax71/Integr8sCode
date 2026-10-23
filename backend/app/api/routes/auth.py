@@ -1,3 +1,5 @@
+from typing import Annotated
+
 import structlog
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
@@ -20,7 +22,6 @@ router = APIRouter(prefix="/auth", tags=["authentication"], route_class=DishkaRo
 
 @router.post(
     "/login",
-    response_model=LoginResponse,
     responses={
         401: {"model": ErrorResponse, "description": "Invalid username or password"},
         403: {"model": ErrorResponse, "description": "Account deactivated"},
@@ -32,7 +33,7 @@ async def login(
     response: Response,
     auth_service: FromDishka[AuthService],
     logger: FromDishka[structlog.stdlib.BoundLogger],
-    form_data: OAuth2PasswordRequestForm = Depends(),
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 ) -> LoginResponse:
     """Authenticate and receive session cookies."""
     logger.info(
@@ -85,7 +86,6 @@ async def login(
 
 @router.post(
     "/register",
-    response_model=UserResponse,
     responses={
         409: {"model": ErrorResponse, "description": "Username or email already registered"},
         422: {
@@ -122,7 +122,6 @@ async def register(
 
 @router.get(
     "/me",
-    response_model=UserResponse,
     responses={401: {"model": ErrorResponse, "description": "Not authenticated or session invalid"}},
 )
 async def get_current_user_profile(
@@ -150,7 +149,6 @@ async def get_current_user_profile(
 
 @router.post(
     "/logout",
-    response_model=MessageResponse,
     responses={403: {"model": ErrorResponse, "description": "CSRF token missing or invalid"}},
 )
 async def logout(

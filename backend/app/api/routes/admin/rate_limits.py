@@ -27,14 +27,14 @@ router = APIRouter(
 _rate_limit_update = TypeAdapter(UserRateLimitUpdate)
 
 
-@router.get("/defaults", response_model=list[RateLimitRuleResponse])
+@router.get("/defaults")
 async def get_default_rate_limit_rules() -> list[RateLimitRuleResponse]:
     """Get the system-level default rate limit rules applied to all users."""
     rules = RateLimitConfig.get_default_config().default_rules
     return [RateLimitRuleResponse.model_validate(r) for r in rules]
 
 
-@router.get("/{user_id}", response_model=UserRateLimitsResponse)
+@router.get("/{user_id}")
 async def get_user_rate_limits(
     admin: Annotated[UserDocument, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],
@@ -45,7 +45,7 @@ async def get_user_rate_limits(
     return UserRateLimitsResponse.model_validate(result)
 
 
-@router.put("/{user_id}", response_model=RateLimitUpdateResponse)
+@router.put("/{user_id}")
 async def update_user_rate_limits(
     admin: Annotated[UserDocument, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],

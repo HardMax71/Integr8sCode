@@ -15,15 +15,6 @@ export const zBodyLoginApiV1AuthLoginPost = z.object({
 });
 
 /**
- * CancelExecutionRequest
- *
- * Model for cancelling an execution.
- */
-export const zCancelExecutionRequest = z.object({
-    reason: z._default(z.optional(z.string()), 'User requested cancellation')
-});
-
-/**
  * CancelStatus
  *
  * Outcome of a cancel request.
@@ -2201,8 +2192,6 @@ export const zGetResultApiV1ExecutionsExecutionIdResultGetPath = z.object({
  * Successful Response
  */
 export const zGetResultApiV1ExecutionsExecutionIdResultGetResponse = zExecutionResult;
-
-export const zCancelExecutionApiV1ExecutionsExecutionIdCancelPostBody = zCancelExecutionRequest;
 
 export const zCancelExecutionApiV1ExecutionsExecutionIdCancelPostPath = z.object({
     execution_id: z.string()

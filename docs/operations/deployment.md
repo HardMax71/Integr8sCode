@@ -1,6 +1,6 @@
 # Deployment
 
-Everything runs from one docker-compose.yaml: the backend, the frontend, the worker, MongoDB, Redis, Kafka and the optional observability stack. The worker reuses the backend image with a different `command:`, so there is one application image to build. Kubernetes only runs the executor pods. The worker reads k3s's own kubeconfig from `/etc/rancher/k3s`, reaches the API at `host.docker.internal:6443` and on start creates the `integr8scode` namespace with its Pod Security labels, NetworkPolicy and ResourceQuota.
+Everything runs from one docker-compose.yaml: the backend, the frontend, the worker, MongoDB, Redis, Kafka and the observability stack. The worker reuses the backend image with a different `command:`, so there is one application image to build. Kubernetes only runs the executor pods. The worker reads k3s's own kubeconfig from `/etc/rancher/k3s`, reaches the API at `host.docker.internal:6443` and on start creates the `integr8scode` namespace with its Pod Security labels, NetworkPolicy and ResourceQuota.
 
 `backend/Dockerfile` builds on `python:3.14-slim` in three stages. The builder stage runs `uv sync --locked --no-dev --no-install-project --no-build`, the `base` stage copies only the virtualenv plus a few runtime libraries, and the last stage adds the application code. On first start the container makes a self-signed certificate and keeps it in the `backend_tls_key` and `backend_tls_cert` volumes, then it seeds the default users and starts gunicorn with uvicorn workers on port 443 over TLS. nginx mounts the certificate volume and verifies the backend against it. The frontend image builds the Svelte app with `node:26-alpine` and serves it from `nginx:1.31-alpine`, see [Nginx configuration](nginx-configuration.md).
 
@@ -8,14 +8,13 @@ Everything runs from one docker-compose.yaml: the backend, the frontend, the wor
 
 ```bash
 cp .env.example .env                           # once
-docker compose up -d                           # core stack
-docker compose --profile observability up -d   # plus Grafana, Jaeger, Loki, OpenSearch, Victoria Metrics, OTel Collector, host-metrics
+docker compose up -d                           # the whole stack, Grafana, Loki, OpenSearch and the rest included
 docker compose --profile debug up -d           # plus Kafdrop
 ```
 
 `--build` rebuilds the images first and `--wait` returns once every service is running, and healthy where it has a healthcheck. `docker compose logs -f <service>` follows one service and `docker compose ps` lists them.
 
-The core stack is MongoDB with its backup, Redis, Kafka (KRaft, no ZooKeeper), the backend, the frontend and the worker. No container runs once and exits. Secrets come from `.env`, your copy of `.env.example`; compose has no defaults for them and refuses to start while one is empty. Kafka creates topics on first use (`KAFKA_AUTO_CREATE_TOPICS_ENABLE`). Topic names are the event types themselves, such as `execution_requested`, with no prefix.
+The stack is MongoDB with its backup, Redis, Kafka (KRaft, no ZooKeeper), the backend, the frontend, the worker and the observability services, the same locally and in production. No container runs once and exits. Secrets come from `.env`, your copy of `.env.example`; compose has no defaults for them and refuses to start while one is empty. Kafka creates topics on first use (`KAFKA_AUTO_CREATE_TOPICS_ENABLE`). Topic names are the event types themselves, such as `execution_requested`, with no prefix.
 
 | Service            | URL                     | Needs                         |
 |--------------------|-------------------------|-------------------------------|
@@ -24,10 +23,10 @@ The core stack is MongoDB with its backup, Redis, Kafka (KRaft, no ZooKeeper), t
 | Kafka (host)       | localhost:9092          |                               |
 | MongoDB            | 127.0.0.1:27017         |                               |
 | Redis              | 127.0.0.1:6379          |                               |
-| Grafana            | http://localhost:3000   | `--profile observability`     |
-| Jaeger UI          | http://localhost:16686  | `--profile observability`     |
-| Victoria Metrics   | http://localhost:8428   | `--profile observability`     |
-| Loki               | http://localhost:3100   | `--profile observability`     |
+| Grafana            | http://localhost:3000   |                               |
+| Jaeger UI          | http://localhost:16686  |                               |
+| Victoria Metrics   | http://localhost:8428   |                               |
+| Loki               | http://localhost:3100   |                               |
 | Kafdrop            | http://localhost:9000   | `--profile debug`             |
 
 Inside the compose network Kafka is `kafka:29092`. From the host use `localhost:9092`, since that's the listener advertised for host clients.
@@ -174,7 +173,7 @@ IMAGE_TAG=sha-abc1234 docker compose up -d --no-build
 
 ## Production
 
-Production gets one release a day. Every merge to `main` goes through CI and Docker Scan & Promote, which moves `latest`; at 23:00 Europe/Berlin [Release & Deploy](cicd.md#release-deploy) releases whatever `latest` is and deploys it, and skips the night when nothing new passed. The deploy job SSHes into the server, removes images no container uses, checks out the release's git tag in `/opt/Integr8sCode` (so the compose file and config match the images) and writes `/opt/Integr8sCode/.env` (mode 600) from the repo's secrets (`SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `MONGO_MONITOR_PASSWORD`, `REDIS_PASSWORD`, `ADMIN_USER_PASSWORD`, `DEFAULT_USER_PASSWORD`, the Grafana and Mailjet values) together with `IMAGE_TAG`, `COMPOSE_PROFILES=observability` and `GRAFANA_ROOT_URL=https://grafana.integr8scode.cc/`. Compose reads that file for every command, so the backup cron and commands run by hand on the server use the same values, and a secret that came through empty stops compose before anything starts. The values sit in single quotes, so a secret can't contain one. Then it runs:
+Production gets one release a day. Every merge to `main` goes through CI and Docker Scan & Promote, which moves `latest`; at 23:00 Europe/Berlin [Release & Deploy](cicd.md#release-deploy) releases whatever `latest` is and deploys it, and skips the night when nothing new passed. The deploy job SSHes into the server, removes images no container uses, checks out the release's git tag in `/opt/Integr8sCode` (so the compose file and config match the images) and writes `/opt/Integr8sCode/.env` (mode 600) from the repo's secrets (`SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `MONGO_MONITOR_PASSWORD`, `REDIS_PASSWORD`, `ADMIN_USER_PASSWORD`, `DEFAULT_USER_PASSWORD`, the Grafana and Mailjet values) together with `IMAGE_TAG` and `GRAFANA_ROOT_URL=https://grafana.integr8scode.cc/`. Compose reads that file for every command, so the backup cron and commands run by hand on the server use the same values, and a secret that came through empty stops compose before anything starts. The values sit in single quotes, so a secret can't contain one. Then it runs:
 
 ```bash
 docker compose pull

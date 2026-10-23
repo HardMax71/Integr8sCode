@@ -120,7 +120,7 @@ lint = [
 ]
 load = [
     "matplotlib==3.11.2",
-    "Pillow>=12.3.0",
+    "Pillow>=13.0.0",
 ]
 dev = [
     { include-group = "test" },

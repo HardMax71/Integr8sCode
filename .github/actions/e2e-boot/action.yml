@@ -26,7 +26,7 @@ runs:
       run: |
         cp .env.example .env
         nohup bash -c '
-          IMAGE_TAG='"$IMAGE_TAG"' docker compose pull --quiet 2>&1
+          IMAGE_TAG='"$IMAGE_TAG"' docker compose pull --quiet --include-deps frontend worker mongo-backup 2>&1
           echo "--- pull done, starting infra ---"
           docker compose up -d --no-build \
             mongo redis kafka 2>&1

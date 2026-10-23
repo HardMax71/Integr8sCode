@@ -47,9 +47,25 @@ jobs:
           output-file: ${{ matrix.component }}-sbom.spdx.json
           upload-artifact: false
 
+      # The newest database's checksum keys the cache, so grype downloads only when it publishes a new one
+      - name: Look up grype's newest vulnerability database
+        id: grype-db
+        run: |
+          checksum=$(curl -sf https://grype.anchore.io/databases/v6/latest.json | jq -er .checksum)
+          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
+
+      - name: Cache grype's vulnerability database
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ runner.temp }}/grype-db
+          key: grype-db-${{ steps.grype-db.outputs.checksum }}
+          restore-keys: grype-db-
+
       - name: Scan SBOM for Vulnerabilities
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
         id: scan
+        env:
+          GRYPE_DB_CACHE_DIR: ${{ runner.temp }}/grype-db
         with:
           sbom: ${{ matrix.component }}-sbom.spdx.json
           fail-build: false # Don't block builds yet, just report

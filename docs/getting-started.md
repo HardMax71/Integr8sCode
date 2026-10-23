@@ -19,10 +19,11 @@ That's all the cluster needs. The worker reads k3s's own kubeconfig from `/etc/r
 ```bash
 git clone https://github.com/HardMax71/Integr8sCode.git
 cd Integr8sCode
-./deploy.sh dev
+cp .env.example .env
+docker compose up -d
 ```
 
-The first start pulls or builds the images and takes a few minutes. On its first run `./deploy.sh dev` copies `.env.example` to `.env`, which holds the local secrets (JWT key, MongoDB and Redis passwords, the two logins), so there's nothing to fill in. Add `--wait` to block until every service is running, and healthy where it has a healthcheck.
+The first start pulls or builds the images and takes a few minutes. `.env` holds the local secrets (JWT key, MongoDB and Redis passwords, the two logins), and `.env.example` has working values, so there's nothing to fill in. Add `--wait` to block until every service is running, and healthy where it has a healthcheck.
 
 Check the backend:
 
@@ -56,26 +57,26 @@ Limits are system-wide, not per execution. An execution request carries only the
 
 ## Look around
 
-Kafdrop, Grafana and Jaeger aren't part of the default stack. `./deploy.sh dev --observability` adds Grafana, Jaeger, Victoria Metrics, Loki, OpenSearch and the OTel collector, and `--debug` adds Kafdrop on top. All of them listen on localhost only.
+Kafdrop, Grafana and Jaeger aren't part of the default stack. `docker compose --profile observability up -d` adds Grafana, Jaeger, Victoria Metrics, Loki, OpenSearch and the OTel collector, and `--profile debug` adds Kafdrop. All of them listen on localhost only.
 
 | Service | URL | Needs |
 |---------|-----|-------|
-| Grafana | [http://localhost:3000](http://localhost:3000) (admin / admin123) | `--observability` or `--debug` |
-| Jaeger | [http://localhost:16686](http://localhost:16686) | `--observability` or `--debug` |
-| Kafdrop | [http://localhost:9000](http://localhost:9000) | `--debug` |
+| Grafana | [http://localhost:3000](http://localhost:3000) (admin / admin123) | `--profile observability` |
+| Jaeger | [http://localhost:16686](http://localhost:16686) | `--profile observability` |
+| Kafdrop | [http://localhost:9000](http://localhost:9000) | `--profile debug` |
 
 ## Troubleshooting
 
 If scripts stay queued, check `docker compose logs worker`, which logs the Kubernetes error when it can't reach k3s. A k3s that stopped after a VPN or IP change is covered in [Deployment](operations/deployment.md).
 
-If every service times out talking to mongo or kafka right after k3s started or restarted, k3s's policy sync probably wiped Docker's iptables rules ([kube-router#1248](https://github.com/cloudnativelabs/kube-router/issues/1248)). `docker compose down` followed by `./deploy.sh dev` recreates the network and its rules.
+If every service times out talking to mongo or kafka right after k3s started or restarted, k3s's policy sync probably wiped Docker's iptables rules ([kube-router#1248](https://github.com/cloudnativelabs/kube-router/issues/1248)). `docker compose down` followed by `docker compose up -d` recreates the network and its rules.
 
 If a service fails to start, `docker compose logs <service>` usually says why. The usual causes are a port already in use (443, 5001, or 27017, 6379 and 9092 on localhost) or Docker running out of memory.
 
 ## Stop the stack
 
 ```bash
-./deploy.sh down
+docker compose down
 ```
 
 To delete the MongoDB, Redis and Kafka data as well:

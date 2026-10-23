@@ -38,6 +38,14 @@ repos:
         files: ^backend/.*\.py$
         pass_filenames: false
 
+      # Bandit - matches CI: uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/,backend/.venv/ -ll
+      - id: bandit-backend
+        name: bandit (backend)
+        entry: uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/,backend/.venv/ -ll
+        language: system
+        files: ^backend/.*\.py$
+        pass_filenames: false
+
       # ESLint - matches CI: cd frontend && npm run lint
       - id: eslint-frontend
         name: eslint (frontend)

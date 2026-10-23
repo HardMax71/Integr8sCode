@@ -66,10 +66,11 @@
 ```bash
 git clone https://github.com/HardMax71/Integr8sCode.git
 cd Integr8sCode
-./deploy.sh dev
+cp .env.example .env
+docker compose up -d
 ```
 
-`./deploy.sh dev` copies `.env.example` to `.env` on its first run, so local development needs no config. Compose has no defaults for secrets: anywhere else, write a `.env` with your own values, and compose refuses to start while one is missing.
+`.env.example` holds the local secrets, so local development needs no other config. Compose has no defaults for secrets: anywhere else, write a `.env` with your own values, and compose refuses to start while one is missing.
 
 ### Verify
 
@@ -79,15 +80,15 @@ curl -k https://localhost/api/v1/health/live
 
 ### Access
 
-| Service            | URL                                              | Notes                                         |
-|--------------------|--------------------------------------------------|-----------------------------------------------|
-| Frontend           | [https://localhost:5001](https://localhost:5001) | `user` / `user123` or `admin` / `admin123`    |
-| Backend API        | [https://localhost:443](https://localhost:443)   |                                               |
-| Grafana            | [http://localhost:3000](http://localhost:3000)   | needs `--observability`; `admin` / `admin123` |
-| Jaeger (Tracing)   | [http://localhost:16686](http://localhost:16686) | needs `--observability`                       |
-| Kafdrop (Kafka UI) | [http://localhost:9000](http://localhost:9000)   | needs `--debug`                               |
+| Service            | URL                                              | Notes                                                   |
+|--------------------|--------------------------------------------------|---------------------------------------------------------|
+| Frontend           | [https://localhost:5001](https://localhost:5001) | `user` / `user123` or `admin` / `admin123`              |
+| Backend API        | [https://localhost:443](https://localhost:443)   |                                                         |
+| Grafana            | [http://localhost:3000](http://localhost:3000)   | needs the `observability` profile; `admin` / `admin123` |
+| Jaeger (Tracing)   | [http://localhost:16686](http://localhost:16686) | needs the `observability` profile                       |
+| Kafdrop (Kafka UI) | [http://localhost:9000](http://localhost:9000)   | needs the `debug` profile                               |
 
-`./deploy.sh dev --observability` adds Grafana, Jaeger, Victoria Metrics, Loki, OpenSearch and the OTel Collector. `--debug` adds all of those plus Kafdrop.
+`docker compose --profile observability up -d` adds Grafana, Jaeger, Victoria Metrics, Loki, OpenSearch and the OTel Collector, and `--profile debug` adds Kafdrop.
 
 nginx and the backend each make a self-signed certificate when they first start, so accept the browser warning. nginx verifies the backend's certificate on every proxied request. A certificate mounted at `/etc/nginx/certs` in the frontend container is used as is.
 
@@ -105,7 +106,7 @@ The E2E suites need the full stack; [CONTRIBUTING.md](CONTRIBUTING.md) has the c
 ### Stop
 
 ```bash
-./deploy.sh down
+docker compose down
 ```
 
 See the [full deployment guide](https://hardmax71.github.io/Integr8sCode/operations/deployment/) for Docker build strategy, troubleshooting, pre-built images, and more.

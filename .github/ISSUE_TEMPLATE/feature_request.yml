@@ -45,7 +45,7 @@ body:
         - Kafka events (consumers, DLQ, replay)
         - Live updates and notifications
         - Metrics, dashboards and logs
-        - Deployment (compose, deploy.sh, production)
+        - Deployment (compose, production)
         - CI and tooling
         - Documentation
         - Not sure

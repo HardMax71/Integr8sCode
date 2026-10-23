@@ -9,7 +9,7 @@
   description: "GitHub workflows, test infrastructure, repo tooling"
 - name: "area: deploy"
   color: "#c5def5"
-  description: "Compose, deploy.sh, images, release workflow, production host"
+  description: "Compose, images, release workflow, production host"
 - name: "area: events"
   color: "#c5def5"
   description: "Kafka consumers and middlewares, producer, idempotency, DLQ, replay"

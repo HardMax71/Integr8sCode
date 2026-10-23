@@ -31,7 +31,7 @@ Fixes #
 - [ ] Frontend unit tests pass (`cd frontend && npm run test`)
 - [ ] Backend E2E tests pass (`docker compose exec -T backend sh -c 'uv sync --group test --no-dev --frozen --no-install-project --no-build && pytest tests/e2e'`)
 - [ ] Frontend E2E tests pass (`cd frontend && npm run test:e2e`)
-- [ ] API spec and client regenerated if routes or schemas changed (`./deploy.sh openapi`, then `./deploy.sh types`), never edited by hand
+- [ ] API spec and client regenerated if routes or schemas changed (`uv run python -m scripts.export_openapi` in backend/, then `npm run generate:api` in frontend/), never edited by hand
 - [ ] Manual testing performed
 
 **Manual test steps:**

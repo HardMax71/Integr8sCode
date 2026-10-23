@@ -9,7 +9,7 @@ x-logging: &logging
     cache-max-size: "10m"
     cache-max-file: "3"
 
-# Secrets have no defaults: ./deploy.sh dev copies .env.example to .env, and the production deploy writes .env from its secrets
+# Secrets have no defaults: locally .env is a copy of .env.example, and the production deploy writes .env from its secrets
 x-backend-secrets: &backend-secrets
   SECRET_KEY: ${SECRET_KEY:?see .env.example}
   MONGO_USER: ${MONGO_USER:?see .env.example}
@@ -44,6 +44,36 @@ services:
       timeout: 5s
       retries: 15
       start_period: 5s
+
+  # Dumps MongoDB when it starts and every 24 hours after, and keeps 14 days of dumps
+  mongo-backup:
+    logging: *logging
+    image: mongo:9.0.4
+    container_name: mongo-backup
+    depends_on:
+      mongo:
+        condition: service_healthy
+    init: true
+    entrypoint:
+      - sh
+      - -c
+      - |
+        umask 077
+        while true; do
+          f=/backup/mongo-$$(date +%F).archive.gz
+          mongodump --quiet --host mongo -u "$$MONGO_USER" -p "$$MONGO_PASSWORD" --authenticationDatabase admin --archive="$$f.part" --gzip && mv "$$f.part" "$$f" && echo "Backup written to $$f"
+          find /backup -name 'mongo-*' -mtime +13 -delete
+          sleep 86400
+        done
+    environment:
+      MONGO_USER: ${MONGO_USER:?see .env.example}
+      MONGO_PASSWORD: ${MONGO_PASSWORD:?see .env.example}
+    volumes:
+      - mongo_backups:/backup
+    networks:
+      - app-network
+    mem_limit: 256m
+    restart: unless-stopped
 
   redis:
     logging: *logging
@@ -83,7 +113,7 @@ services:
       - ./backend/scripts:/app/scripts
       - ./backend/tests:/app/tests:ro
       - ./backend/config.test.toml:/app/config.test.toml:ro
-      # ./deploy.sh test sets BACKEND_CONFIG=config.test.toml, the way CI copies it over config.toml
+      # BACKEND_CONFIG=config.test.toml in .env runs the stack with the test settings, as CI does
       - ./backend/${BACKEND_CONFIG:-config.toml}:/app/config.toml:ro
       - backend_tls_key:/app/certs/key
       - backend_tls_cert:/app/certs/cert
@@ -491,6 +521,7 @@ services:
 # --8<-- [start:dev_volumes]
 volumes:
   mongo_data:
+  mongo_backups:
   redis_data:
   backend_tls_key:
   backend_tls_cert:

@@ -30,7 +30,7 @@ The entry point is [`backend/app/worker.py`](https://github.com/HardMax71/Integr
 
 ## Running locally
 
-`./deploy.sh dev` starts it. To debug it from your shell, stop the container and run it with uv from `backend/`:
+`docker compose up -d` starts it. To debug it from your shell, stop the container and run it with uv from `backend/`:
 
 ```bash
 docker compose stop worker

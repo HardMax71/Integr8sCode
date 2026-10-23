@@ -10,7 +10,7 @@ Platform for running scripts online in isolated Kubernetes pods. Users write Pyt
 | Backend | FastAPI, Dishka DI, Beanie ODM (MongoDB), Python 3.14 (backend/.python-version), async throughout, httpx2 for HTTP |
 | Events | Kafka (KRaft, no ZooKeeper) + FastStream (Pydantic JSON) |
 | Worker | one process (`app/worker.py`): execution scheduler, k8s worker, pod monitor, result processor, DLQ retries |
-| Infra | MongoDB 9, Redis 8; optional Grafana, Jaeger, Victoria Metrics, Loki, OpenSearch, OTel Collector plus its host-metrics collector (`--observability`) and Kafdrop (`--debug`) |
+| Infra | MongoDB 9 with a daily mongodump (`mongo-backup`), Redis 8; optional Grafana, Jaeger, Victoria Metrics, Loki, OpenSearch, OTel Collector plus its host-metrics collector (compose profile `observability`) and Kafdrop (profile `debug`) |
 | Runtimes | Python 3.11 to 3.14, Node 22/24/26, Ruby 3.3/3.4/4.0, Bash 5.3, Go 1.26/1.27 (app/runtime_registry.py) |
 
 ## Key Directory Map
@@ -87,17 +87,20 @@ npm run test:e2e:browsers # once: Playwright Chromium
 npm run test:e2e          # Playwright E2E, needs the running stack
 
 # Full stack (from project root)
-./deploy.sh dev                  # start
-./deploy.sh dev --build          # rebuild and start
-./deploy.sh dev --wait           # start and wait for healthy
-./deploy.sh dev --observability  # plus Grafana, Jaeger, Victoria Metrics, Loki, OpenSearch, OTel Collector, host-metrics
-./deploy.sh dev --debug          # observability plus Kafdrop
-./deploy.sh down                 # stop
-./deploy.sh openapi              # regenerate docs/reference/openapi.json
-./deploy.sh types                # regenerate frontend/src/lib/api/ from that spec
+cp .env.example .env                           # once: the local secrets
+docker compose up -d                           # start
+docker compose up -d --build                   # rebuild and start
+docker compose up -d --wait                    # start and wait for healthy
+docker compose --profile observability up -d   # plus Grafana, Jaeger, Victoria Metrics, Loki, OpenSearch, OTel Collector, host-metrics
+docker compose --profile debug up -d           # plus Kafdrop
+docker compose down                            # stop
+
+# Generated API client
+cd backend && uv run python -m scripts.export_openapi   # regenerate docs/reference/openapi.json
+cd frontend && npm run generate:api                     # regenerate frontend/src/lib/api/ from that spec
 ```
 
-`npm run dev` serves HTTPS when ./certs/server.key and server.crt exist and proxies /api to `https://backend:443` with the certificate checked, so it needs `NODE_EXTRA_CA_CERTS` pointing at the backend's `server.crt` (the `backend_tls_cert` volume). `backend` only resolves inside the compose network, so on the host the API calls fail. The compose `frontend` service already serves a production build on :5001; rebuild it with `./deploy.sh dev --build` after frontend changes.
+`npm run dev` serves HTTPS when ./certs/server.key and server.crt exist and proxies /api to `https://backend:443` with the certificate checked, so it needs `NODE_EXTRA_CA_CERTS` pointing at the backend's `server.crt` (the `backend_tls_cert` volume). `backend` only resolves inside the compose network, so on the host the API calls fail. The compose `frontend` service already serves a production build on :5001; rebuild it with `docker compose up -d --build frontend` after frontend changes.
 
 Plain `uv run pytest` also collects tests/e2e, which needs the full stack, so always pass a path. E2E tests run inside the backend container against a running stack, the way CI does it (CI copies config.test.toml over config.toml before starting the stack):
 
@@ -504,7 +507,7 @@ settings: FromDishka[Settings]
 Config load order (each overrides the previous):
 1. `config.toml`: base settings (committed)
 2. `config.worker.toml`: the worker's override (optional)
-3. Secrets: `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `REDIS_PASSWORD`. Each one is read from the env var first, then the TOML value, then a dev default, so a missing secret never raises in `Settings`. Compose has no defaults for them: `./deploy.sh dev` copies `.env.example` to `.env`, the deploy writes `.env` from the GitHub secrets, and compose refuses to start while one is empty. `MONGODB_URL` is built from the Mongo values
+3. Secrets: `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `REDIS_PASSWORD`. Each one is read from the env var first, then the TOML value, then a dev default, so a missing secret never raises in `Settings`. Compose has no defaults for them: locally `.env` is a copy of `.env.example`, the deploy writes `.env` from the GitHub secrets, and compose refuses to start while one is empty. `MONGODB_URL` is built from the Mongo values
 
 ```python
 Settings()                                               # config.toml + secrets
@@ -656,11 +659,10 @@ Use `interface` for object shapes, `type` for unions/intersections/aliases. Defi
 
 Hard rule: `docs/reference/openapi.json` and everything under `frontend/src/lib/api/` come from the generators only. Never edit them by hand, not even a one-line fix; change the backend (routes, schemas) and regenerate. CI's `Spec and client match the code` job regenerates both on every PR that touches the backend, the spec or the client, and fails on any difference, so a hand edit can't merge.
 
-`npm run generate:api` reads `../docs/reference/openapi.json`, and `./deploy.sh types` regenerates the spec only when that file is missing. After any backend API change, regenerate the spec first:
+`npm run generate:api` reads `../docs/reference/openapi.json`. After any backend API change, regenerate the spec first:
 ```bash
-# From project root
-./deploy.sh openapi   # writes docs/reference/openapi.json from create_app()
-./deploy.sh types     # runs npm run generate:api into frontend/src/lib/api/
+cd backend && uv run python -m scripts.export_openapi   # writes docs/reference/openapi.json from create_app()
+cd frontend && npm run generate:api                     # writes frontend/src/lib/api/ from that spec
 ```
 
 Function names are derived from URL paths: `getUserRateLimitsApiV1AdminRateLimitsUserIdGet`.
@@ -881,7 +883,7 @@ npm run build
 npm run test:coverage   # Vitest with coverage thresholds
 
 # Generated API (from the project root): must leave no diff
-./deploy.sh openapi && (cd frontend && npm run generate:api)
+(cd backend && uv run python -m scripts.export_openapi) && (cd frontend && npm run generate:api)
 git status --porcelain -- docs/reference/openapi.json frontend/src/lib/api
 ```
 

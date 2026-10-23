@@ -25,7 +25,8 @@ uv tool install pre-commit
 pre-commit install
 
 # Start the stack
-./deploy.sh dev
+cp .env.example .env
+docker compose up -d
 ```
 
 ### Pre-commit Hooks
@@ -73,7 +74,7 @@ uv run pytest tests/unit
 Always pass a path to pytest. A plain `uv run pytest` also collects tests/e2e, which needs the running stack and Kubernetes. The E2E suite runs inside the backend container, the same way CI runs it:
 
 ```bash
-./deploy.sh dev --wait
+docker compose up -d --wait
 docker compose exec -T backend sh -c 'uv sync --group test --no-dev --frozen --no-install-project && pytest tests/e2e'
 ```
 
@@ -90,13 +91,13 @@ npm run test
 npm run check
 npm run lint
 
-# E2E tests (Playwright, needs the stack from ./deploy.sh dev)
+# E2E tests (Playwright, needs the running stack)
 npm run test:e2e:deps      # once, installs system deps for Chromium
 npm run test:e2e:browsers  # once, installs Chromium
 npm run test:e2e
 ```
 
-The stack serves a production build of the frontend on https://localhost:5001, so rebuild it with `./deploy.sh dev --build` after frontend changes. `npm run dev` only works inside the compose network, since it proxies to the backend container and needs the shared CA.
+The stack serves a production build of the frontend on https://localhost:5001, so rebuild it with `docker compose up -d --build frontend` after frontend changes. `npm run dev` only works inside the compose network, since it proxies to the backend container and needs the shared CA.
 
 ## Code Style
 

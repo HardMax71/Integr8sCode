@@ -4,25 +4,18 @@ Everything runs from one docker-compose.yaml: the backend, the frontend, the wor
 
 `backend/Dockerfile` builds on `python:3.14-slim` in three stages. The builder stage runs `uv sync --locked --no-dev --no-install-project --no-build`, the `base` stage copies only the virtualenv plus a few runtime libraries, and the last stage adds the application code. On first start the container makes a self-signed certificate and keeps it in the `backend_tls_key` and `backend_tls_cert` volumes, then it seeds the default users and starts gunicorn with uvicorn workers on port 443 over TLS. nginx mounts the certificate volume and verifies the backend against it. The frontend image builds the Svelte app with `node:26-alpine` and serves it from `nginx:1.31-alpine`, see [Nginx configuration](nginx-configuration.md).
 
-## deploy.sh
-
-[deploy.sh](https://github.com/HardMax71/Integr8sCode/blob/main/deploy.sh) is a thin wrapper around Docker Compose:
-
-```bash
---8<-- "deploy.sh:usage"
-```
-
-`check` runs the static CI gates on the host: ruff, `mypy --strict`, the orphan module check and bandit. `test` runs the unit and Grafana contract tests on the host, then starts the stack with `BACKEND_CONFIG=config.test.toml` and runs the e2e suite inside the backend container. That variable makes the backend and the worker mount config.test.toml as their config.toml, the way CI copies it over. [CI/CD](cicd.md#running-checks-locally) lists the same commands one by one.
-
 ## Local stack
 
 ```bash
-./deploy.sh dev                  # core stack
-./deploy.sh dev --observability  # plus Grafana, Jaeger, Loki, Victoria Metrics, OTel Collector, host-metrics
-./deploy.sh dev --debug          # all of the above plus Kafdrop
+cp .env.example .env                           # once
+docker compose up -d                           # core stack
+docker compose --profile observability up -d   # plus Grafana, Jaeger, Loki, OpenSearch, Victoria Metrics, OTel Collector, host-metrics
+docker compose --profile debug up -d           # plus Kafdrop
 ```
 
-The core stack is MongoDB, Redis, Kafka (KRaft, no ZooKeeper), the backend, the frontend and the worker. No container runs once and exits. Secrets come from `.env`, which `./deploy.sh dev` copies from `.env.example` on its first run; compose has no defaults for them and refuses to start while one is empty. Kafka creates topics on first use (`KAFKA_AUTO_CREATE_TOPICS_ENABLE`). Topic names are the event types themselves, such as `execution_requested`, with no prefix.
+`--build` rebuilds the images first and `--wait` returns once every service is running, and healthy where it has a healthcheck. `docker compose logs -f <service>` follows one service and `docker compose ps` lists them.
+
+The core stack is MongoDB with its backup, Redis, Kafka (KRaft, no ZooKeeper), the backend, the frontend and the worker. No container runs once and exits. Secrets come from `.env`, your copy of `.env.example`; compose has no defaults for them and refuses to start while one is empty. Kafka creates topics on first use (`KAFKA_AUTO_CREATE_TOPICS_ENABLE`). Topic names are the event types themselves, such as `execution_requested`, with no prefix.
 
 | Service            | URL                     | Needs                         |
 |--------------------|-------------------------|-------------------------------|
@@ -31,11 +24,11 @@ The core stack is MongoDB, Redis, Kafka (KRaft, no ZooKeeper), the backend, the 
 | Kafka (host)       | localhost:9092          |                               |
 | MongoDB            | 127.0.0.1:27017         |                               |
 | Redis              | 127.0.0.1:6379          |                               |
-| Grafana            | http://localhost:3000   | `--observability` or `--debug` |
-| Jaeger UI          | http://localhost:16686  | `--observability` or `--debug` |
-| Victoria Metrics   | http://localhost:8428   | `--observability` or `--debug` |
-| Loki               | http://localhost:3100   | `--observability` or `--debug` |
-| Kafdrop            | http://localhost:9000   | `--debug`                     |
+| Grafana            | http://localhost:3000   | `--profile observability`     |
+| Jaeger UI          | http://localhost:16686  | `--profile observability`     |
+| Victoria Metrics   | http://localhost:8428   | `--profile observability`     |
+| Loki               | http://localhost:3100   | `--profile observability`     |
+| Kafdrop            | http://localhost:9000   | `--profile debug`             |
 
 Inside the compose network Kafka is `kafka:29092`. From the host use `localhost:9092`, since that's the listener advertised for host clients.
 
@@ -49,7 +42,7 @@ Data lives in named volumes:
 --8<-- "docker-compose.yaml:dev_volumes"
 ```
 
-`./deploy.sh down` stops the stack and keeps them. `docker compose down -v` deletes them too.
+`docker compose down` stops the stack and keeps them, and `docker compose down -v` deletes them too.
 
 ## Healthchecks
 
@@ -197,14 +190,8 @@ The images on GHCR are public, so the server pulls them without logging in. To s
 
 Every service logs through Docker's `fluentd` driver to the collector, which passes the lines to Loki ([Log aggregation](loki.md)), set once as `x-logging` at the top of docker-compose.yaml. Docker keeps a local copy for `docker logs` of at most 3 files of 10MB per container (`cache-max-size`, `cache-max-file`), and the collector itself uses the `local` driver with the same limits. The default `json-file` driver never rotates, and its logs once filled the production disk.
 
-`./deploy.sh backup` dumps MongoDB as a gzip archive into /var/backups/mongo (or the directory you pass), skips the run when less than 5G is free there, and deletes dumps older than 14 days. Production runs it every night from /etc/cron.d/integr8scode-backup:
-
-```text
-30 3 * * * root /opt/Integr8sCode/deploy.sh backup >> /var/log/integr8scode-backup.log 2>&1
-```
-
-The dumps sit on the same disk as the database, so they cover a bad write or a failed upgrade, not a lost server. To restore one:
+The `mongo-backup` service dumps MongoDB with `mongodump` into the `mongo_backups` volume when it starts and every 24 hours after, one `mongo-<date>.archive.gz` a day, and deletes dumps older than 14 days. It runs on the same mongo image as the database, the same way locally and in production. The dumps sit on the same disk as the database, so they cover a bad write or a failed upgrade, not a lost server. `docker compose exec mongo-backup ls /backup` lists them, and this restores one:
 
 ```bash
-docker compose exec -T mongo sh -c 'mongorestore -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --archive --gzip --drop' < /var/backups/mongo/mongo-2026-10-13.archive.gz
+docker compose exec -T mongo-backup sh -c 'mongorestore --host mongo -u "$MONGO_USER" -p "$MONGO_PASSWORD" --authenticationDatabase admin --archive=/backup/mongo-2026-10-24.archive.gz --gzip --drop'
 ```

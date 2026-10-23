@@ -32,6 +32,7 @@ jobs:
       backend: ${{ github.event_name != 'pull_request' || steps.filter.outputs.backend == 'true' }}
       frontend: ${{ github.event_name != 'pull_request' || steps.filter.outputs.frontend == 'true' }}
       infra: ${{ github.event_name != 'pull_request' || steps.filter.outputs.infra == 'true' }}
+      observability: ${{ github.event_name != 'pull_request' || steps.filter.outputs.observability == 'true' }}
       api: ${{ github.event_name != 'pull_request' || steps.filter.outputs.api == 'true' }}
       docs: ${{ github.event_name != 'pull_request' || steps.filter.outputs.docs == 'true' }}
     steps:
@@ -54,6 +55,15 @@ jobs:
               - 'docker-compose.yaml'
               - 'deploy.sh'
               - '.github/actions/**'
+            # The configs of the observability services, each in the folder named after its compose service
+            observability: &observability
+              - *workflow
+              - 'grafana/**'
+              - 'host-metrics/**'
+              - 'loki/**'
+              - 'opensearch/**'
+              - 'otel-collector/**'
+              - 'victoria-metrics/**'
             api:
               - *workflow
               - 'backend/**'
@@ -63,9 +73,10 @@ jobs:
               - 'frontend/openapi-ts.config.ts'
               - 'frontend/package.json'
               - 'frontend/package-lock.json'
-            # The docs include snippets of backend and frontend files and build the spec from the backend
+            # The docs include snippets of backend, frontend and observability files and build the spec from the backend
             docs:
               - *workflow
+              - *observability
               - 'docs/**'
               - 'mkdocs.yml'
               - 'backend/**'
@@ -346,12 +357,6 @@ jobs:
             --cov=app \
             --cov-report=xml --cov-report=term
 
-      - name: Run Grafana contract tests
-        timeout-minutes: 2
-        run: |
-          cd backend
-          uv run --no-sync --no-build pytest tests/contract -v -rs -m grafana_contract
-
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5  # v7.1.1
         if: always()
@@ -362,6 +367,33 @@ jobs:
           name: backend-unit-coverage
           fail_ci_if_error: false
           verbose: true
+
+  # Every metric a dashboard or alert rule reads exists, and every metric the collector makes is read
+  grafana-contract:
+    name: Grafana Contract Tests
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.observability == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Install Python dependencies
+        run: |
+          cd backend
+          uv python install 3.14
+          uv sync --frozen --group test --no-dev --no-install-project --no-build
+
+      - name: Run Grafana contract tests
+        timeout-minutes: 2
+        run: |
+          cd backend
+          uv run --no-sync --no-build pytest tests/contract -v -rs -m grafana_contract
 
   frontend-unit:
     name: Frontend Unit Tests
@@ -686,6 +718,7 @@ jobs:
       - generated-api
       - docs
       - backend-unit
+      - grafana-contract
       - frontend-unit
       - build-images
       - backend-e2e
@@ -696,5 +729,5 @@ jobs:
         with:
           allowed-skips: >-
             ruff, mypy, grimp, security, frontend, generated-api, docs,
-            backend-unit, frontend-unit, build-images, backend-e2e, frontend-e2e
+            backend-unit, grafana-contract, frontend-unit, build-images, backend-e2e, frontend-e2e
           jobs: ${{ toJSON(needs) }}

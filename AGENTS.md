@@ -51,7 +51,16 @@ frontend/
     ├── lib/notifications/   # Notification SSE stream
     ├── lib/query-client.ts  # the one TanStack Query client, provided by the root layout
     └── styles/              # Global CSS
+
+grafana/                     # grafana.ini and provisioning/: datasources, dashboards, alert rules
+host-metrics/                # otel-host-metrics.yaml, the host's CPU, memory, disk and network
+loki/                        # loki-config.yaml
+opensearch/                  # start.sh (the entrypoint), the logs index template and retention policy
+otel-collector/              # otel-collector-config.yaml: every pipeline, span metrics (signaltometrics), exporters
+victoria-metrics/            # scrape.yaml
 ```
+
+backend/ and frontend/ are the build contexts of the two images. Each other folder holds the config of the compose service it's named after, mounted read-only.
 
 ## Development Commands
 
@@ -465,7 +474,7 @@ class ExecutionService:
 
 - Location: `app/services/`
 - Constructor injection: repo, producer, logger, settings, and `trace.Tracer` when the service makes spans
-- New metrics come from spans: put the facts on a span as attributes (`queue.priority`, `queue.outcome`) and define the metric under `signaltometrics` in `backend/otel-collector-config.yaml`. There are no metric classes: `app/core/metrics/` only sets up the OTLP `MeterProvider` for the instrumentations ([#389](https://github.com/HardMax71/Integr8sCode/issues/389)). A gauge needs a job that reports it on a timer
+- New metrics come from spans: put the facts on a span as attributes (`queue.priority`, `queue.outcome`) and define the metric under `signaltometrics` in `otel-collector/otel-collector-config.yaml`. There are no metric classes: `app/core/metrics/` only sets up the OTLP `MeterProvider` for the instrumentations ([#389](https://github.com/HardMax71/Integr8sCode/issues/389)). A gauge needs a job that reports it on a timer
 - Publish events via `UnifiedProducer`: `await self.producer.produce(event_to_produce=event, key=execution_id)`. An event sent after its work is done, which no caller waits on (auth and settings events, pod progress, the result processor's announcements), goes through `produce_or_log`: it still raises a MongoDB error but only logs a Kafka one, so a Kafka outage doesn't fail a login or leave a finished pod behind
 - Services orchestrate domain logic; no direct DB or HTTP calls
 - Services build new documents with the document's constructor and hand them to the repository; they never import `app.schemas_pydantic`

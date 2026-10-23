@@ -171,8 +171,8 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
-      - ./backend/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
-      - ./backend/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
     networks:
       - app-network
@@ -345,7 +345,7 @@ services:
     ports:
       - "127.0.0.1:3100:3100"
     volumes:
-      - ./backend/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - ./loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
     command: -config.file=/etc/loki/local-config.yaml
     networks:
@@ -373,7 +373,7 @@ services:
     ports:
       - "127.0.0.1:9200:9200"
     volumes:
-      - ./backend/opensearch:/etc/opensearch-setup:ro
+      - ./opensearch:/etc/opensearch-setup:ro
       - opensearch_data:/usr/share/opensearch/data
     networks:
       - app-network
@@ -398,7 +398,7 @@ services:
       - "127.0.0.1:8428:8428"
     volumes:
       - victoria_metrics_data:/victoria-metrics-data
-      - ./backend/victoria-metrics/scrape.yaml:/etc/victoria-metrics/scrape.yaml:ro
+      - ./victoria-metrics/scrape.yaml:/etc/victoria-metrics/scrape.yaml:ro
     command:
       - "--storageDataPath=/victoria-metrics-data"
       - "--httpListenAddr=0.0.0.0:8428"
@@ -428,7 +428,7 @@ services:
     mem_limit: 192m
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
-      - ./backend/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+      - ./otel-collector/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
     environment:
       # The backend creates this user on start; until then the mongodb receiver's scrapes fail and retry
       - MONGO_MONITOR_USER=${MONGO_MONITOR_USER:-otel-monitor}
@@ -480,7 +480,7 @@ services:
     mem_limit: 128m
     command: ["--config=/etc/otel-host-metrics.yaml"]
     volumes:
-      - ./backend/otel-host-metrics.yaml:/etc/otel-host-metrics.yaml:ro
+      - ./host-metrics/otel-host-metrics.yaml:/etc/otel-host-metrics.yaml:ro
       - /proc:/hostfs/proc:ro
       - /sys:/hostfs/sys:ro
     depends_on:

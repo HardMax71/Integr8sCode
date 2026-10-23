@@ -58,7 +58,7 @@ jobs:
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
           timeout: '5m0s'
-          trivyignores: 'backend/.trivyignore'
+          trivyignores: '.trivyignore'
           version: 'v0.75.0'
           exit-code: '1'
           # without it the action drops the severity filter for SARIF, and the gate would also fail on LOW and MEDIUM

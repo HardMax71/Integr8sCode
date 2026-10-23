@@ -1,6 +1,6 @@
 # Grafana integration
 
-Grafana runs under the `observability` compose profile. Everything it shows is provisioned from [`backend/grafana/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/grafana): three datasources, thirteen dashboards, thirteen alert rules, an email contact point and a heartbeat webhook. Locally it's at `http://localhost:3000`; in production nginx serves it on `grafana.integr8scode.cc` (see [Nginx configuration](nginx-configuration.md#grafana-server)). Anonymous access is off. The admin login comes from `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` (default `admin` / `admin123`), and the entrypoint resets the password to that value on every start.
+Grafana runs under the `observability` compose profile. Everything it shows is provisioned from [`grafana/`](https://github.com/HardMax71/Integr8sCode/tree/main/grafana): three datasources, thirteen dashboards, thirteen alert rules, an email contact point and a heartbeat webhook. Locally it's at `http://localhost:3000`; in production nginx serves it on `grafana.integr8scode.cc` (see [Nginx configuration](nginx-configuration.md#grafana-server)). Anonymous access is off. The admin login comes from `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` (default `admin` / `admin123`), and the entrypoint resets the password to that value on every start.
 
 ## Datasources
 
@@ -35,10 +35,10 @@ All dashboards land in one folder, `Integr8sCode`, with the fixed UID `integr8sc
 
 ## Alerting
 
-[`provisioning/alerting/alerting.yml`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/grafana/provisioning/alerting/alerting.yml) holds the rules, the contact point and the policy:
+[`provisioning/alerting/alerting.yml`](https://github.com/HardMax71/Integr8sCode/blob/main/grafana/provisioning/alerting/alerting.yml) holds the rules, the contact point and the policy:
 
 ```yaml
---8<-- "backend/grafana/provisioning/alerting/alerting.yml"
+--8<-- "grafana/provisioning/alerting/alerting.yml"
 ```
 
 Every rule is an instant query evaluated every minute, and each summary names the service or mount and the value. Rules that point at a panel carry its `dashboardUid` and `panelId`, so the mail links to it.
@@ -63,7 +63,7 @@ A Grafana volume from before that fix may still have the stray folder holding th
 ## grafana.ini
 
 ```ini
---8<-- "backend/grafana/grafana.ini:grafana_ini"
+--8<-- "grafana/grafana.ini:grafana_ini"
 ```
 
 `[alerting]` is the legacy engine and stays off. `[unified_alerting]` runs the provisioned rules. There's no `root_url` here; compose sets `GF_SERVER_ROOT_URL` from `GRAFANA_ROOT_URL`.

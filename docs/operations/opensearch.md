@@ -11,7 +11,7 @@ flowchart LR
 
 ## Collector
 
-Both log pipelines in [`backend/otel-collector-config.yaml`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/otel-collector-config.yaml) send their lines to Loki and to the `forward/search` connector, so OpenSearch gets exactly what Loki gets, after the same filters. The `logs/search` pipeline runs `transform/search`, which parses the JSON body of the backend's and worker's records into attributes (`execution_id`, `user_id`, `event` and the rest of structlog's keys), and the `opensearch` exporter writes one index a day, `logs-2026.10.22`, in the exporter's default SS4O document shape:
+Both log pipelines in [`otel-collector/otel-collector-config.yaml`](https://github.com/HardMax71/Integr8sCode/blob/main/otel-collector/otel-collector-config.yaml) send their lines to Loki and to the `forward/search` connector, so OpenSearch gets exactly what Loki gets, after the same filters. The `logs/search` pipeline runs `transform/search`, which parses the JSON body of the backend's and worker's records into attributes (`execution_id`, `user_id`, `event` and the rest of structlog's keys), and the `opensearch` exporter writes one index a day, `logs-2026.10.22`, in the exporter's default SS4O document shape:
 
 ```json
 {
@@ -31,16 +31,16 @@ The exporter treats a refused connection as a permanent error and doesn't retry 
 
 Single node, OpenSearch 3.9, security plugin off, listening on `127.0.0.1:9200` and on the compose network, like Loki. `node.store.allow_mmap=false` means the host's `vm.max_map_count` stays as it is. The heap is 512m and the container limit 1536m: 30 days at prod's volume sit near 1.1 GiB. Data lives in the `opensearch_data` volume, about 1.1 GB for 30 days.
 
-The container's entrypoint is [`backend/opensearch/start.sh`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/opensearch/start.sh). It starts OpenSearch, waits for the cluster, and then applies two things through the API: the index template and the retention policy. The healthcheck passes only once the template exists.
+The container's entrypoint is [`opensearch/start.sh`](https://github.com/HardMax71/Integr8sCode/blob/main/opensearch/start.sh). It starts OpenSearch, waits for the cluster, and then applies two things through the API: the index template and the retention policy. The healthcheck passes only once the template exists.
 
 ```json
---8<-- "backend/opensearch/logs-template.json"
+--8<-- "opensearch/logs-template.json"
 ```
 
 `attributes` and `resource` are `flat_object` fields. Every key under them is searchable by its dotted path, but they add no fields to the mapping, so a key that's a number in one line and a string in another (`status: 500`, `status: "running"`) can't make OpenSearch reject a line.
 
 ```json
---8<-- "backend/opensearch/logs-retention-policy.json"
+--8<-- "opensearch/logs-retention-policy.json"
 ```
 
 The policy deletes each daily index 30 days after it was created, the same retention as Loki. A stored policy is never overwritten, so a changed policy needs a new id.

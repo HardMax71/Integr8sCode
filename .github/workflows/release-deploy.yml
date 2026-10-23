@@ -225,12 +225,12 @@ jobs:
 
             # These read their mounted config only at start, and compose recreates a container only when its service definition changes
             RESTART=""
-            git diff --quiet "$PREVIOUS" HEAD -- backend/otel-collector-config.yaml || RESTART="$RESTART otel-collector"
-            git diff --quiet "$PREVIOUS" HEAD -- backend/otel-host-metrics.yaml || RESTART="$RESTART host-metrics"
-            git diff --quiet "$PREVIOUS" HEAD -- backend/victoria-metrics || RESTART="$RESTART victoria-metrics"
-            git diff --quiet "$PREVIOUS" HEAD -- backend/loki || RESTART="$RESTART loki"
-            git diff --quiet "$PREVIOUS" HEAD -- backend/opensearch || RESTART="$RESTART opensearch"
-            git diff --quiet "$PREVIOUS" HEAD -- backend/grafana ':(exclude)backend/grafana/provisioning/dashboards' || RESTART="$RESTART grafana"
+            git diff --quiet "$PREVIOUS" HEAD -- otel-collector || RESTART="$RESTART otel-collector"
+            git diff --quiet "$PREVIOUS" HEAD -- host-metrics || RESTART="$RESTART host-metrics"
+            git diff --quiet "$PREVIOUS" HEAD -- victoria-metrics || RESTART="$RESTART victoria-metrics"
+            git diff --quiet "$PREVIOUS" HEAD -- loki || RESTART="$RESTART loki"
+            git diff --quiet "$PREVIOUS" HEAD -- opensearch || RESTART="$RESTART opensearch"
+            git diff --quiet "$PREVIOUS" HEAD -- grafana ':(exclude)grafana/provisioning/dashboards' || RESTART="$RESTART grafana"
             if [ -n "$RESTART" ]; then
               echo "Config changed, restarting:$RESTART"
               docker compose restart $RESTART

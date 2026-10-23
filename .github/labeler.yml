@@ -65,9 +65,12 @@
           - backend/app/core/tracing/**
           - backend/app/core/logging.py
           - backend/app/core/middlewares/metrics.py
-          - backend/grafana/**
-          - backend/loki/**
-          - backend/otel-collector-config.yaml
+          - grafana/**
+          - host-metrics/**
+          - loki/**
+          - opensearch/**
+          - otel-collector/**
+          - victoria-metrics/**
           - backend/tests/contract/**
 
 "area: deploy":

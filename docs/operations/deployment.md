@@ -106,10 +106,10 @@ How long each store keeps its data, and how much of it gets there, is set in the
 | What | Where | Value |
 |---|---|---|
 | Metrics | `--retentionPeriod` of `victoria-metrics` in docker-compose.yaml | 30 days |
-| Logs | `retention_period` in backend/loki/loki-config.yaml | 720h, 30 days |
-| Searchable logs | the `logs-30d` policy in backend/opensearch/logs-retention-policy.json | 30 days, one index a day |
+| Logs | `retention_period` in loki/loki-config.yaml | 720h, 30 days |
+| Searchable logs | the `logs-30d` policy in opensearch/logs-retention-policy.json | 30 days, one index a day |
 | Traces | `max_traces` in the `--set` flag of `jaeger` in docker-compose.yaml | 50 000, about 4 days at 12 600 a day; in memory, so a restart empties it |
-| Trace sampling | `tail_sampling` in backend/otel-collector-config.yaml | every trace with an error, every trace over 1 s, 10% of the rest |
+| Trace sampling | `tail_sampling` in otel-collector/otel-collector-config.yaml | every trace with an error, every trace over 1 s, 10% of the rest |
 
 Jaeger's built-in config would keep 100 000 traces. At about 2.3 KB each in memory that's around 260 MiB, over its 256m limit, so it would be OOM-killed after about a week and lose them all. The backend and the worker send every span (`TRACING_SAMPLING_RATE = 1.0` in config.toml) because the collector makes the app's metrics from spans; sampling happens only on the way to Jaeger. A change takes effect at the next release: compose recreates `victoria-metrics` and `jaeger` when their command changes, and the deploy restarts `loki`, `opensearch` and `otel-collector` when their config changes.
 

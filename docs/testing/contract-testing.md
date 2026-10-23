@@ -22,7 +22,7 @@ All three tests carry the `grafana_contract` marker.
 
 ## Running
 
-CI runs them in the backend unit job, right after the unit tests:
+CI runs them in the Grafana Contract Tests job whenever `backend/` or one of the service config folders (`grafana/`, `otel-collector/` and the rest) changes:
 
 ```bash
 cd backend

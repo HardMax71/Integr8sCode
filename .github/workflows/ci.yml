@@ -89,10 +89,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
+      # Each job keeps its own uv cache: they install different groups, and a shared key keeps whatever the first job to finish saved
       - name: Set up uv
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
         with:
           enable-cache: true
+          cache-suffix: ${{ github.job }}
+          cache-python: true
           cache-dependency-glob: "backend/uv.lock"
 
       - name: Install Python and dependencies
@@ -118,6 +121,8 @@ jobs:
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
         with:
           enable-cache: true
+          cache-suffix: ${{ github.job }}
+          cache-python: true
           cache-dependency-glob: "backend/uv.lock"
 
       - name: Install Python and dependencies
@@ -145,6 +150,8 @@ jobs:
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
         with:
           enable-cache: true
+          cache-suffix: ${{ github.job }}
+          cache-python: true
           cache-dependency-glob: "backend/uv.lock"
 
       - name: Install Python and dependencies
@@ -170,6 +177,7 @@ jobs:
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
         with:
           enable-cache: true
+          cache-suffix: ${{ github.job }}
           cache-dependency-glob: "backend/uv.lock"
 
       - name: Run bandit
@@ -226,6 +234,8 @@ jobs:
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
         with:
           enable-cache: true
+          cache-suffix: ${{ github.job }}
+          cache-python: true
           cache-dependency-glob: "backend/uv.lock"
 
       - name: Install backend dependencies
@@ -273,6 +283,7 @@ jobs:
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
         with:
           enable-cache: true
+          cache-suffix: ${{ github.job }}
 
       - name: Install backend dependencies
         run: cd backend && uv sync --frozen --no-dev --no-install-project --no-build
@@ -337,6 +348,8 @@ jobs:
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
         with:
           enable-cache: true
+          cache-suffix: ${{ github.job }}
+          cache-python: true
           cache-dependency-glob: "backend/uv.lock"
 
       - name: Install Python dependencies
@@ -378,6 +391,8 @@ jobs:
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
         with:
           enable-cache: true
+          cache-suffix: ${{ github.job }}
+          cache-python: true
           cache-dependency-glob: "backend/uv.lock"
 
       - name: Install Python dependencies
@@ -652,12 +667,10 @@ jobs:
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+          # The browser builds this Playwright downloads, so only a new build invalidates the cache
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/node_modules/playwright-core/browsers.json') }}
 
-      - name: Install Playwright system dependencies
-        working-directory: frontend
-        run: npm run test:e2e:deps
-
+      # No install-deps: the runner image has Chromium's libraries, and it only added fonts no test uses
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         working-directory: frontend

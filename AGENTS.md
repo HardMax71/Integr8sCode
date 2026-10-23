@@ -10,7 +10,7 @@ Platform for running scripts online in isolated Kubernetes pods. Users write Pyt
 | Backend | FastAPI, Dishka DI, Beanie ODM (MongoDB), Python 3.14 (backend/.python-version), async throughout, httpx2 for HTTP |
 | Events | Kafka (KRaft, no ZooKeeper) + FastStream (Pydantic JSON) |
 | Worker | one process (`app/worker.py`): execution scheduler, k8s worker, pod monitor, result processor, DLQ retries |
-| Infra | MongoDB 9 with a daily mongodump (`mongo-backup`), Redis 8; optional Grafana, Jaeger, Victoria Metrics, Loki, OpenSearch, OTel Collector plus its host-metrics collector (compose profile `observability`) and Kafdrop (profile `debug`) |
+| Infra | MongoDB 9 with a daily mongodump (`mongo-backup`), Redis 8; Grafana, Jaeger, Victoria Metrics, Loki, OpenSearch, OTel Collector plus its host-metrics collector; Kafdrop under the compose profile `debug` |
 | Runtimes | Python 3.11 to 3.14, Node 22/24/26, Ruby 3.3/3.4/4.0, Bash 5.3, Go 1.26/1.27 (app/runtime_registry.py) |
 
 ## Key Directory Map
@@ -91,7 +91,6 @@ cp .env.example .env                           # once: the local secrets
 docker compose up -d                           # start
 docker compose up -d --build                   # rebuild and start
 docker compose up -d --wait                    # start and wait for healthy
-docker compose --profile observability up -d   # plus Grafana, Jaeger, Victoria Metrics, Loki, OpenSearch, OTel Collector, host-metrics
 docker compose --profile debug up -d           # plus Kafdrop
 docker compose down                            # stop
 

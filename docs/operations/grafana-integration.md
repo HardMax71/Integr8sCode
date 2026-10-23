@@ -1,6 +1,6 @@
 # Grafana integration
 
-Grafana runs under the `observability` compose profile. Everything it shows is provisioned from [`grafana/`](https://github.com/HardMax71/Integr8sCode/tree/main/grafana): three datasources, thirteen dashboards, thirteen alert rules, an email contact point and a heartbeat webhook. Locally it's at `http://localhost:3000`; in production nginx serves it on `grafana.integr8scode.cc` (see [Nginx configuration](nginx-configuration.md#grafana-server)). Anonymous access is off. The admin login comes from `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` (default `admin` / `admin123`), and the entrypoint resets the password to that value on every start.
+Everything Grafana shows is provisioned from [`grafana/`](https://github.com/HardMax71/Integr8sCode/tree/main/grafana): three datasources, thirteen dashboards, thirteen alert rules, an email contact point and a heartbeat webhook. Locally it's at `http://localhost:3000`; in production nginx serves it on `grafana.integr8scode.cc` (see [Nginx configuration](nginx-configuration.md#grafana-server)). Anonymous access is off. The admin login comes from `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` (default `admin` / `admin123`), and the entrypoint resets the password to that value on every start.
 
 ## Datasources
 

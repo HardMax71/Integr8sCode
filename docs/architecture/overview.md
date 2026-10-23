@@ -34,7 +34,7 @@ The browser loads the SPA from the frontend container, an nginx that serves HTTP
 
 The worker is one more container from the same backend image, running `python -m app.worker`. Inside it, the execution scheduler starts executions from a Redis-backed queue, the k8s worker creates their pods through the Kubernetes API, the pod monitor watches the pods, and the result processor writes results to MongoDB. A DLQ job retries failed events every 10 seconds.
 
-The observability profile adds an OpenTelemetry Collector that ships traces to Jaeger, metrics to VictoriaMetrics and logs to Loki, with Grafana on top of all three. Kafdrop is under the debug profile. No container runs once and exits. nginx and the backend each make their own TLS certificate when they first start, and the backend seeds the users before it serves. The worker reads k3s's own kubeconfig and creates the `integr8scode` namespace with its NetworkPolicy and ResourceQuota.
+An OpenTelemetry Collector ships traces to Jaeger, metrics to VictoriaMetrics and logs to Loki, with Grafana on top of all three. Kafdrop is under the debug profile. No container runs once and exits. nginx and the backend each make their own TLS certificate when they first start, and the backend seeds the users before it serves. The worker reads k3s's own kubeconfig and creates the `integr8scode` namespace with its NetworkPolicy and ResourceQuota.
 
 ## Backend wiring
 

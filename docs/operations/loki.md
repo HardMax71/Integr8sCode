@@ -1,6 +1,6 @@
 # Log aggregation (Loki)
 
-Loki stores the logs of the backend and the worker, and the output of every container, so you can query them in Grafana across processes and time. It runs only with the `observability` compose profile. Without it, `docker compose logs` still shows each container's output from Docker's local cache.
+Loki stores the logs of the backend and the worker, and the output of every container, so you can query them in Grafana across processes and time. Without it, `docker compose logs` still shows each container's output from Docker's local cache.
 
 ```mermaid
 flowchart LR
@@ -31,7 +31,7 @@ Every compose service logs through Docker's `fluentd` log driver (the `x-logging
 
 Docker's lines arrive without a level, and Loki's own guess marks Mongo's and Redis's info lines as errors, so `transform/level` gives each one from its format before Loki sees it: a JSON or logfmt `level`, Mongo's `"s"`, a zap tab-separated level, nginx's `[error]`, then a level word such as log4j's or gunicorn's `ERROR`, a traceback's first line and Redis's marker after the time, and only then a plain `error` or `warn` word. Records that already have a level, like the backend's and worker's over OTLP, keep theirs. The [Errors dashboard](grafana-integration.md#dashboards) and the error-lines alert read the result through `detected_level`.
 
-With `fluentd-async` a container starts and buffers its lines while the collector is down or not in the profile, and `docker logs` reads Docker's local copy (3 files of 10 MB per container). The collector's own container keeps Docker's `local` driver, since its debug exporter would otherwise print its own lines back to itself.
+With `fluentd-async` a container starts and buffers its lines while the collector is down, and `docker logs` reads Docker's local copy (3 files of 10 MB per container). The collector's own container keeps Docker's `local` driver, since its debug exporter would otherwise print its own lines back to itself.
 
 Loki 3 accepts OTLP natively. Resource attributes such as `service.name` and `service.namespace` become stream labels (`service_name`, `service_namespace`). The record's `trace_id` and `span_id` become structured metadata. For our own events the log line is the JSON that structlog rendered. Third-party library records arrive as plain text, so `| json` can't pull fields out of them.
 

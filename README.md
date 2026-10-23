@@ -84,11 +84,11 @@ curl -k https://localhost/api/v1/health/live
 |--------------------|--------------------------------------------------|---------------------------------------------------------|
 | Frontend           | [https://localhost:5001](https://localhost:5001) | `user` / `user123` or `admin` / `admin123`              |
 | Backend API        | [https://localhost:443](https://localhost:443)   |                                                         |
-| Grafana            | [http://localhost:3000](http://localhost:3000)   | needs the `observability` profile; `admin` / `admin123` |
-| Jaeger (Tracing)   | [http://localhost:16686](http://localhost:16686) | needs the `observability` profile                       |
+| Grafana            | [http://localhost:3000](http://localhost:3000)   | `admin` / `admin123`                                    |
+| Jaeger (Tracing)   | [http://localhost:16686](http://localhost:16686) |                                                         |
 | Kafdrop (Kafka UI) | [http://localhost:9000](http://localhost:9000)   | needs the `debug` profile                               |
 
-`docker compose --profile observability up -d` adds Grafana, Jaeger, Victoria Metrics, Loki, OpenSearch and the OTel Collector, and `--profile debug` adds Kafdrop.
+The stack includes Grafana, Jaeger, Victoria Metrics, Loki, OpenSearch and the OTel Collector, and `docker compose --profile debug up -d` adds Kafdrop.
 
 nginx and the backend each make a self-signed certificate when they first start, so accept the browser warning. nginx verifies the backend's certificate on every proxied request. A certificate mounted at `/etc/nginx/certs` in the frontend container is used as is.
 

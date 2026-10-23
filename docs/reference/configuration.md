@@ -111,7 +111,7 @@ A language can raise its own pod's limits above the system settings. Go gets at 
 | `HOSTNAME` | the machine's hostname | default | `service.instance.id` on logs and spans; inside a container that's the container ID |
 | `LOG_LEVEL` | `INFO` | config.toml | structlog level |
 
-Jaeger and the OTel collector only run with the `observability` compose profile. Without them the exporters log connection errors and the app keeps working.
+While the OTel collector is down, the exporters log connection errors and the app keeps working.
 
 ## Server
 

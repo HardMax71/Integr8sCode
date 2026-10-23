@@ -57,12 +57,12 @@ Limits are system-wide, not per execution. An execution request carries only the
 
 ## Look around
 
-Kafdrop, Grafana and Jaeger aren't part of the default stack. `docker compose --profile observability up -d` adds Grafana, Jaeger, Victoria Metrics, Loki, OpenSearch and the OTel collector, and `--profile debug` adds Kafdrop. All of them listen on localhost only.
+The stack also runs Grafana, Jaeger, Victoria Metrics, Loki, OpenSearch and the OTel collector, and `docker compose --profile debug up -d` adds Kafdrop. All of them listen on localhost only.
 
 | Service | URL | Needs |
 |---------|-----|-------|
-| Grafana | [http://localhost:3000](http://localhost:3000) (admin / admin123) | `--profile observability` |
-| Jaeger | [http://localhost:16686](http://localhost:16686) | `--profile observability` |
+| Grafana | [http://localhost:3000](http://localhost:3000) (admin / admin123) | |
+| Jaeger | [http://localhost:16686](http://localhost:16686) | |
 | Kafdrop | [http://localhost:9000](http://localhost:9000) | `--profile debug` |
 
 ## Troubleshooting

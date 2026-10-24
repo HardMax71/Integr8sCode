@@ -41,13 +41,13 @@ All dashboards land in one folder, `Integr8sCode`, with the fixed UID `integr8sc
 --8<-- "grafana/provisioning/alerting/alerting.yml"
 ```
 
-Every rule is an instant query evaluated every minute, and each summary names the service or mount and the value. Rules that point at a panel carry its `dashboardUid` and `panelId`, so the mail links to it.
+Every rule is an instant query evaluated every minute, and each summary names the service or mount and the value. Rules that point at a panel carry its `dashboardUid` and `panelId`, and the same two as the `__dashboardUid__` and `__panelId__` annotations, since Grafana puts the panel link into the mail only from those.
 
 | Rule | Fires when | Severity |
 |---|---|---|
 | Host Memory, Host Disk | memory over 85% for 5 minutes or 95% for 2; disk over 80% for 10 minutes or 90% for 5 | warning, critical |
 | Container restarted, Container stopped | Docker restarted a container in the last 10 minutes; a container seen in the last 10 minutes hasn't reported for a minute, for 1 minute | critical |
-| Error lines | a service logged any error line in 5 minutes, one alert per service, from Loki's `detected_level` | warning |
+| Error lines | any error line in 5 minutes, from Loki's `detected_level`; one alert per service and line template ([Loki](loki.md#container-output)), so the mail lists each kind of error with its count | warning |
 | API 5xx, Kafka lag, MongoDB down, DLQ | 5xx over 1% for 5 minutes; a group with consumers 100 messages behind for 10 minutes; health under 1 or no data for 2 minutes; any DLQ message for 30 minutes or over 50 for 5 | critical or warning |
 
 The memory and disk rules read the host-metrics collector's scrapers; `system.memory.utilization` is off by default and `otel-host-metrics.yaml` turns it on. The container rules read the collector's docker_stats receiver.
@@ -55,6 +55,20 @@ The memory and disk rules read the host-metrics collector's scrapers; `system.me
 The Heartbeat rule always fires. A child policy sends it to the `heartbeat` contact point, a webhook to `ALERT_HEARTBEAT_URL`, every 5 minutes; the outside monitor behind that URL alerts when the pings stop, since nothing inside the host can report the host's or Grafana's own death. Locally the URL defaults to the collector's health endpoint, which answers any POST.
 
 All other alerts go to the `email-alerts` contact point, which sends one email addressed to everyone in `GRAFANA_ALERT_RECIPIENTS` (`singleEmail: true`). SMTP is configured in grafana.ini from env vars that compose fills in: `GF_SMTP_HOST`, `MAILJET_API_KEY` as the user, `MAILJET_SECRET_KEY` as the password and `MAILJET_FROM_ADDRESS` as the sender. Locally `GF_SMTP_HOST` is empty, so alerts fire but no mail goes out. Production sets it from the `MAILJET_HOST` secret.
+
+The `email` template in the same file writes the subject and the body. The first line is the rule's `description` when it has one, then comes one line per alert from its `summary`, the resolved ones under "Resolved:", and the panel link, or the rule's page for a rule without a panel. An Error lines mail from a local run, with the backend unreachable and the worker failing to create pods, read:
+
+```text
+16 errors in the last 5 minutes:
+- 1x frontend: 2026/10/24 21:36:35 [error] 41#41: *6 backend could not be resolved (3: Host not found), client: 172.19.0.1, server: _, request: "GET /api/v1/x1 HTTP/1.1", host: "localhost:15001"
+- 10x frontend: 2026/10/24 <*> [error] <*> <*> backend could not be resolved (3: Host not found), client: 172.19.0.1, server: _, request: "GET <*> HTTP/1.1", host: "localhost:15001"
+- 1x integr8scode-worker: {"event": "Pod creation failed", "execution_id": "a1b2", "error": "boom", "logger": "integr8scode", "level": "error", "timestamp": "2026-10-24T21:30:00.000Z", <exception>}
+- 4x integr8scode-worker: {"event": "Pod creation failed", "execution_id": <*> "error": <*> "logger": "integr8scode", "level": "error", "timestamp": <*> <exception>}
+
+https://grafana.integr8scode.cc/d/errors?orgId=1&viewPanel=5
+```
+
+The 1x lines are the first of each shape: the collector keeps a line whole until a second one like it arrives.
 
 The rule group names its folder by title, `Integr8sCode`. If the rules load before the dashboard provider creates that folder, Grafana makes a second `Integr8sCode` folder with a random UID and puts the rules there. The compose entrypoint avoids that: it starts Grafana without the alerting files, waits for `/api/folders/integr8scode`, then copies them in and calls `/api/admin/provisioning/alerting/reload`.
 

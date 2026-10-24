@@ -909,6 +909,24 @@ processors:
           - 'set(log.severity_text, "WARN") where log.severity_text == "" and log.severity_number == SEVERITY_NUMBER_WARN'
           - 'set(log.severity_text, "INFO") where log.severity_text == "" and log.severity_number == SEVERITY_NUMBER_INFO'
 
+  # Lines of one shape share a template ("open() <*> failed (2: No such file or directory)"); the error-lines alert lists them by it
+  drain:
+    max_clusters: 1000
+    masking_rules:
+      # A traceback, after a line break or in structlog's exception field, becomes one token, so its depth doesn't split the template
+      - name: more
+        pattern: '\n[\s\S]*'
+      - name: exception
+        pattern: '"exception": "(?:[^"\\]|\\.)*"'
+
+  # Only error lines keep the template, since Loki and OpenSearch store every attribute of every line
+  transform/template:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - delete_key(log.attributes, "log.record.template") where log.severity_number < SEVERITY_NUMBER_ERROR
+
 exporters:
   # Export to Jaeger for traces via OTLP
   otlp_grpc/jaeger:
@@ -995,12 +1013,12 @@ service:
     
     logs:
       receivers: [otlp, fluent_forward]
-      processors: [memory_limiter, filter/app_json_stdout, filter/mongo_info, groupbyattrs/container, transform/container, transform/level, batch, resource]
+      processors: [memory_limiter, filter/app_json_stdout, filter/mongo_info, groupbyattrs/container, transform/container, transform/level, drain, transform/template, batch, resource]
       exporters: [otlp_http/loki, forward/search, debug]
 
     logs/browser:
       receivers: [otlp/browser]
-      processors: [memory_limiter, filter/browser, transform/browser, batch, resource]
+      processors: [memory_limiter, filter/browser, transform/browser, drain, transform/template, batch, resource]
       exporters: [otlp_http/loki, forward/search]
 
     logs/search:

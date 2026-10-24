@@ -19,7 +19,17 @@ flowchart LR
 --8<-- "frontend/nginx.conf.template:server_block"
 ```
 
-Both server blocks listen on `5001 ssl` with `/etc/nginx/certs/server.crt` and `server.key`. Mount your own pair there and nginx uses it; otherwise a script the image puts in `/docker-entrypoint.d/` makes a self-signed pair before nginx starts and keeps it for the container's lifetime. Compose publishes the port as `5001:5001`.
+Both server blocks listen on `5001 ssl` with `/etc/nginx/certs/server.crt` and `server.key`. Mount your own pair there and nginx uses it; otherwise a script the image puts in `/docker-entrypoint.d/` makes a self-signed pair before nginx starts and keeps it for the container's lifetime. Compose publishes the port as `5001:5001`. In production the host's firewall lets only Cloudflare's ranges reach it, so every visitor comes through Cloudflare.
+
+### Client addresses and logging
+
+```nginx
+--8<-- "frontend/nginx.conf.template:client_address"
+```
+
+Behind Cloudflare every connection comes from a Cloudflare address. `set_real_ip_from` lists Cloudflare's published ranges, and `real_ip_header CF-Connecting-IP` makes nginx take the visitor's address from that header on connections from those ranges only. A connection from anywhere else keeps its own address whatever headers it sends. Everything after that sees the visitor: the access log, the browser-log rate limit below, and the `X-Real-IP` and `X-Forwarded-For` headers nginx sends upstream. Both carry `$remote_addr` alone, so an `X-Forwarded-For` a client made up never reaches the backend's rate limiter. Cloudflare changes the list rarely; [cloudflare.com/ips](https://www.cloudflare.com/ips/) has the current one.
+
+`log_not_found off` keeps requests for missing files out of the error log; they're still 404s in the access log. Before it, every scanner probing for `/wp-includes/` or `/firebaseConfig.js` wrote an `[error]` line, and the [error-lines alert](grafana-integration.md#alerting) mailed it.
 
 ### Security headers
 
@@ -69,7 +79,7 @@ The SSE location under `/api/v1/events/` speaks HTTP/1.1 with an empty `Connecti
 --8<-- "frontend/nginx.conf.template:browser_logs"
 ```
 
-The app sends its log records here as OTLP JSON, at most one batch a second, and nginx passes them to the collector's `otlp/browser` receiver ([Loki](loki.md#collector) has the rest of the path). Anyone can post to this path, so it takes POST only, bodies up to 64 KB, and 30 requests a minute per address with a burst of 30, from the `limit_req_zone` at the top of the file; past that nginx answers 429. The upstream goes through a variable like the backend's, so nginx starts while the collector is down and this path returns 502 until it's back.
+The app sends its log records here as OTLP JSON, at most one batch a second, and nginx passes them to the collector's `otlp/browser` receiver ([Loki](loki.md#collector) has the rest of the path). Anyone can post to this path, so it takes POST only, bodies up to 64 KB, and 30 requests a minute per visitor address with a burst of 30, from the `limit_req_zone` at the top of the file; past that nginx answers 429. The upstream goes through a variable like the backend's, so nginx starts while the collector is down and this path returns 502 until it's back.
 
 ### Static files and SPA routing
 

@@ -31,7 +31,7 @@ The bucket key is the user id from a valid access token, or the client IP when t
 --8<-- "backend/app/core/middlewares/rate_limit.py:extract_user_id"
 ```
 
-`decode_user_id` checks the signature and expiry and reads the token's `user_id` claim, which login sets. A forged or expired cookie fails that check, so it can't pick someone else's bucket. Tokens issued before the claim existed fall back to the IP until they expire. `get_client_ip` uses the socket peer address. It reads `X-Forwarded-For` (first entry) or `X-Real-IP` only when the peer is a loopback or private address, which is the case behind the frontend nginx.
+`decode_user_id` checks the signature and expiry and reads the token's `user_id` claim, which login sets. A forged or expired cookie fails that check, so it can't pick someone else's bucket. Tokens issued before the claim existed fall back to the IP until they expire. `get_client_ip` uses the socket peer address. It reads `X-Forwarded-For` (first entry) or `X-Real-IP` only when the peer is a loopback or private address, which is the case behind the frontend nginx. nginx sets both to the visitor's address and drops any `X-Forwarded-For` the client sent. Behind Cloudflare it takes that address from `CF-Connecting-IP`, and only on connections from Cloudflare's ranges ([Nginx configuration](../operations/nginx-configuration.md#client-addresses-and-logging)).
 
 ## Rules
 

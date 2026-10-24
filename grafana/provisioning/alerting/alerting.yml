@@ -9,6 +9,8 @@ contactPoints:
         settings:
           addresses: ${GF_SMTP_ALERT_RECIPIENTS}
           singleEmail: true
+          subject: '{{ template "email.subject" . }}'
+          message: '{{ template "email.message" . }}'
 
   # An outside dead man's switch; when its pings stop, the host or Grafana is down
   - orgId: 1
@@ -20,6 +22,20 @@ contactPoints:
           url: ${ALERT_HEARTBEAT_URL}
           httpMethod: POST
         disableResolveMessage: true
+
+# One line per alert from its summary, under the rule's description when it has one
+templates:
+  - orgId: 1
+    name: email
+    template: |
+      {{ define "email.subject" }}[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}{{ with .Alerts.Firing }}{{ with (index . 0).Annotations.description }}: {{ . }}{{ end }}{{ end }}{{ end }}
+      {{ define "email.message" }}{{ with .Alerts.Firing }}{{ with (index . 0).Annotations.description }}{{ . }}:
+      {{ end }}{{ range . }}- {{ .Annotations.summary }}
+      {{ end }}{{ end }}{{ with .Alerts.Resolved }}
+      Resolved:
+      {{ range . }}- {{ .Annotations.summary }}
+      {{ end }}{{ end }}
+      {{ with index .Alerts 0 }}{{ or .PanelURL .GeneratorURL }}{{ end }}{{ end }}
 
 policies:
   - orgId: 1
@@ -36,6 +52,7 @@ policies:
         group_interval: 1m
         repeat_interval: 5m
 
+# The email links a rule's panel only through the __dashboardUid__ and __panelId__ annotations; dashboardUid and panelId alone don't reach it
 groups:
   - orgId: 1
     name: infrastructure-alerts
@@ -135,6 +152,8 @@ groups:
         dashboardUid: http-middleware
         panelId: 108
         annotations:
+          __dashboardUid__: http-middleware
+          __panelId__: "108"
           summary: "Disk {{ $labels.mountpoint }} is {{ printf \"%.0f\" $values.A.Value }}% full"
         labels:
           severity: warning
@@ -166,6 +185,8 @@ groups:
         dashboardUid: http-middleware
         panelId: 108
         annotations:
+          __dashboardUid__: http-middleware
+          __panelId__: "108"
           summary: "Disk {{ $labels.mountpoint }} is {{ printf \"%.0f\" $values.A.Value }}% full; a full disk stopped prod before"
         labels:
           severity: critical
@@ -197,6 +218,8 @@ groups:
         dashboardUid: errors
         panelId: 3
         annotations:
+          __dashboardUid__: errors
+          __panelId__: "3"
           summary: "{{ $labels.container_name }} restarted {{ printf \"%.0f\" $values.A.Value }} times in 10 minutes"
         labels:
           severity: critical
@@ -229,6 +252,8 @@ groups:
         dashboardUid: errors
         panelId: 4
         annotations:
+          __dashboardUid__: errors
+          __panelId__: "4"
           summary: "{{ $labels.container_name }} stopped reporting; it was up {{ printf \"%.0f\" $values.A.Value }} s"
         labels:
           severity: critical
@@ -248,7 +273,15 @@ groups:
               to: 0
             datasourceUid: loki
             model:
-              expr: sum by (service_name) (count_over_time({service_namespace="integr8scode"} | detected_level="error" [5m]))
+              expr: sum by (service_name, log_record_template) (count_over_time({service_namespace="integr8scode"} | detected_level="error" [5m]))
+              queryType: instant
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: sum(count_over_time({service_namespace="integr8scode"} | detected_level="error" [5m]))
               queryType: instant
           - refId: C
             datasourceUid: __expr__
@@ -262,9 +295,12 @@ groups:
         for: 0s
         noDataState: OK
         dashboardUid: errors
-        panelId: 1
+        panelId: 5
         annotations:
-          summary: "{{ $labels.service_name }} logged {{ printf \"%.0f\" $values.A.Value }} error lines in 5 minutes"
+          __dashboardUid__: errors
+          __panelId__: "5"
+          description: "{{ printf \"%.0f\" $values.B.Value }} {{ if eq $values.B.Value 1.0 }}error{{ else }}errors{{ end }} in the last 5 minutes"
+          summary: "{{ printf \"%.0f\" $values.A.Value }}x {{ $labels.service_name }}: {{ $labels.log_record_template }}"
         labels:
           severity: warning
 
@@ -295,6 +331,8 @@ groups:
         dashboardUid: http-middleware
         panelId: 1
         annotations:
+          __dashboardUid__: http-middleware
+          __panelId__: "1"
           summary: "{{ printf \"%.1f\" $values.A.Value }}% of API requests answered 5xx over 5 minutes"
         labels:
           severity: critical
@@ -327,6 +365,8 @@ groups:
         dashboardUid: kafka-events-monitoring
         panelId: 21
         annotations:
+          __dashboardUid__: kafka-events-monitoring
+          __panelId__: "21"
           summary: "{{ $labels.group }} is {{ printf \"%.0f\" $values.A.Value }} messages behind on {{ $labels.topic }}"
         labels:
           severity: warning
@@ -359,6 +399,8 @@ groups:
         dashboardUid: mongodb-monitoring
         panelId: 1
         annotations:
+          __dashboardUid__: mongodb-monitoring
+          __panelId__: "1"
           summary: "MongoDB reports unhealthy or stopped reporting"
         labels:
           severity: critical
@@ -390,6 +432,8 @@ groups:
         dashboardUid: dlq-monitoring
         panelId: 1
         annotations:
+          __dashboardUid__: dlq-monitoring
+          __panelId__: "1"
           summary: "{{ printf \"%.0f\" $values.A.Value }} messages have waited in the DLQ for 30 minutes"
         labels:
           severity: warning
@@ -421,6 +465,8 @@ groups:
         dashboardUid: dlq-monitoring
         panelId: 5
         annotations:
+          __dashboardUid__: dlq-monitoring
+          __panelId__: "5"
           summary: "{{ printf \"%.0f\" $values.A.Value }} messages are waiting in the DLQ"
         labels:
           severity: critical

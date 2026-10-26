@@ -447,7 +447,7 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    image: otel/opentelemetry-collector-contrib:0.163.1
+    image: otel/opentelemetry-collector-contrib:0.163.1-386
     container_name: otel-collector
     mem_limit: 192m
     command: ["--config=/etc/otel-collector-config.yaml"]
@@ -495,7 +495,7 @@ services:
 
   host-metrics:
     logging: *logging
-    image: otel/opentelemetry-collector-contrib:0.163.1
+    image: otel/opentelemetry-collector-contrib:0.163.1-386
     container_name: host-metrics
     # In the host's network namespace the network scraper reads the host's interfaces, and 127.0.0.1:4317 reaches otel-collector
     network_mode: host

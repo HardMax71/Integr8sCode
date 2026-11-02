@@ -368,7 +368,7 @@ services:
   loki:
     logging: *logging
     container_name: loki
-    image: grafana/loki:3.7.8
+    image: grafana/loki:3.7.9
     ports:
       - "127.0.0.1:3100:3100"
     volumes:
@@ -416,7 +416,7 @@ services:
   # Victoria Metrics - Time series database
   victoria-metrics:
     logging: *logging
-    image: victoriametrics/victoria-metrics:v1.154.0
+    image: victoriametrics/victoria-metrics:v1.154.1
     container_name: victoria-metrics
     mem_limit: 256m
     ports:
@@ -447,7 +447,7 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    image: otel/opentelemetry-collector-contrib:0.163.1-386
+    image: otel/opentelemetry-collector-contrib:0.163.2-386
     container_name: otel-collector
     mem_limit: 192m
     command: ["--config=/etc/otel-collector-config.yaml"]
@@ -495,7 +495,7 @@ services:
 
   host-metrics:
     logging: *logging
-    image: otel/opentelemetry-collector-contrib:0.163.1-386
+    image: otel/opentelemetry-collector-contrib:0.163.2-386
     container_name: host-metrics
     # In the host's network namespace the network scraper reads the host's interfaces, and 127.0.0.1:4317 reaches otel-collector
     network_mode: host

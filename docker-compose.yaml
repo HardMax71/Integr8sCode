@@ -175,7 +175,7 @@ services:
   grafana:
     logging: *logging
     container_name: grafana
-    image: grafana/grafana:13.2.4
+    image: grafana/grafana:13.3.0
     user: "472"
     # Alert rules load after dashboards create the integr8scode folder; loaded first, they'd make one with a random UID
     entrypoint:
@@ -236,7 +236,7 @@ services:
   # Kafka in KRaft mode, no ZooKeeper
   kafka:
     logging: *logging
-    image: confluentinc/cp-kafka:8.3.2
+    image: confluentinc/cp-kafka:8.4.0
     container_name: kafka
     ports:
       - "127.0.0.1:9092:9092"
@@ -302,7 +302,7 @@ services:
 
   kafdrop:
     logging: *logging
-    image: obsidiandynamics/kafdrop:4.3.0
+    image: obsidiandynamics/kafdrop:4.3.1
     container_name: kafdrop
     profiles: ["debug"]
     depends_on:
@@ -416,7 +416,7 @@ services:
   # Victoria Metrics - Time series database
   victoria-metrics:
     logging: *logging
-    image: victoriametrics/victoria-metrics:v1.154.1
+    image: victoriametrics/victoria-metrics:v1.155.0
     container_name: victoria-metrics
     mem_limit: 256m
     ports:
@@ -447,7 +447,7 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    image: otel/opentelemetry-collector-contrib:0.163.2-386
+    image: otel/opentelemetry-collector-contrib:0.164.0-386
     container_name: otel-collector
     mem_limit: 192m
     command: ["--config=/etc/otel-collector-config.yaml"]
@@ -495,7 +495,7 @@ services:
 
   host-metrics:
     logging: *logging
-    image: otel/opentelemetry-collector-contrib:0.163.2-386
+    image: otel/opentelemetry-collector-contrib:0.164.0-386
     container_name: host-metrics
     # In the host's network namespace the network scraper reads the host's interfaces, and 127.0.0.1:4317 reaches otel-collector
     network_mode: host

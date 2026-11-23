@@ -1,7 +1,7 @@
 # Backend image, used by the API and the worker
 # The builder stage keeps gcc and the dev headers out of the final image
 
-FROM python:3.14-slim AS builder
+FROM python:3.15-slim AS builder
 
 WORKDIR /app
 
@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-install-project --no-build
 
 # Python, runtime libs and the locked dependencies; CI builds and caches this stage on its own
-FROM python:3.14-slim AS base
+FROM python:3.15-slim AS base
 
 WORKDIR /app
 
